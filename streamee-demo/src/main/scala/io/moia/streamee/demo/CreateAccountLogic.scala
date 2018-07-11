@@ -16,7 +16,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 
 /**
-  * Deom logic pipeline for creating an account. See [[CreateAccountLogic.apply]] for details.
+  * Demo domain logic pipeline for creating an account. See [[CreateAccountLogic.apply]] for details.
   */
 object CreateAccountLogic {
 

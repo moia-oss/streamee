@@ -13,25 +13,27 @@ import utest._
 object ExpiringPromiseTests extends TestSuite {
   import ExpiringPromise._
 
-  private val system = ActorSystem[Nothing](Behaviors.empty, "ExpiringPromiseTests")
+  private val system: ActorSystem[Nothing] =
+    ActorSystem(Behaviors.empty, "ExpiringPromiseTests")
+
+  private implicit val scheduler: Scheduler =
+    system.scheduler
+
+  import system.executionContext
 
   override def tests: Tests =
     Tests {
       'expire - {
-        import system.executionContext
-        implicit val scheduler: Scheduler = system.scheduler
-
         val timeout = 100.milliseconds
         val promise = ExpiringPromise[String](timeout)
+
         promise.future.failed.map(t => assert(t == PromiseExpired(timeout)))
       }
 
       'expireNot - {
-        import system.executionContext
-        implicit val scheduler: Scheduler = system.scheduler
-
         val timeout = 100.milliseconds
         val promise = ExpiringPromise[String](timeout)
+
         val success = "success"
         promise.trySuccess(success)
         promise.future.map(s => assert(s == success))

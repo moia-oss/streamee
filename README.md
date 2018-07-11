@@ -21,8 +21,8 @@ domain modeling is for long-lived – maybe even persistent – state which is u
 fact many features of a typical business application can much better be expressed as processes: 
 linear pipelines in which the domain logic is implemented as a series of consecutive
 steps/tasks/stages. Ultimately these pipelines can be viewed as processors which take commands and 
-output results – both domain objects. Streamee aims at making it easy to connect the HTTP routes
-with these processors.
+eventually output results – both domain objects. Streamee aims at making it easy to connect the HTTP
+routes with these processors.
 
 Finally – and this has shown to be highly relevant for MOIA – using actors to model long-lived
 processes (technically this is perfectly possible, e.g. by using persistent state machines) might

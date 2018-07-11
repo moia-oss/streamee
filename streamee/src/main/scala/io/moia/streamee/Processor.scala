@@ -133,30 +133,29 @@ object Processor extends Logging {
   }
 
   /**
-    * Runs a pipeline (Akka Streams flow) for processing commands to results. Commands offered via
-    * the returned queue are emitted into the given `logic` flow. Once that emits a result, the
-    * given promise is completed with success. If the logic back-pressures, offered commands are
-    * dropped. The returned [[ShutdownSwitch]] can be used to shutdown: all commands are dropped and
-    * once all in-flight commands have been processed, the future returned from
-    * [[ShutdownSwitch.shutdown]] is completed successfully.
+    * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. Commands
+    * offered via the returned queue are emitted into the given `pipeline` flow. Once results are
+    * available the promise given together with the command is completed with success. If the
+    * pipeline back-pressures, offered commands are dropped. The returned [[ShutdownSwitch]] can be
+    * used to shutdown: all commands are dropped and once all in-flight commands have been
+    * processed, the future returned from [[ShutdownSwitch.shutdown]] is completed successfully.
     *
     * '''Attention''': the given domain logic pipeline must emit exactly one result for every
     * command and the sequence of the elements in the stream must be maintained!
     *
-    * @param logic domain logic pipeline from command to result
+    * @param pipeline domain logic pipeline from command to result
     * @param mat materializer to run the stream
     * @tparam C command type
     * @tparam R result type
     * @return queue for command-promise pairs and shutdown switch
     */
-  // TODO Maybe require C and R to have a correlation id, e.g. via `<: Correlated` or `: Correlated`?
   def apply[C, R](
-      logic: Flow[C, R, Any]
+      pipeline: Flow[C, R, Any]
   )(implicit mat: Materializer): (SourceQueue[(C, Promise[R])], ShutdownSwitch) = {
     import mat.executionContext
     Source
       .queue[(C, Promise[R])](0, OverflowStrategy.dropNew) // Important: use 0 to disable buffer!
-      .viaMat(wrapLogic(logic))(Keep.both)
+      .viaMat(wrapLogic(pipeline))(Keep.both)
       .to(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })
       .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
       .run()
