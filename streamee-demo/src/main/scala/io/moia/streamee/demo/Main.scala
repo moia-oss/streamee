@@ -24,7 +24,7 @@ import pureconfig.loadConfigOrThrow
 object Main extends Logging {
   import akka.actor.typed.scaladsl.adapter._
 
-  final case class Config(api: Api.Config, createAccountLogic: CreateAccountLogic.Config)
+  final case class Config(api: Api.Config)
 
   final object TopLevelActorTerminated extends Reason
 
@@ -63,9 +63,6 @@ object Main extends Logging {
     implicit val mat: Materializer            = ActorMaterializer()(context.system)
     implicit val scheduler: Scheduler         = context.system.scheduler
 
-    val accounts = context.spawn(Accounts(), "accounts")
-    context.watch(accounts)
-
-    Api(config.api, CreateAccountLogic(config.createAccountLogic, accounts))
+    Api(config.api, DemoLogic(scheduler)(untypedSystem.dispatcher))
   }
 }

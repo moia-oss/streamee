@@ -24,20 +24,16 @@ import scala.util.{ Failure, Success }
   * API for this demo.
   */
 object Api extends Logging {
-  import CreateAccountLogic._
 
-  final case class Config(address: String,
-                          port: Int,
-                          createAccountProcessorMaxLatency: FiniteDuration)
+  final case class Config(address: String, port: Int, demoProcessorMaxLatency: FiniteDuration)
 
-  private final case class SignUp(username: String, password: String, nickname: String)
-  private final case class SignIn(username: String, password: String)
+  private final case class Entity(s: String)
 
   private final object BindFailure extends Reason
 
   def apply(
       config: Config,
-      createAccountLogic: Flow[CreateAccount, CreateAccountResult, NotUsed]
+      demoLogic: Flow[String, String, NotUsed]
   )(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
     import config._
     import untypedSystem.dispatcher
@@ -46,11 +42,11 @@ object Api extends Logging {
     val shutdown                      = CoordinatedShutdown(untypedSystem)
 
     // In real-world scenarios we probably would have more than one processor here!
-    val (createAccountProcessor, createAccountShutdownSwitch) = Processor(createAccountLogic)
+    val (demoProcessor, demoShutdownSwitch) = Processor(demoLogic)
 
     Http()
       .bindAndHandle(
-        route(createAccountProcessor, createAccountProcessorMaxLatency, shutdown),
+        route(demoProcessor, demoProcessorMaxLatency, shutdown),
         address,
         port
       )
@@ -66,17 +62,16 @@ object Api extends Logging {
           }
           // This is important for not loosing in-flight requests!
           shutdown.addTask(PhaseServiceRequestsDone, "api.requests-done") { () =>
-            createAccountShutdownSwitch.shutdown()
+            demoShutdownSwitch.shutdown()
           }
       }
   }
 
   def route(
-      createAccountProcessor: SourceQueue[(CreateAccount, Promise[CreateAccountResult])],
-      createAccountProcessorMaxLatency: FiniteDuration,
+      demoProcessor: SourceQueue[(String, Promise[String])],
+      demoProcessorMaxLatency: FiniteDuration,
       shutdown: CoordinatedShutdown
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
-    import CreateAccountLogic._
     import Directives._
     import ErrorAccumulatingCirceSupport._
     import ProcessorDirectives._
@@ -91,18 +86,15 @@ object Api extends Logging {
     } ~
     pathPrefix("accounts") {
       post {
-        entity(as[CreateAccount]) {
-          case createAccount @ CreateAccount(username) =>
-            onProcessorSuccess(createAccount,
-                               createAccountProcessor,
-                               createAccountProcessorMaxLatency,
-                               scheduler) {
-              case UsernameInvalid =>
-                complete(StatusCodes.BadRequest -> s"Username invalid: $username")
-              case UsernameTaken =>
-                complete(StatusCodes.Conflict -> s"Username taken: $username")
-              case ac: AccountCreated =>
-                complete(StatusCodes.Created -> ac)
+        entity(as[Entity]) {
+          case Entity(s) =>
+            onProcessorSuccess(s, demoProcessor, demoProcessorMaxLatency, scheduler) {
+              case s if s.isEmpty =>
+                complete(StatusCodes.BadRequest -> "Empty entity!")
+              case s if s.startsWith("taxi") =>
+                complete(StatusCodes.Conflict -> "We don't like taxis ;-)")
+              case s =>
+                complete(StatusCodes.Created -> s)
             }
         }
       }

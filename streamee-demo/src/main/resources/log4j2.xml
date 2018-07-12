@@ -10,7 +10,7 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="io.moia.streamee.demo" level="${sys:loglevel.demoprocess:-debug}"
+        <Logger name="io.moia.streamee" level="${sys:loglevel.demoprocess:-debug}"
                 additivity="false">
             <AppenderRef ref="stdout"/>
         </Logger>
