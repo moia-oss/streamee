@@ -13,7 +13,7 @@ object ExpiringPromiseTests extends TestSuite {
   import ExpiringPromise._
 
   private val system: ActorSystem[Nothing] =
-    ActorSystem(Behaviors.empty, "ExpiringPromiseTests")
+    ActorSystem(Behaviors.empty, getClass.getSimpleName.init)
 
   private val scheduler = system.scheduler
 
@@ -39,7 +39,7 @@ object ExpiringPromiseTests extends TestSuite {
     }
 
   override def utestAfterAll(): Unit = {
-    super.utestAfterAll()
     system.terminate()
+    super.utestAfterAll()
   }
 }

@@ -17,7 +17,7 @@ import utest._
 object ProcessorTests extends TestSuite {
 
   private implicit val system: ActorSystem[Nothing] =
-    ActorSystem(Behaviors.empty, "ExpiringPromiseTests")
+    ActorSystem(Behaviors.empty, getClass.getSimpleName.init)
 
   private implicit val mat: Materializer =
     ActorMaterializer()
@@ -31,8 +31,7 @@ object ProcessorTests extends TestSuite {
   override def tests: Tests =
     Tests {
       'inTime - {
-        val pipeline       = toUpperCase
-        val (processor, _) = Processor(pipeline)
+        val (processor, _) = Processor(toUpperCase)
 
         val promise = ExpiringPromise[String](100.milliseconds, scheduler)
         processor.offer(("abc", promise))
