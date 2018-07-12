@@ -22,12 +22,12 @@ object ExpiringPromise {
     * `timeout` or completed with a [[PromiseExpired]] exception.
     *
     * @param timeout maximum duration for the promise to be completed successfully
-    * @param ec Scala execution context for timeout handling
     * @param scheduler Akka scheduler needed for timeout handling
+    * @param ec Scala execution context for timeout handling
     * @tparam R result type
     */
-  def apply[R](timeout: FiniteDuration)(implicit ec: ExecutionContext,
-                                        scheduler: Scheduler): Promise[R] = {
+  def apply[R](timeout: FiniteDuration,
+               scheduler: Scheduler)(implicit ec: ExecutionContext): Promise[R] = {
     val promisedR     = Promise[R]()
     val resultTimeout = after(timeout, scheduler)(Future.failed(PromiseExpired(timeout)))
     promisedR.tryCompleteWith(resultTimeout)

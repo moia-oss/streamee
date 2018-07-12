@@ -4,7 +4,6 @@
 
 package io.moia.streamee
 
-import akka.actor.Scheduler
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import scala.concurrent.duration.DurationInt
@@ -16,8 +15,7 @@ object ExpiringPromiseTests extends TestSuite {
   private val system: ActorSystem[Nothing] =
     ActorSystem(Behaviors.empty, "ExpiringPromiseTests")
 
-  private implicit val scheduler: Scheduler =
-    system.scheduler
+  private val scheduler = system.scheduler
 
   import system.executionContext
 
@@ -25,14 +23,14 @@ object ExpiringPromiseTests extends TestSuite {
     Tests {
       'expire - {
         val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
+        val promise = ExpiringPromise[String](timeout, scheduler)
 
         promise.future.failed.map(t => assert(t == PromiseExpired(timeout)))
       }
 
       'expireNot - {
         val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
+        val promise = ExpiringPromise[String](timeout, scheduler)
 
         val success = "success"
         promise.trySuccess(success)

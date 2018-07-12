@@ -93,9 +93,10 @@ object Api extends Logging {
       post {
         entity(as[CreateAccount]) {
           case createAccount @ CreateAccount(username) =>
-            onProcessorSuccess(createAccountProcessor, createAccountProcessorMaxLatency, shutdown)(
-              createAccount
-            ) {
+            onProcessorSuccess(createAccount,
+                               createAccountProcessor,
+                               createAccountProcessorMaxLatency,
+                               scheduler) {
               case UsernameInvalid =>
                 complete(StatusCodes.BadRequest -> s"Username invalid: $username")
               case UsernameTaken =>

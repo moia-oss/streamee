@@ -4,7 +4,6 @@
 
 package io.moia.streamee
 
-import akka.actor.Scheduler
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.stream.scaladsl.Flow
@@ -23,8 +22,7 @@ object ProcessorTests extends TestSuite {
   private implicit val mat: Materializer =
     ActorMaterializer()
 
-  private implicit val scheduler: Scheduler =
-    system.scheduler
+  private val scheduler = system.scheduler
 
   private val toUpperCase = Flow[String].map(_.toUpperCase)
 
@@ -36,7 +34,7 @@ object ProcessorTests extends TestSuite {
         val pipeline       = toUpperCase
         val (processor, _) = Processor(pipeline)
 
-        val promise = ExpiringPromise[String](100.milliseconds)
+        val promise = ExpiringPromise[String](100.milliseconds, scheduler)
         processor.offer(("abc", promise))
 
         promise.future.map(s => assert(s == "ABC"))
@@ -47,7 +45,7 @@ object ProcessorTests extends TestSuite {
         val (processor, _) = Processor(pipeline)
 
         val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
+        val promise = ExpiringPromise[String](timeout, scheduler)
 
         Future.sequence(
           List(
@@ -62,10 +60,10 @@ object ProcessorTests extends TestSuite {
         val (processor, shutdownSwitch) = Processor(pipeline)
 
         val timeout  = 500.milliseconds
-        val promise1 = ExpiringPromise[String](timeout)
-        val promise2 = ExpiringPromise[String](timeout)
-        val promise3 = ExpiringPromise[String](timeout)
-        val promise4 = ExpiringPromise[String](timeout)
+        val promise1 = ExpiringPromise[String](timeout, scheduler)
+        val promise2 = ExpiringPromise[String](timeout, scheduler)
+        val promise3 = ExpiringPromise[String](timeout, scheduler)
+        val promise4 = ExpiringPromise[String](timeout, scheduler)
 
         for {
           _ <- processor.offer(("abc", promise1))
@@ -89,10 +87,10 @@ object ProcessorTests extends TestSuite {
         val (processor, shutdownSwitch) = Processor(pipeline)
 
         val timeout  = 500.milliseconds
-        val promise1 = ExpiringPromise[String](timeout)
-        val promise2 = ExpiringPromise[String](timeout)
-        val promise3 = ExpiringPromise[String](timeout)
-        val promise4 = ExpiringPromise[String](timeout)
+        val promise1 = ExpiringPromise[String](timeout, scheduler)
+        val promise2 = ExpiringPromise[String](timeout, scheduler)
+        val promise3 = ExpiringPromise[String](timeout, scheduler)
+        val promise4 = ExpiringPromise[String](timeout, scheduler)
 
         for {
           _ <- processor.offer(("abc", promise1))
