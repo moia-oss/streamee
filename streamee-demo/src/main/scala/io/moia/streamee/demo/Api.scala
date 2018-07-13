@@ -5,7 +5,6 @@
 package io.moia.streamee
 package demo
 
-import akka.NotUsed
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.actor.{ ActorSystem, CoordinatedShutdown, Scheduler }
 import akka.http.scaladsl.Http
@@ -13,7 +12,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Flow, SourceQueue }
+import akka.stream.scaladsl.SourceQueue
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
@@ -33,16 +32,13 @@ object Api extends Logging {
 
   def apply(
       config: Config,
-      demoLogic: Flow[String, String, NotUsed]
+      demoProcessor: Processor[String, String]
   )(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
     import config._
     import untypedSystem.dispatcher
 
     implicit val scheduler: Scheduler = untypedSystem.scheduler
     val shutdown                      = CoordinatedShutdown(untypedSystem)
-
-    // In real-world scenarios we probably would have more than one processor here!
-    val demoProcessor = Processor(demoLogic, parallelsim = 42, shutdown)
 
     Http()
       .bindAndHandle(

@@ -19,13 +19,13 @@ object Processor extends Logging {
 
   /**
     * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. Commands
-    * offered via the returned queue are emitted into the given `pipeline` flow. Once results are
+    * offered via the returned queue are emitted into the given `pipeline`. Once results are
     * available the promise given together with the command is completed with success. If the
     * pipeline back-pressures, offered commands are dropped.
     *
     * A task is registered with Akka Coordinated Shutdown in the "service-requests-done" phase to
-    * ensure that no more commands are accepted and all in-flight commands are processed before
-    * continuing with the shutdown.
+    * ensure that no more commands are accepted and all in-flight commands have been processed
+    * before continuing with the shutdown.
     *
     * '''Attention''': the given domain logic pipeline must emit exactly one result for every
     * command and the sequence of the elements in the pipeline must be maintained!

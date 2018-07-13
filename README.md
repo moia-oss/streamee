@@ -19,23 +19,73 @@ Another issue with implementing every domain logic with actors is, that actors a
 silver bullet (Are there any? If so let me know, please!). Actually their most valuable use in
 domain modeling is for long-lived – maybe even persistent – state which is used not only locally. In
 fact many features of a typical business application can much better be expressed as processes: 
-linear pipelines in which the domain logic is implemented as a series of consecutive
-steps/tasks/stages. Ultimately these pipelines can be viewed as processors which take commands and 
-eventually output results – both domain objects. Streamee aims at making it easy to connect the HTTP
+linear pipelines in which the domain logic is implemented as a series of consecutive stages (aka
+steps or tasks). Ultimately these pipelines can be expressed as Akka Streams `Flow`s which take
+commands and emit results – both domain objects. Streamee aims at making it easy to connect the HTTP
 routes with these processors.
 
 Finally – and this has shown to be highly relevant for MOIA – using actors to model long-lived
 processes (technically this is perfectly possible, e.g. by using persistent state machines) might
 lead to code which is hard to understand and maintain. Even worse, this implementation pattern
 conflicts with frictionless rolling upgrades, i.e. it makes a graceful shutdown where all in-flight
-requests are served before shutdown at least hard. Streamee on the other hand offers a
-shutdown facility which can be hooked into Akka's coordinated shutdown: it makes sure all in-flight
-commands have been processed, i.e. results have been created.
+requests are served before shutdown at least hard. Streamee on the other hand automatically hooks
+into Akka's coordinated shutdown: it makes sure that during shutdown no more commands are accepted
+and all in-flight commands have been processed.
 
-## Streamee API
+## Usage and API
 
-TODO
+In order to use Streamee we first has to define domain logic pipelines for each process. Streamee
+requires to use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the result type.
 
-## Steamee Demo
+In the demo subproject "streamee-demo" one simple pipeline is defined in the `DemoLogic` object:
 
-TODO
+``` scala
+def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, String, NotUsed] =
+  Flow[String]
+    .mapAsync(1)(step("step1", 2.seconds, scheduler))
+    .mapAsync(1)(step("step2", 2.seconds, scheduler))
+``` 
+
+Next we have to create the actual processor, i.e. the running stream into which the pipeline is
+embedded, by calling `Processor.apply` thereby giving the pipeline, a value for the maximum number
+of in-flight commands and a reference to the `CoordinatedShutdown` extension. 
+
+In the demo subproject "streamee-demo" this happens in `Main`:
+
+``` scala
+val demoProcessor =
+  Processor(DemoLogic(scheduler)(untypedSystem.dispatcher),
+            parallelsim = 42,
+            CoordinatedShutdown(context.system.toUntyped))
+```
+
+Commands offered via the returned queue are emitted into the given pipeline. Once results are
+available the promise given together with the command is completed with success. If the
+pipeline back-pressures, offered commands are dropped.
+
+Finally we have to connect each processor to its respective place in the Akka HTTP route with the
+`onProcessorSuccess` custom directive. It offers the given command to the given processor thereby
+using an `ExpiringPromise` with the given maximum latency.
+
+``` scala
+pathPrefix("accounts") {
+  post {
+    entity(as[Entity]) {
+      case Entity(s) =>
+        onProcessorSuccess(s, demoProcessor, demoProcessorMaxLatency, scheduler) {
+          case s if s.isEmpty =>
+            complete(StatusCodes.BadRequest -> "Empty entity!")
+          case s if s.startsWith("taxi") =>
+            complete(StatusCodes.Conflict -> "We don't like taxis ;-)")
+          case s =>
+            complete(StatusCodes.Created -> s)
+        }
+    }
+  }
+}
+```  
+
+The `onProcessSuccess` directive handles the result of offering to the processor: if `Enqueued`
+(happiest path) it dispatches the associated result to the inner route via `onSuccess`, if `Dropped`
+(not so happy path) it completes the HTTP request with `ServiceUnavailable` and else (failure case,
+should not happen) completes the HTTP request with `InternalServerError`.

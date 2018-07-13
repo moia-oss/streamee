@@ -63,6 +63,10 @@ object Main extends Logging {
     implicit val mat: Materializer            = ActorMaterializer()(context.system)
     implicit val scheduler: Scheduler         = context.system.scheduler
 
-    Api(config.api, DemoLogic(scheduler)(untypedSystem.dispatcher))
+    val demoProcessor =
+      Processor(DemoLogic(scheduler)(untypedSystem.dispatcher),
+                parallelsim = 42,
+                CoordinatedShutdown(context.system.toUntyped))
+    Api(config.api, demoProcessor)
   }
 }
