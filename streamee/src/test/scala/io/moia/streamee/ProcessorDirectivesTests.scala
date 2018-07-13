@@ -4,6 +4,7 @@
 
 package io.moia.streamee
 
+import akka.actor.CoordinatedShutdown
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives
 import akka.http.scaladsl.testkit.{ RouteTest, TestFrameworkInterface }
@@ -19,10 +20,12 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
 
   private val toUpperCase = Flow[String].map(_.length % 2 == 0)
 
+  private val shutdown = CoordinatedShutdown(system)
+
   override def tests: Tests =
     Tests {
       'happyPath - {
-        val (processor, _) = Processor(toUpperCase)
+        val processor = Processor(toUpperCase, 42, shutdown)
 
         Post("/", "12") ~> route(processor) ~> check {
           val actualStatus = status
@@ -40,7 +43,8 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
 //      }
 
       'serviceTooSlow - {
-        val (processor, _) = Processor(toUpperCase.delay(1.second, OverflowStrategy.backpressure))
+        val processor =
+          Processor(toUpperCase.delay(1.second, OverflowStrategy.backpressure), 42, shutdown)
 
         Post("/", "12") ~> route(processor) ~> check {
           val actualStatus = status

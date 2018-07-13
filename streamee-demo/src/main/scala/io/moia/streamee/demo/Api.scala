@@ -6,7 +6,7 @@ package io.moia.streamee
 package demo
 
 import akka.NotUsed
-import akka.actor.CoordinatedShutdown.{ PhaseServiceRequestsDone, PhaseServiceUnbind, Reason }
+import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.actor.{ ActorSystem, CoordinatedShutdown, Scheduler }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
@@ -42,7 +42,7 @@ object Api extends Logging {
     val shutdown                      = CoordinatedShutdown(untypedSystem)
 
     // In real-world scenarios we probably would have more than one processor here!
-    val (demoProcessor, demoShutdownSwitch) = Processor(demoLogic)
+    val demoProcessor = Processor(demoLogic, parallelsim = 42, shutdown)
 
     Http()
       .bindAndHandle(
@@ -59,10 +59,6 @@ object Api extends Logging {
           logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
           shutdown.addTask(PhaseServiceUnbind, "api.unbind") { () =>
             binding.unbind()
-          }
-          // This is important for not loosing in-flight requests!
-          shutdown.addTask(PhaseServiceRequestsDone, "api.requests-done") { () =>
-            demoShutdownSwitch.shutdown()
           }
       }
   }

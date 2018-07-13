@@ -4,182 +4,69 @@
 
 package io.moia.streamee
 
-import akka.Done
-import akka.stream.scaladsl.{
-  Broadcast,
-  Flow,
-  GraphDSL,
-  Keep,
-  Sink,
-  Source,
-  SourceQueue,
-  Unzip,
-  Zip
-}
-import akka.stream.stage.{ GraphStageLogic, GraphStageWithMaterializedValue, InHandler, OutHandler }
-import akka.stream.{
-  ActorAttributes,
-  Attributes,
-  FanInShape2,
-  FlowShape,
-  Inlet,
-  Materializer,
-  Outlet,
-  OverflowStrategy,
-  Supervision
-}
+import akka.actor.CoordinatedShutdown
+import akka.actor.CoordinatedShutdown.PhaseServiceRequestsDone
+import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, Sink, Source, SourceQueue, Unzip, Zip }
+import akka.stream.{ ActorAttributes, FlowShape, Materializer, OverflowStrategy, Supervision }
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.Promise
 
 /**
-  * Runs a pipeline (Akka Streams flow) for processing commands to results. See [[Processor.apply]]
-  * for details.
+  * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. See
+  * [[Processor.apply]] for details.
   */
 object Processor extends Logging {
-
-  /**
-    * Switch to shut down the related processor. See [[ShutdownSwitch.shutdown]] for details.
-    */
-  sealed trait ShutdownSwitch {
-
-    /**
-      * Shuts down the related processor: all commands are dropped and once all in-flight commands
-      * have been processed, the returned future is completed successfully.
-      * @return future completed successfully once all in-flight commands have been processed
-      */
-    def shutdown(): Future[Done]
-  }
-
-  private final class ShutdownSwitchStage[A](implicit ec: ExecutionContext)
-      extends GraphStageWithMaterializedValue[FanInShape2[A, Done, A], ShutdownSwitch] {
-
-    override val shape: FanInShape2[A, Done, A] =
-      new FanInShape2(Inlet[A]("in0"), Inlet[Done]("in1"), Outlet[A]("out"))
-
-    override def createLogicAndMaterializedValue(
-        as: Attributes
-    ): (GraphStageLogic, ShutdownSwitch) = {
-      val logic = new ShutdownSwitchStageLogic(shape)
-      (logic, logic.shutdownSwitch)
-    }
-  }
-
-  private final class ShutdownSwitchStageLogic[A](shape: FanInShape2[A, Done, A])(
-      implicit ec: ExecutionContext
-  ) extends GraphStageLogic(shape)
-      with InHandler
-      with OutHandler {
-    import shape._
-
-    private val shutdownTriggered = Promise[Done]()
-
-    private val shutdownCompleted = Promise[Done]()
-
-    val shutdownSwitch: ShutdownSwitch =
-      new ShutdownSwitch {
-        override def shutdown(): Future[Done] = {
-          logger.info("Shutting down processor")
-          shutdownTriggered.trySuccess(Done)
-          shutdownCompleted.future
-        }
-      }
-
-    private var inFlightCount = 0
-
-    setHandler(out, this)
-    setHandler(in0, this)
-    setHandler(
-      in1,
-      new InHandler {
-        override def onPush(): Unit = {
-          grab(in1)
-          pull(in1)
-          inFlightCount -= 1
-        }
-      }
-    )
-
-    override def preStart(): Unit = {
-      super.preStart()
-      pull(in1)
-      val callback = getAsyncCallback(shutdown)
-      shutdownTriggered.future.foreach(callback.invoke)
-    }
-
-    override def onPush(): Unit = {
-      push(out, grab(in0))
-      inFlightCount += 1
-    }
-
-    override def onPull(): Unit =
-      pull(in0)
-
-    private def shutdown(done: Done) = {
-      if (inFlightCount <= 0) shutdownCompleted.trySuccess(Done)
-      setHandler(in0, new InHandler { override def onPush(): Unit = () })
-      setHandler(
-        in1,
-        new InHandler {
-          override def onPush(): Unit = {
-            grab(in1)
-            if (!hasBeenPulled(in1)) pull(in1)
-            inFlightCount -= 1
-            if (inFlightCount <= 0) shutdownCompleted.trySuccess(Done)
-          }
-        }
-      )
-      setHandler(out, new OutHandler { override def onPull(): Unit = () })
-    }
-  }
 
   /**
     * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. Commands
     * offered via the returned queue are emitted into the given `pipeline` flow. Once results are
     * available the promise given together with the command is completed with success. If the
-    * pipeline back-pressures, offered commands are dropped. The returned [[ShutdownSwitch]] can be
-    * used to shutdown: all commands are dropped and once all in-flight commands have been
-    * processed, the future returned from [[ShutdownSwitch.shutdown]] is completed successfully.
+    * pipeline back-pressures, offered commands are dropped.
+    *
+    * A task is registered with Akka Coordinated Shutdown in the "service-requests-done" phase to
+    * ensure that no more commands are accepted and all in-flight commands are processed before
+    * continuing with the shutdown.
     *
     * '''Attention''': the given domain logic pipeline must emit exactly one result for every
-    * command and the sequence of the elements in the stream must be maintained!
+    * command and the sequence of the elements in the pipeline must be maintained!
     *
     * @param pipeline domain logic pipeline from command to result
+    * @param parallelsim maximum number of in-flight commands
+    * @param shutdown Akka Coordinated Shutdown
     * @param mat materializer to run the stream
     * @tparam C command type
     * @tparam R result type
-    * @return queue for command-promise pairs and shutdown switch
+    * @return queue for command-promise pairs
     */
-  def apply[C, R](
-      pipeline: Flow[C, R, Any]
-  )(implicit mat: Materializer): (SourceQueue[(C, Promise[R])], ShutdownSwitch) = {
-    import mat.executionContext
-    Source
-      .queue[(C, Promise[R])](0, OverflowStrategy.dropNew) // Important: use 0 to disable buffer!
-      .viaMat(wrapLogic(pipeline))(Keep.both)
-      .to(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })
-      .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
-      .run()
+  def apply[C, R](pipeline: Flow[C, R, Any], parallelsim: Int, shutdown: CoordinatedShutdown)(
+      implicit mat: Materializer
+  ): SourceQueue[(C, Promise[R])] = {
+    val (sourceQueueWithComplete, done) =
+      Source
+        .queue[(C, Promise[R])](1, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://discuss.lightbend.com/t/source-queue-cannot-be-completed/1559
+        .via(bypassPromise(pipeline, parallelsim))
+        .toMat(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })(Keep.both)
+        .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
+        .run()
+    shutdown.addTask(PhaseServiceRequestsDone, "processor") { () =>
+      sourceQueueWithComplete.complete()
+      done // `sourceQueueWithComplete.watchCompletion` seems broken, hence use `done`
+    }
+    sourceQueueWithComplete
   }
 
-  private def wrapLogic[C, R](logic: Flow[C, R, Any])(implicit ec: ExecutionContext) = {
-    val controllerStage = new ShutdownSwitchStage[(C, Promise[R])]
-    Flow.fromGraph(GraphDSL.create(controllerStage) { implicit builder => shutdownSwitchStage =>
+  private def bypassPromise[C, R](pipeline: Flow[C, R, Any], parallelsim: Int) =
+    Flow.fromGraph(GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._
       val unzip  = builder.add(Unzip[C, Promise[R]]())
       val zip    = builder.add(Zip[R, Promise[R]]())
-      val buf    = builder.add(Flow[Promise[R]].buffer(42, OverflowStrategy.backpressure)) // TODO Use configurable value!
-      val bcast  = builder.add(Broadcast[(R, Promise[R])](2))
-      val toDone = builder.add(Flow[Any].map(_ => Done))
+      val buffer = builder.add(Flow[Promise[R]].buffer(parallelsim, OverflowStrategy.backpressure))
 
       // format: OFF
-      shutdownSwitchStage.out ~> unzip.in
-                                 unzip.out0 ~>  logic ~> zip.in0
-                                 unzip.out1 ~>   buf  ~> zip.in1
-                                                         zip.out ~> bcast.in
-      shutdownSwitchStage.in1               <~ toDone <~            bcast.out(1)
+      unzip.out0 ~> pipeline ~> zip.in0
+      unzip.out1 ~>  buffer  ~> zip.in1
       // format: ON
 
-      FlowShape(shutdownSwitchStage.in0, bcast.out(0))
+      FlowShape(unzip.in, zip.out)
     })
-  }
 }
