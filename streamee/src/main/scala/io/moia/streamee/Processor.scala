@@ -6,7 +6,7 @@ package io.moia.streamee
 
 import akka.actor.CoordinatedShutdown
 import akka.actor.CoordinatedShutdown.PhaseServiceRequestsDone
-import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, Sink, Source, SourceQueue, Unzip, Zip }
+import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, Sink, Source, Unzip, Zip }
 import akka.stream.{ ActorAttributes, FlowShape, Materializer, OverflowStrategy, Supervision }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
@@ -40,10 +40,10 @@ object Processor extends Logging {
     */
   def apply[C, R](pipeline: Flow[C, R, Any], parallelsim: Int, shutdown: CoordinatedShutdown)(
       implicit mat: Materializer
-  ): SourceQueue[(C, Promise[R])] = {
+  ): Processor[C, R] = {
     val (sourceQueueWithComplete, done) =
       Source
-        .queue[(C, Promise[R])](1, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://discuss.lightbend.com/t/source-queue-cannot-be-completed/1559
+        .queue[(C, Promise[R])](1, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
         .via(bypassPromise(pipeline, parallelsim))
         .toMat(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })(Keep.both)
         .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!

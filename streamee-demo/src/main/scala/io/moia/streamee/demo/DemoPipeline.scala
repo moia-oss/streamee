@@ -12,7 +12,7 @@ import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
-object DemoLogic extends Logging {
+object DemoPipeline extends Logging {
 
   private def step(name: String, duration: FiniteDuration, scheduler: Scheduler)(
       s: String

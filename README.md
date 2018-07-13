@@ -1,5 +1,7 @@
 # Streamee #
 
+## Motivation
+
 Streamee is a mirco library (micro all the things) for handling HTTP requests with Akka Stream based
 processors for domain logic.
 
@@ -37,7 +39,7 @@ and all in-flight commands have been processed.
 In order to use Streamee we first has to define domain logic pipelines for each process. Streamee
 requires to use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the result type.
 
-In the demo subproject "streamee-demo" one simple pipeline is defined in the `DemoLogic` object:
+In the demo subproject "streamee-demo" one simple pipeline is defined in the `DemoPipeline` object:
 
 ``` scala
 def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, String, NotUsed] =
@@ -66,6 +68,8 @@ pipeline back-pressures, offered commands are dropped.
 Finally we have to connect each processor to its respective place in the Akka HTTP route with the
 `onProcessorSuccess` custom directive. It offers the given command to the given processor thereby
 using an `ExpiringPromise` with the given maximum latency.
+
+In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
 pathPrefix("accounts") {
