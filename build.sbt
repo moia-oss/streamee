@@ -10,7 +10,6 @@ lazy val `streamee-root` =
     .settings(
       Compile / unmanagedSourceDirectories := Seq.empty,
       Test / unmanagedSourceDirectories := Seq.empty,
-      publishTo := None,
       publishArtifact := false
     )
 
@@ -53,7 +52,6 @@ lazy val `streamee-demo` =
         library.log4jCore,
         library.pureConfig
       ),
-      publishTo := None,
       publishArtifact := false
     )
 
@@ -127,7 +125,7 @@ lazy val commonSettings =
     Compile / packageDoc / publishArtifact := false,
     Compile / packageSrc / publishArtifact := false,
     testFrameworks += new TestFramework("utest.runner.Framework"),
-    publishTo := Some("Artifactory Realm" at "https://moiadev.jfrog.io/moiadev/sbt-trip-booking-local")
+    publishTo := Some("MOIA Artifactory" at "https://moiadev.jfrog.io/moiadev/sbt-release-local")
   )
 
 lazy val scalafmtSettings =
