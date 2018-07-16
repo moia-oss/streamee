@@ -15,7 +15,6 @@ lazy val `streamee-root` =
 
 lazy val `streamee` =
   project
-    .enablePlugins(AutomateHeaderPlugin)
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
@@ -34,7 +33,7 @@ lazy val `streamee` =
 
 lazy val `streamee-demo` =
   project
-    .enablePlugins(AutomateHeaderPlugin, DockerPlugin, JavaAppPackaging)
+    .enablePlugins(DockerPlugin, JavaAppPackaging)
     .dependsOn(`streamee`)
     .settings(settings)
     .settings(
@@ -102,7 +101,6 @@ lazy val library =
 lazy val settings =
   commonSettings ++
   scalafmtSettings ++
-  headerSettings ++
   dockerSettings ++
   commandAliases
 
@@ -131,14 +129,6 @@ lazy val commonSettings =
 lazy val scalafmtSettings =
   Seq(
     scalafmtOnCompile := true
-  )
-
-lazy val headerSettings =
-  Seq(
-    headerLicense := Some(HeaderLicense.Custom(
-      s"""|Copyright (c) ${organizationName.value}
-          |""".stripMargin
-    ))
   )
 
 lazy val dockerSettings =
