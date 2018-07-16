@@ -1,7 +1,3 @@
-/*
- * Copyright (c) MOIA GmbH
- */
-
 package io.moia.streamee
 
 import akka.actor.CoordinatedShutdown
