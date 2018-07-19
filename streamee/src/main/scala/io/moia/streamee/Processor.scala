@@ -27,20 +27,22 @@ object Processor extends Logging {
     * command and the sequence of the elements in the pipeline must be maintained!
     *
     * @param pipeline domain logic pipeline from command to result
-    * @param parallelsim maximum number of in-flight commands
+    * @param settings settings for processors (from application.conf or reference.conf)
     * @param shutdown Akka Coordinated Shutdown
     * @param mat materializer to run the stream
     * @tparam C command type
     * @tparam R result type
     * @return queue for command-promise pairs
     */
-  def apply[C, R](pipeline: Flow[C, R, Any], parallelsim: Int, shutdown: CoordinatedShutdown)(
+  def apply[C, R](pipeline: Flow[C, R, Any],
+                  settings: ProcessorSettings,
+                  shutdown: CoordinatedShutdown)(
       implicit mat: Materializer
   ): Processor[C, R] = {
     val (sourceQueueWithComplete, done) =
       Source
-        .queue[(C, Promise[R])](1, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
-        .via(bypassPromise(pipeline, parallelsim))
+        .queue[(C, Promise[R])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
+        .via(bypassPromise(pipeline, settings.maxNrOfInFlightCommands))
         .toMat(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })(Keep.both)
         .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
         .run()

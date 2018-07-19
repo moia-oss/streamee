@@ -21,7 +21,7 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
   override def tests: Tests =
     Tests {
       'happyPath - {
-        val processor = Processor(toUpperCase, 42, shutdown)
+        val processor = Processor(toUpperCase, ProcessorSettings(system), shutdown)
 
         Post("/", "12") ~> route(processor) ~> check {
           val actualStatus = status
@@ -40,7 +40,9 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
 
       'serviceTooSlow - {
         val processor =
-          Processor(toUpperCase.delay(1.second, OverflowStrategy.backpressure), 42, shutdown)
+          Processor(toUpperCase.delay(1.second, OverflowStrategy.backpressure),
+                    ProcessorSettings(system),
+                    shutdown)
 
         Post("/", "12") ~> route(processor) ~> check {
           val actualStatus = status

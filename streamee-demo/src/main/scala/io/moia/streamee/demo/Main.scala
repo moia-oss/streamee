@@ -61,7 +61,7 @@ object Main extends Logging {
 
     val demoProcessor =
       Processor(DemoPipeline(scheduler)(untypedSystem.dispatcher),
-                parallelsim = 42,
+                ProcessorSettings(context.system),
                 CoordinatedShutdown(context.system.toUntyped))
     Api(config.api, demoProcessor)
   }
