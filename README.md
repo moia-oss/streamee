@@ -49,15 +49,15 @@ def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, Str
 ``` 
 
 Next we have to create the actual processor, i.e. the running stream into which the pipeline is
-embedded, by calling `Processor.apply` thereby giving the pipeline, a value for the maximum number
-of in-flight commands and a reference to the `CoordinatedShutdown` extension. 
+embedded, by calling `Processor.apply` thereby giving the pipeline, processor settings and the
+reference to `CoordinatedShutdown`.
 
 In the demo subproject "streamee-demo" this happens in `Main`:
 
 ``` scala
 val demoProcessor =
   Processor(DemoLogic(scheduler)(untypedSystem.dispatcher),
-            parallelsim = 42,
+            ProcessorSettings(context.system),
             CoordinatedShutdown(context.system.toUntyped))
 ```
 
