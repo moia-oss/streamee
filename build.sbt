@@ -19,11 +19,9 @@ lazy val `streamee` =
     .settings(
       libraryDependencies ++= Seq(
         library.akkaHttp,
-        library.akkaHttpCirce,
         library.akkaStreamTyped,
         library.log4jApi,
         library.log4jApiScala,
-        library.log4jCore,
         library.akkaActorTestkitTyped % Test,
         library.akkaHttpTestkit       % Test,
         library.scalaCheck            % Test,
@@ -66,7 +64,7 @@ lazy val library =
       val akkaHttp       = "10.1.3"
       val akkaHttpJson   = "1.21.0"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.17.0"
+      val akkaManagement = "0.14.0"
       val circe          = "0.9.3"
       val disruptor      = "3.4.2"
       val log4j          = "2.11.0"
