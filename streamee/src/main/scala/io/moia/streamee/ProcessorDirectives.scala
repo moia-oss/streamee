@@ -17,7 +17,7 @@ object ProcessorDirectives extends Logging {
 
   /**
     * Offers the given command to the given processor thereby using an [[ExpiringPromise]] with the
-    * given `maxLatency` and handles the returned `OfferQueueResult` (from Akka Streams
+    * given `timeout` and handles the returned `OfferQueueResult` (from Akka Streams
     * `SourceQueue.offer`): if `Enqueued` (happiest path) dispatches the associated result to the
     * inner route via `onSuccess`, if `Dropped` (not so happy path) completes the HTTP request with
     * `ServiceUnavailable` and else (failure case, should not happen) completes the HTTP request
@@ -25,17 +25,17 @@ object ProcessorDirectives extends Logging {
     *
     * @param command command to be processed
     * @param processor the processor to work with
-    * @param maxLatency maximum duration for the command to be processed, i.e. the related promise to be completed
+    * @param timeout maximum duration for the command to be processed, i.e. the related promise to be completed
     * @param scheduler Akka scheduler needed for timeout handling
     * @tparam C command type
     * @tparam R result type
     */
   def onProcessorSuccess[C, R](command: C,
                                processor: SourceQueue[(C, Promise[R])],
-                               maxLatency: FiniteDuration,
+                               timeout: FiniteDuration,
                                scheduler: Scheduler): Directive1[R] =
     extractExecutionContext.flatMap { implicit ec =>
-      val result = ExpiringPromise[R](maxLatency, scheduler)
+      val result = ExpiringPromise[R](timeout, scheduler)
 
       onSuccess(processor.offer((command, result))).flatMap {
         case QueueOfferResult.Enqueued =>
