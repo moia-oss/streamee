@@ -20,7 +20,7 @@ import scala.util.{ Failure, Success }
   */
 object Api extends Logging {
 
-  final case class Config(address: String, port: Int, demoProcessorMaxLatency: FiniteDuration)
+  final case class Config(address: String, port: Int, demoProcessorTimeout: FiniteDuration)
 
   private final case class Entity(s: String)
 
@@ -38,7 +38,7 @@ object Api extends Logging {
 
     Http()
       .bindAndHandle(
-        route(demoProcessor, demoProcessorMaxLatency, shutdown),
+        route(demoProcessor, demoProcessorTimeout, shutdown),
         address,
         port
       )
@@ -57,7 +57,7 @@ object Api extends Logging {
 
   def route(
       demoProcessor: SourceQueue[(String, Promise[String])],
-      demoProcessorMaxLatency: FiniteDuration,
+      demoProcessorTimeout: FiniteDuration,
       shutdown: CoordinatedShutdown
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import Directives._
@@ -70,13 +70,11 @@ object Api extends Logging {
         complete {
           OK
         }
-      }
-    } ~
-    pathPrefix("accounts") {
+      } ~
       post {
         entity(as[Entity]) {
           case Entity(s) =>
-            onProcessorSuccess(s, demoProcessor, demoProcessorMaxLatency, scheduler) {
+            onProcessorSuccess(s, demoProcessor, demoProcessorTimeout, scheduler) {
               case s if s.isEmpty =>
                 complete(StatusCodes.BadRequest -> "Empty entity!")
               case s if s.startsWith("taxi") =>

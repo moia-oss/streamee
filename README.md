@@ -67,7 +67,7 @@ pipeline back-pressures, offered commands are dropped.
 
 Finally we have to connect each processor to its respective place in the Akka HTTP route with the
 `onProcessorSuccess` custom directive. It offers the given command to the given processor thereby
-using an `ExpiringPromise` with the given maximum latency.
+using an `ExpiringPromise` with the given timeout.
 
 In the demo subproject "streamee-demo" this happens in `Api`:
 
@@ -76,7 +76,7 @@ pathPrefix("accounts") {
   post {
     entity(as[Entity]) {
       case Entity(s) =>
-        onProcessorSuccess(s, demoProcessor, demoProcessorMaxLatency, scheduler) {
+        onProcessorSuccess(s, demoProcessor, demoProcessorTimeout, scheduler) {
           case s if s.isEmpty =>
             complete(StatusCodes.BadRequest -> "Empty entity!")
           case s if s.startsWith("taxi") =>
