@@ -22,7 +22,7 @@ silver bullet (Are there any? If so let me know, please!). Actually their most v
 domain modeling is for long-lived – maybe even persistent – state which is used not only locally. In
 fact many features of a typical business application can much better be expressed as processes: 
 linear pipelines in which the domain logic is implemented as a series of consecutive stages (aka
-steps or tasks). Ultimately these pipelines can be expressed as Akka Streams `Flow`s which take
+steps or tasks). Ultimately these pipelines can be expressed as Akka Streams `Flow`s which accept
 commands and emit results – both domain objects. Streamee aims at making it easy to connect the HTTP
 routes with these processors.
 
