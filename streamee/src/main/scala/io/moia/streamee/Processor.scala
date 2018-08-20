@@ -8,14 +8,14 @@ import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
 
 /**
-  * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. See
+  * Runs a domain logic pipeline (Akka Streams flow) for processing commands into results. See
   * [[Processor.apply]] for details.
   */
 object Processor extends Logging {
 
   /**
-    * Runs a domain logic pipeline (Akka Streams flow) for processing commands to results. Commands
-    * offered via the returned queue are emitted into the given `pipeline`. Once results are
+    * Runs a domain logic pipeline (Akka Streams flow) for processing commands into results.
+    * Commands offered via the returned queue are pushed into the given `pipeline`. Once results are
     * available the promise given together with the command is completed with success. If the
     * pipeline back-pressures, offered commands are dropped.
     *
