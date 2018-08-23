@@ -35,6 +35,8 @@ lazy val `streamee-demo` =
     .dependsOn(`streamee`)
     .settings(settings)
     .settings(
+      Compile / packageDoc / publishArtifact := false,
+      Compile / packageSrc / publishArtifact := false,
       libraryDependencies ++= Seq(
         library.akkaClusterShardingTyped,
         library.akkaDiscoveryDns,
@@ -120,8 +122,6 @@ lazy val commonSettings =
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
-    Compile / packageDoc / publishArtifact := false,
-    Compile / packageSrc / publishArtifact := false,
     testFrameworks += new TestFramework("utest.runner.Framework"),
     publishTo := Some("MOIA Artifactory" at "https://moiadev.jfrog.io/moiadev/sbt-release-local")
   )
@@ -136,7 +136,7 @@ lazy val dockerSettings =
     Docker / daemonUser := "root",
     Docker / maintainer := organizationName.value,
     Docker / version := "latest",
-    dockerBaseImage := "openjdk:10.0.1-slim",
+    dockerBaseImage := "openjdk:10.0.2-slim",
     dockerExposedPorts := Seq(80, 8558)
   )
 
