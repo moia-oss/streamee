@@ -62,7 +62,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.14"
+      val akka           = "2.5.15"
       val akkaHttp       = "10.1.4"
       val akkaHttpJson   = "1.21.0"
       val akkaLog4j      = "1.6.1"
@@ -71,7 +71,7 @@ lazy val library =
       val disruptor      = "3.4.2"
       val log4j          = "2.11.1"
       val log4jApiScala  = "11.0"
-      val pureConfig     = "0.9.1"
+      val pureConfig     = "0.9.2"
       val scalaCheck     = "1.14.0"
       val utest          = "0.6.4"
     }
