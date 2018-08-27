@@ -34,11 +34,10 @@ object Api extends Logging {
     import untypedSystem.dispatcher
 
     implicit val scheduler: Scheduler = untypedSystem.scheduler
-    val shutdown                      = CoordinatedShutdown(untypedSystem)
 
     Http()
       .bindAndHandle(
-        route(demoProcessor, demoProcessorTimeout, shutdown),
+        route(demoProcessor, demoProcessorTimeout),
         address,
         port
       )
@@ -49,7 +48,7 @@ object Api extends Logging {
 
         case Success(binding) =>
           logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
-          shutdown.addTask(PhaseServiceUnbind, "api.unbind") { () =>
+          CoordinatedShutdown(untypedSystem).addTask(PhaseServiceUnbind, "api.unbind") { () =>
             binding.unbind()
           }
       }
@@ -57,8 +56,7 @@ object Api extends Logging {
 
   def route(
       demoProcessor: SourceQueue[(String, Promise[String])],
-      demoProcessorTimeout: FiniteDuration,
-      shutdown: CoordinatedShutdown
+      demoProcessorTimeout: FiniteDuration
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import Directives._
     import ErrorAccumulatingCirceSupport._
