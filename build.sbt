@@ -15,6 +15,7 @@ lazy val `streamee-root` =
 
 lazy val `streamee` =
   project
+    .enablePlugins(AutomateHeaderPlugin)
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
@@ -31,7 +32,7 @@ lazy val `streamee` =
 
 lazy val `streamee-demo` =
   project
-    .enablePlugins(DockerPlugin, JavaAppPackaging)
+    .enablePlugins(AutomateHeaderPlugin, DockerPlugin, JavaAppPackaging)
     .dependsOn(`streamee`)
     .settings(settings)
     .settings(
@@ -111,6 +112,7 @@ lazy val commonSettings =
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalacOptions ++= Seq(
       "-unchecked",
       "-deprecation",
