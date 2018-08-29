@@ -56,8 +56,8 @@ object ProcessorTests extends TestSuite {
       }
 
       'notInTime - {
-        val pipeline  = toUpperCase.delay(1.second, OverflowStrategy.backpressure)
-        val processor = Processor(pipeline, ProcessorSettings(system), shutdown)
+        val process  = toUpperCase.delay(1.second, OverflowStrategy.backpressure)
+        val processor = Processor(process, ProcessorSettings(system), shutdown)
 
         val timeout = 100.milliseconds
         val promise = ExpiringPromise[String](timeout, scheduler)
@@ -71,8 +71,8 @@ object ProcessorTests extends TestSuite {
       }
 
       'processInFlightOnShutdown - {
-        val pipeline  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
-        val processor = Processor(pipeline, ProcessorSettings(system), shutdown)
+        val process  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
+        val processor = Processor(process, ProcessorSettings(system), shutdown)
 
         val timeout  = 500.milliseconds
         val promise1 = ExpiringPromise[String](timeout, scheduler)
@@ -98,8 +98,8 @@ object ProcessorTests extends TestSuite {
       }
 
       'noLongerEnqueueOnShutdown - {
-        val pipeline  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
-        val processor = Processor(pipeline, ProcessorSettings(system), shutdown)
+        val process  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
+        val processor = Processor(process, ProcessorSettings(system), shutdown)
 
         val timeout  = 500.milliseconds
         val promise1 = ExpiringPromise[String](timeout, scheduler)

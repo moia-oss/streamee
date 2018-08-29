@@ -20,9 +20,9 @@ Unavailable" – and does not overload the domain logic.
 Another issue with implementing every domain logic with actors is, that actors are simply not a
 silver bullet (Are there any? If so let me know, please!). Actually their most valuable use in
 domain modeling is for long-lived – maybe even persistent – state which is used not only locally. In
-fact many features of a typical business application can much better be expressed as processes: 
-linear pipelines in which the domain logic is implemented as a series of consecutive stages (aka
-steps or tasks). Ultimately these pipelines can be expressed as Akka Streams `Flow`s which accept
+fact many features of a typical business application can much better be expressed as processes in
+which the domain logic is implemented as a flow through a series of stages (aka steps or tasks).
+Ultimately these processes can be expressed as Akka Streams `Flow`s which accept
 commands and emit results – both domain objects. Streamee aims at making it easy to connect the HTTP
 routes with these processors.
 
@@ -36,10 +36,10 @@ and all in-flight commands have been processed.
 
 ## Usage and API
 
-In order to use Streamee we first has to define domain logic pipelines for each process. Streamee
-requires to use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the result type.
+In order to use Streamee we first has to define domain logic for each process. Streamee requires to
+use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the result type.
 
-In the demo subproject "streamee-demo" one simple pipeline is defined in the `DemoPipeline` object:
+In the demo subproject "streamee-demo" one simple process is defined in the `DemoProcess` object:
 
 ``` scala
 def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, String, NotUsed] =
@@ -48,8 +48,8 @@ def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, Str
     .mapAsync(1)(step("step2", 2.seconds, scheduler))
 ``` 
 
-Next we have to create the actual processor, i.e. the running stream into which the pipeline is
-embedded, by calling `Processor.apply` thereby giving the pipeline, processor settings and the
+Next we have to create the actual processor, i.e. the running stream into which the process is
+embedded, by calling `Processor.apply` thereby giving the process, processor settings and the
 reference to `CoordinatedShutdown`.
 
 In the demo subproject "streamee-demo" this happens in `Main`:
@@ -61,9 +61,9 @@ val demoProcessor =
             CoordinatedShutdown(context.system.toUntyped))
 ```
 
-Commands offered via the returned queue are emitted into the given pipeline. Once results are
+Commands offered via the returned queue are emitted into the given process. Once results are
 available the promise given together with the command is completed with success. If the
-pipeline back-pressures, offered commands are dropped.
+process back-pressures, offered commands are dropped.
 
 Finally we have to connect each processor to its respective place in the Akka HTTP route with the
 `onProcessorSuccess` custom directive. It offers the given command to the given processor thereby

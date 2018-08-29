@@ -76,7 +76,7 @@ object Main extends Logging {
     implicit val scheduler: Scheduler         = context.system.scheduler
 
     val demoProcessor =
-      Processor(DemoPipeline(scheduler)(untypedSystem.dispatcher),
+      Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
                 ProcessorSettings(context.system),
                 CoordinatedShutdown(context.system.toUntyped))
     Api(config.api, demoProcessor)

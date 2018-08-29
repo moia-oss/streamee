@@ -45,7 +45,7 @@ sealed trait ProcessorSettings extends Extension {
   /**
     * Buffer size of the processor queue. Must be positive!
     *
-    * Usually a buffer larger than one should not be needed, if the wrapped domain logic pipeline
+    * Usually a buffer larger than one should not be needed, if the wrapped domain logic process
     * offers sufficient parallelism.
     *
     * ATTENTNION: Currently must be 1, see https://github.com/akka/akka/issues/25349!
@@ -62,7 +62,7 @@ sealed trait ProcessorSettings extends Extension {
   }
 
   /**
-    * The maximum number of commands which can be in-flight in the wrapped domain logic pipeline.
+    * The maximum number of commands which can be in-flight in the wrapped domain logic process.
     *
     * Large values should not be an issue, because for each command in-flight there is just a
     * buffered promise (which is rather lightweight).

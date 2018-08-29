@@ -24,7 +24,7 @@ import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
-object DemoPipeline extends Logging {
+object DemoProcess extends Logging {
 
   private def step(name: String, duration: FiniteDuration, scheduler: Scheduler)(
       s: String
@@ -39,9 +39,9 @@ object DemoPipeline extends Logging {
   }
 
   /**
-    * Simple domain logic pipeline for demo purposes.
+    * Simple domain logic process for demo purposes.
     *
-    * The pipeline is comprised of two stages (aka steps or tasks). Each of these performs its work
+    * The process is comprised of two stages (aka steps or tasks). Each of these performs its work
     * asynchronously, hence `mapAsync` is used. Typical real-world examples for such stages are
     * calls to external services (e.g. via HTTP or gRPC) or interacting with actors in a
     * request-response way (via the ask pattern).

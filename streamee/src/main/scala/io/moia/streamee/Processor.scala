@@ -24,25 +24,25 @@ import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
 
 /**
-  * Runs a domain logic pipeline (Akka Streams flow) for processing commands into results. See
+  * Runs a domain logic process (Akka Streams flow) for processing commands into results. See
   * [[Processor.apply]] for details.
   */
 object Processor extends Logging {
 
   /**
-    * Runs a domain logic pipeline (Akka Streams flow) for processing commands into results.
-    * Commands offered via the returned queue are pushed into the given `pipeline`. Once results are
+    * Runs a domain logic process (Akka Streams flow) for processing commands into results.
+    * Commands offered via the returned queue are pushed into the given `process`. Once results are
     * available the promise given together with the command is completed with success. If the
-    * pipeline back-pressures, offered commands are dropped.
+    * process back-pressures, offered commands are dropped.
     *
     * A task is registered with Akka Coordinated Shutdown in the "service-requests-done" phase to
     * ensure that no more commands are accepted and all in-flight commands have been processed
     * before continuing with the shutdown.
     *
-    * '''Attention''': the given domain logic pipeline must emit exactly one result for every
-    * command and the sequence of the elements in the pipeline must be maintained!
+    * '''Attention''': the given domain logic process must emit exactly one result for every
+    * command and the sequence of the elements in the process must be maintained!
     *
-    * @param pipeline domain logic pipeline from command to result
+    * @param process domain logic process from command to result
     * @param settings settings for processors (from application.conf or reference.conf)
     * @param shutdown Akka Coordinated Shutdown
     * @param mat materializer to run the stream
@@ -50,7 +50,7 @@ object Processor extends Logging {
     * @tparam R result type
     * @return queue for command-promise pairs
     */
-  def apply[C, R](pipeline: Flow[C, R, Any],
+  def apply[C, R](process: Flow[C, R, Any],
                   settings: ProcessorSettings,
                   shutdown: CoordinatedShutdown)(
       implicit mat: Materializer
@@ -58,7 +58,7 @@ object Processor extends Logging {
     val (sourceQueueWithComplete, done) =
       Source
         .queue[(C, Promise[R])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
-        .via(bypassPromise(pipeline, settings.maxNrOfInFlightCommands))
+        .via(bypassPromise(process, settings.maxNrOfInFlightCommands))
         .toMat(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })(Keep.both)
         .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
         .run()
@@ -69,7 +69,7 @@ object Processor extends Logging {
     sourceQueueWithComplete
   }
 
-  private def bypassPromise[C, R](pipeline: Flow[C, R, Any], parallelsim: Int) =
+  private def bypassPromise[C, R](process: Flow[C, R, Any], parallelsim: Int) =
     Flow.fromGraph(GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._
       val unzip  = builder.add(Unzip[C, Promise[R]]())
@@ -77,7 +77,7 @@ object Processor extends Logging {
       val buffer = builder.add(Flow[Promise[R]].buffer(parallelsim, OverflowStrategy.backpressure))
 
       // format: OFF
-      unzip.out0 ~> pipeline ~> zip.in0
+      unzip.out0 ~> process ~> zip.in0
       unzip.out1 ~>  buffer  ~> zip.in1
       // format: ON
 
