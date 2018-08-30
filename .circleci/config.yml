@@ -1,0 +1,37 @@
+# Scala CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/sample-config/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+    - image: hseeberger/scala-sbt:8u181_2.12.6_1.2.1
+
+    working_directory: ~/repo
+
+    environment:
+      # Setting the JVM minimum memory allocation to 256 MB and maximum allocation to 2 GB.
+      # java.awt.headless=true: Disabling GUI features because streamee don't use them
+      SBT_OPTS: "-Xms256m -Xmx2g -Djava.awt.headless=true"
+
+    steps:
+    - checkout
+    # Download and cache dependencies
+    - restore_cache:
+        keys:
+        - sbt-v1-deps-{{ checksum "build.sbt" }}
+        # fallback to using the latest cache if no exact match is found
+        - sbt-v1-deps
+    - run:
+        name: Running SBT compilation
+        command: sbt -no-colors -batch "; test:compile"
+    - save_cache:
+        paths:
+        - ~/.m2
+        - ~/.ivy2
+        - ~/.sbt
+        key: sbt-v1-deps-{{ checksum "build.sbt" }}
+    - run:
+        name: Running tests
+        command: sbt -no-colors -batch "; test"
