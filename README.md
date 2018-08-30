@@ -1,5 +1,7 @@
 # Streamee #
 
+[![CircleCI](https://circleci.com/gh/moia-dev/streamee/tree/master.svg?style=svg)](https://circleci.com/gh/moia-dev/streamee/tree/master)
+
 ## Motivation
 
 Streamee is a mirco library (micro all the things) for handling HTTP requests with Akka Stream based
