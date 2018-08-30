@@ -16,8 +16,11 @@
 
 package io.moia.streamee
 
+import akka.actor.{ ActorSystem => UntypedSystem }
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import akka.testkit.TestDuration
 import scala.concurrent.duration.DurationInt
 import utest._
 
@@ -27,6 +30,9 @@ object ExpiringPromiseTests extends TestSuite {
   private val system: ActorSystem[Nothing] =
     ActorSystem(Behaviors.empty, getClass.getSimpleName.init)
 
+  private implicit val untypedSystem: UntypedSystem =
+    system.toUntyped
+
   private val scheduler = system.scheduler
 
   import system.executionContext
@@ -34,14 +40,14 @@ object ExpiringPromiseTests extends TestSuite {
   override def tests: Tests =
     Tests {
       'expire - {
-        val timeout = 100.milliseconds
+        val timeout = 100.milliseconds.dilated
         val promise = ExpiringPromise[String](timeout, scheduler)
 
         promise.future.failed.map(t => assert(t == PromiseExpired(timeout)))
       }
 
       'expireNot - {
-        val timeout = 100.milliseconds
+        val timeout = 100.milliseconds.dilated
         val promise = ExpiringPromise[String](timeout, scheduler)
 
         val success = "success"

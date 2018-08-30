@@ -22,6 +22,7 @@ import akka.http.scaladsl.server.Directives
 import akka.http.scaladsl.testkit.{ RouteTest, TestFrameworkInterface }
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{ Flow, SourceQueue }
+import akka.testkit.TestDuration
 import scala.concurrent.Promise
 import scala.concurrent.duration.DurationInt
 import utest._
@@ -78,11 +79,12 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
   private def route(processor: SourceQueue[(String, Promise[Boolean])]) =
     post {
       entity(as[String]) { command =>
-        onProcessorSuccess(command, processor, 100.milliseconds, system.scheduler) { result =>
-          if (result)
-            complete(StatusCodes.Created)
-          else
-            complete(StatusCodes.BadRequest)
+        onProcessorSuccess(command, processor, 100.milliseconds.dilated, system.scheduler) {
+          result =>
+            if (result)
+              complete(StatusCodes.Created)
+            else
+              complete(StatusCodes.BadRequest)
         }
       }
     }
