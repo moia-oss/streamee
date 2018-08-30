@@ -13,7 +13,8 @@ jobs:
     environment:
       # Setting the JVM minimum memory allocation to 256 MB and maximum allocation to 2 GB.
       # java.awt.headless=true: Disabling GUI features because streamee don't use them
-      SBT_OPTS: "-Xms256m -Xmx2g -Djava.awt.headless=true"
+      # Dilating durations to account for slower CI environment
+      SBT_OPTS: "-Xms256m -Xmx2g -Djava.awt.headless=true -Dakka.test.timefactor=2"
 
     steps:
     - checkout

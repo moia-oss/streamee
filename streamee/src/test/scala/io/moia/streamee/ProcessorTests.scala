@@ -16,22 +16,26 @@
 
 package io.moia.streamee
 
-import akka.actor.CoordinatedShutdown
+import akka.actor.{ CoordinatedShutdown, ActorSystem => UntypedSystem }
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import akka.stream.{ Materializer, OverflowStrategy, QueueOfferResult }
 import akka.stream.scaladsl.{ Flow, SourceQueueWithComplete }
 import akka.stream.typed.scaladsl.ActorMaterializer
-import akka.stream.{ Materializer, OverflowStrategy, QueueOfferResult }
+import akka.testkit.TestDuration
 import io.moia.streamee.ExpiringPromise.PromiseExpired
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Future, Promise }
+import scala.concurrent.duration.DurationInt
 import utest._
 
 object ProcessorTests extends TestSuite {
 
   private implicit val system: ActorSystem[Nothing] =
     ActorSystem(Behaviors.empty, getClass.getSimpleName.init)
+
+  private implicit val untypedSystem: UntypedSystem =
+    system.toUntyped
 
   private implicit val mat: Materializer =
     ActorMaterializer()
@@ -49,17 +53,17 @@ object ProcessorTests extends TestSuite {
       'inTime - {
         val processor = Processor(toUpperCase, ProcessorSettings(system), shutdown)
 
-        val promise = ExpiringPromise[String](100.milliseconds, scheduler)
+        val promise = ExpiringPromise[String](100.milliseconds.dilated, scheduler)
         processor.offer(("abc", promise))
 
         promise.future.map(s => assert(s == "ABC"))
       }
 
       'notInTime - {
-        val process  = toUpperCase.delay(1.second, OverflowStrategy.backpressure)
+        val process   = toUpperCase.delay(1.second, OverflowStrategy.backpressure)
         val processor = Processor(process, ProcessorSettings(system), shutdown)
 
-        val timeout = 100.milliseconds
+        val timeout = 100.milliseconds.dilated
         val promise = ExpiringPromise[String](timeout, scheduler)
 
         Future.sequence(
@@ -71,10 +75,10 @@ object ProcessorTests extends TestSuite {
       }
 
       'processInFlightOnShutdown - {
-        val process  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
+        val process   = toUpperCase.delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
         val processor = Processor(process, ProcessorSettings(system), shutdown)
 
-        val timeout  = 500.milliseconds
+        val timeout  = 500.milliseconds.dilated
         val promise1 = ExpiringPromise[String](timeout, scheduler)
         val promise2 = ExpiringPromise[String](timeout, scheduler)
         val promise3 = ExpiringPromise[String](timeout, scheduler)
@@ -98,7 +102,7 @@ object ProcessorTests extends TestSuite {
       }
 
       'noLongerEnqueueOnShutdown - {
-        val process  = toUpperCase.delay(100.milliseconds, OverflowStrategy.backpressure)
+        val process   = toUpperCase.delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
         val processor = Processor(process, ProcessorSettings(system), shutdown)
 
         val timeout  = 500.milliseconds
