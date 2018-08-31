@@ -29,6 +29,9 @@ import scala.concurrent.Promise
   */
 object Processor extends Logging {
 
+  final case class NotCorrelated[C, R](c: C, r: R)
+      extends Exception(s"Command $c and result $r are not correlated!")
+
   /**
     * Runs a domain logic process (Akka Streams flow) for processing commands into results.
     * Commands offered via the returned queue are pushed into the given `process`. Once results are
@@ -45,21 +48,26 @@ object Processor extends Logging {
     * @param process domain logic process from command to result
     * @param settings settings for processors (from application.conf or reference.conf)
     * @param shutdown Akka Coordinated Shutdown
+    * @param correlated correlation between command and result, by default always true
     * @param mat materializer to run the stream
     * @tparam C command type
     * @tparam R result type
     * @return queue for command-promise pairs
     */
-  def apply[C, R](process: Flow[C, R, Any],
-                  settings: ProcessorSettings,
-                  shutdown: CoordinatedShutdown)(
-      implicit mat: Materializer
-  ): Processor[C, R] = {
+  def apply[C, R](
+      process: Flow[C, R, Any],
+      settings: ProcessorSettings,
+      shutdown: CoordinatedShutdown,
+      correlated: (C, R) => Boolean = (_: C, _: R) => true
+  )(implicit mat: Materializer): Processor[C, R] = {
     val (sourceQueueWithComplete, done) =
       Source
         .queue[(C, Promise[R])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
-        .via(bypassPromise(process, settings.maxNrOfInFlightCommands))
-        .toMat(Sink.foreach { case (r, promisedR) => promisedR.trySuccess(r) })(Keep.both)
+        .via(embed(process, settings.maxNrOfInFlightCommands))
+        .toMat(Sink.foreach {
+          case (r, (c, p)) if !correlated(c, r) => p.tryFailure(NotCorrelated(c, r))
+          case (r, (_, p))                      => p.trySuccess(r)
+        })(Keep.both)
         .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
         .run()
     shutdown.addTask(PhaseServiceRequestsDone, "processor") { () =>
@@ -69,18 +77,20 @@ object Processor extends Logging {
     sourceQueueWithComplete
   }
 
-  private def bypassPromise[C, R](process: Flow[C, R, Any], parallelsim: Int) =
+  private def embed[C, R](process: Flow[C, R, Any], bufferSize: Int) =
     Flow.fromGraph(GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._
-      val unzip  = builder.add(Unzip[C, Promise[R]]())
-      val zip    = builder.add(Zip[R, Promise[R]]())
-      val buffer = builder.add(Flow[Promise[R]].buffer(parallelsim, OverflowStrategy.backpressure))
+      val nest  = builder.add(Flow[(C, Promise[R])].map { case (c, p) => (c, (c, p)) })
+      val unzip = builder.add(Unzip[C, (C, Promise[R])]())
+      val zip   = builder.add(Zip[R, (C, Promise[R])]())
+      val buf   = builder.add(Flow[(C, Promise[R])].buffer(bufferSize, OverflowStrategy.backpressure))
 
       // format: OFF
-      unzip.out0 ~> process ~> zip.in0
-      unzip.out1 ~>  buffer  ~> zip.in1
+      nest ~> unzip.in
+              unzip.out0 ~> process ~> zip.in0
+              unzip.out1 ~>   buf   ~> zip.in1
       // format: ON
 
-      FlowShape(unzip.in, zip.out)
+      FlowShape(nest.in, zip.out)
     })
 }
