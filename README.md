@@ -38,7 +38,7 @@ and all in-flight commands have been processed.
 
 ## Usage and API
 
-In order to use Streamee we first has to define domain logic for each process. Streamee requires to
+In order to use Streamee we first have to define domain logic for each process. Streamee requires to
 use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the result type.
 
 In the demo subproject "streamee-demo" one simple process is defined in the `DemoProcess` object:
@@ -91,7 +91,7 @@ pathPrefix("accounts") {
 }
 ```  
 
-The `onProcessSuccess` directive handles the result of offering to the processor: if `Enqueued`
+The `onProcessorSuccess` directive handles the result of offering to the processor: if `Enqueued`
 (happiest path) it dispatches the associated result to the inner route via `onSuccess`, if `Dropped`
 (not so happy path) it completes the HTTP request with `ServiceUnavailable` and else (failure case,
 should not happen) completes the HTTP request with `InternalServerError`.
