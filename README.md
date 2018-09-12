@@ -36,6 +36,16 @@ requests are served before shutdown at least hard. Streamee on the other hand au
 into Akka's coordinated shutdown: it makes sure that during shutdown no more commands are accepted
 and all in-flight commands have been processed.
 
+## Installation
+
+Include streamee in your project by adding the following to your `build.sbt`:
+
+```
+libraryDependencies += "io.moia" %% "streamee" % "3.1.0"
+```
+
+Artifacts are hosted on Maven Central.
+
 ## Usage and API
 
 In order to use Streamee we first have to define domain logic for each process. Streamee requires to
@@ -95,3 +105,23 @@ The `onProcessorSuccess` directive handles the result of offering to the process
 (happiest path) it dispatches the associated result to the inner route via `onSuccess`, if `Dropped`
 (not so happy path) it completes the HTTP request with `ServiceUnavailable` and else (failure case,
 should not happen) completes the HTTP request with `InternalServerError`.
+
+## License
+
+This code is open source software licensed under the [Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0.html).
+
+## Publishing
+
+To publish a release to Maven central follow these steps:
+
+1. Create a release via GitHub
+2. Publish artifact to OSS Sonatype stage repository:
+    ```
+    sbt publishSigned
+    ```  
+    Note that your Sonatype credentials needs to be configured on your machine and you need to have access writes to publish artifacts to the group id `io.moia`.
+3. Release artifact to Maven Central with:
+      ```
+      sbt sonatypeRelease
+      ```
+

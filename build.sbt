@@ -104,6 +104,7 @@ lazy val settings =
   commonSettings ++
   scalafmtSettings ++
   dockerSettings ++
+  sonatypeSettings ++
   commandAliases
 
 lazy val commonSettings =
@@ -124,8 +125,7 @@ lazy val commonSettings =
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
-    testFrameworks += new TestFramework("utest.runner.Framework"),
-    publishTo := Some("MOIA Artifactory" at "https://moiadev.jfrog.io/moiadev/sbt-release-local")
+    testFrameworks += new TestFramework("utest.runner.Framework")
   )
 
 lazy val scalafmtSettings =
@@ -141,6 +141,17 @@ lazy val dockerSettings =
     dockerBaseImage := "openjdk:10.0.2-slim",
     dockerExposedPorts := Seq(80, 8558)
   )
+
+lazy val sonatypeSettings = {
+  import xerial.sbt.Sonatype._
+  Seq(
+    publishTo := sonatypePublishTo.value,
+    sonatypeProfileName := organization.value,
+    publishMavenStyle := true,
+    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io"))
+  )
+}
+
 
 lazy val commandAliases =
   addCommandAlias(
