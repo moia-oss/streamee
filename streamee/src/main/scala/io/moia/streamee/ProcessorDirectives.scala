@@ -32,34 +32,34 @@ import scala.concurrent.duration.FiniteDuration
 object ProcessorDirectives extends Logging {
 
   /**
-    * Offers the given command to the given processor thereby using an [[ExpiringPromise]] with the
-    * given `timeout` and handles the returned `OfferQueueResult` (from Akka Streams
-    * `SourceQueue.offer`): if `Enqueued` (happiest path) dispatches the associated result to the
+    * Offers the given request to the given processor thereby using an [[ExpiringPromise]] with the
+    * given `timeout` and handles the returned `OfferQueueResponse` (from Akka Streams
+    * `SourceQueue.offer`): if `Enqueued` (happiest path) dispatches the associated response to the
     * inner route via `onSuccess`, if `Dropped` (not so happy path) completes the HTTP request with
     * `ServiceUnavailable` and else (failure case, should not happen) completes the HTTP request
     * with `InternalServerError`.
     *
-    * @param command command to be processed
+    * @param request request to be processed
     * @param processor the processor to work with
-    * @param timeout maximum duration for the command to be processed, i.e. the related promise to be completed
+    * @param timeout maximum duration for the request to be processed, i.e. the related promise to be completed
     * @param scheduler Akka scheduler needed for timeout handling
-    * @tparam C command type
-    * @tparam R result type
+    * @tparam C request type
+    * @tparam R response type
     */
-  def onProcessorSuccess[C, R](command: C,
+  def onProcessorSuccess[C, R](request: C,
                                processor: SourceQueue[(C, Promise[R])],
                                timeout: FiniteDuration,
                                scheduler: Scheduler): Directive1[R] =
     extractExecutionContext.flatMap { implicit ec =>
-      val result = ExpiringPromise[R](timeout, scheduler)
+      val response = ExpiringPromise[R](timeout, scheduler)
 
-      onSuccess(processor.offer((command, result))).flatMap {
+      onSuccess(processor.offer((request, response))).flatMap {
         case QueueOfferResult.Enqueued =>
-          logger.debug(s"Successfully enqueued command $command!")
-          onSuccess(result.future)
+          logger.debug(s"Successfully enqueued request $request!")
+          onSuccess(response.future)
 
         case QueueOfferResult.Dropped =>
-          logger.warn(s"Processor dropped command $command!")
+          logger.warn(s"Processor dropped request $request!")
           complete(StatusCodes.ServiceUnavailable)
 
         case QueueOfferResult.QueueClosed =>

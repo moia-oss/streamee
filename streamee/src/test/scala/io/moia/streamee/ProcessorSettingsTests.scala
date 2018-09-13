@@ -57,25 +57,25 @@ object ProcessorSettingsTests extends TestSuite {
         } finally system.terminate()
       }
 
-      'throwNonPositiveMaxNrOfInFlightCommands - {
+      'throwNonPositiveMaxNrOfInFlightRequests - {
         val config =
           ConfigFactory
-            .parseString("streamee.processor.max-nr-of-in-flight-commands=0")
+            .parseString("streamee.processor.max-nr-of-in-flight-requests=0")
             .withFallback(ConfigFactory.load())
         val system = ActorSystem[Nothing](Behaviors.empty, getClass.getSimpleName.init, config)
         try intercept[IllegalArgumentException](ProcessorSettings(system))
         finally system.terminate()
       }
 
-      'maxNrOfInFlightCommands - {
+      'maxNrOfInFlightRequests - {
         val config =
           ConfigFactory
-            .parseString("streamee.processor.max-nr-of-in-flight-commands=1024")
+            .parseString("streamee.processor.max-nr-of-in-flight-requests=1024")
             .withFallback(ConfigFactory.load())
         val system = ActorSystem[Nothing](Behaviors.empty, getClass.getSimpleName.init, config)
         try {
-          val maxNrOfInFlightCommands = ProcessorSettings(system).maxNrOfInFlightCommands
-          assert(maxNrOfInFlightCommands == 1024)
+          val maxNrOfInFlightRequests = ProcessorSettings(system).maxNrOfInFlightRequests
+          assert(maxNrOfInFlightRequests == 1024)
         } finally system.terminate()
       }
     }

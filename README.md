@@ -54,23 +54,27 @@ use the type `Flow[C, R, Any]` where `C` is the command type and `R` is the resu
 In the demo subproject "streamee-demo" one simple process is defined in the `DemoProcess` object:
 
 ``` scala
-def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, String, NotUsed] =
-  Flow[String]
-    .mapAsync(1)(step("step1", 2.seconds, scheduler))
-    .mapAsync(1)(step("step2", 2.seconds, scheduler))
+def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[Request, Response, NotUsed] =
+  Flow[Request]
+    .mapAsync(1) {
+      case Request(id, n) => after(2.seconds, scheduler)(Future.successful((id, n * 42)))
+    }
+    .mapAsync(1) {
+      case (id, n) => after(2.seconds, scheduler)(Future.successful(Response(id, n)))
+    }
 ``` 
 
 Next we have to create the actual processor, i.e. the running stream into which the process is
 embedded, by calling `Processor.apply` thereby giving the process, processor settings and the
 reference to `CoordinatedShutdown`.
 
-In the demo subproject "streamee-demo" this happens in `Main`:
+In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
 val demoProcessor =
-  Processor(DemoLogic(scheduler)(untypedSystem.dispatcher),
-            ProcessorSettings(context.system),
-            CoordinatedShutdown(context.system.toUntyped))
+  Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
+            ProcessorSettings(untypedSystem),
+            CoordinatedShutdown(untypedSystem))
 ```
 
 Commands offered via the returned queue are emitted into the given process. Once results are
@@ -84,18 +88,14 @@ using an `ExpiringPromise` with the given timeout.
 In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
-pathPrefix("accounts") {
-  post {
-    entity(as[Entity]) {
-      case Entity(s) =>
-        onProcessorSuccess(s, demoProcessor, demoProcessorTimeout, scheduler) {
-          case s if s.isEmpty =>
-            complete(StatusCodes.BadRequest -> "Empty entity!")
-          case s if s.startsWith("taxi") =>
-            complete(StatusCodes.Conflict -> "We don't like taxis ;-)")
-          case s =>
-            complete(StatusCodes.Created -> s)
-        }
+post {
+  entity(as[DemoProcess.Request]) { request =>
+    onProcessorSuccess(request, demoProcessor, demoProcessorTimeout, scheduler) {
+      case DemoProcess.Response(_, n) if n == 42 =>
+        complete(StatusCodes.BadRequest -> "Request must not have n == 1!")
+
+      case DemoProcess.Response(_, n) =>
+        complete(StatusCodes.Created -> n)
     }
   }
 }
@@ -112,16 +112,15 @@ This code is open source software licensed under the [Apache 2.0 License](http:/
 
 ## Publishing
 
-To publish a release to Maven central follow these steps:
+To publish a release to Maven Central follow these steps:
 
-1. Create a release via GitHub
-2. Publish artifact to OSS Sonatype stage repository:
-    ```
-    sbt publishSigned
-    ```  
-    Note that your Sonatype credentials needs to be configured on your machine and you need to have access writes to publish artifacts to the group id `io.moia`.
+1. Create a tag/release on GitHub
+2. Publish the artifact to the OSS Sonatype stage repository:
+   ```
+   sbt publishSigned
+   ```  
+   Note that your Sonatype credentials needs to be configured on your machine and you need to have access writes to publish artifacts to the group id `io.moia`.
 3. Release artifact to Maven Central with:
-      ```
-      sbt sonatypeRelease
-      ```
-
+   ```
+   sbt sonatypeRelease
+   ```
