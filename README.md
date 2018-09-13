@@ -41,7 +41,7 @@ and all in-flight commands have been processed.
 Include streamee in your project by adding the following to your `build.sbt`:
 
 ```
-libraryDependencies += "io.moia" %% "streamee" % "3.1.0"
+libraryDependencies += "io.moia" %% "streamee" % "3.2.0"
 ```
 
 Artifacts are hosted on Maven Central.
