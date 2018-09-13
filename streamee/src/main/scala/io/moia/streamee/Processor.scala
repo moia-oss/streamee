@@ -24,66 +24,74 @@ import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
 
 /**
-  * Runs a domain logic process (Akka Streams flow) for processing commands into results. See
+  * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses. See
   * [[Processor.apply]] for details.
   */
 object Processor extends Logging {
 
-  final case class NotCorrelated[C, R](c: C, r: R)
-      extends Exception(s"Command $c and result $r are not correlated!")
+  final case class NotCorrelated[A, B](a: A, b: B)
+      extends Exception(s"Request $a and response $b are not correlated!")
 
   /**
-    * Runs a domain logic process (Akka Streams flow) for processing commands into results.
-    * Commands offered via the returned queue are pushed into the given `process`. Once results are
-    * available the promise given together with the command is completed with success. If the
-    * process back-pressures, offered commands are dropped.
+    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
+    * Requests offered via the returned queue are pushed into the given `process`. Once responses
+    * are available, the promise given together with the request is completed with success. If the
+    * process back-pressures, offered requests are dropped (fail fast).
     *
     * A task is registered with Akka Coordinated Shutdown in the "service-requests-done" phase to
-    * ensure that no more commands are accepted and all in-flight commands have been processed
+    * ensure that no more requests are accepted and all in-flight requests have been processed
     * before continuing with the shutdown.
     *
-    * '''Attention''': the given domain logic process must emit exactly one result for every
-    * command and the sequence of the elements in the process must be maintained!
+    * '''Attention''': the given domain logic process must emit exactly one response for every
+    * request and the sequence of the elements in the process must be maintained! Give a specific
+    * `correlated` function to verify this.
     *
-    * @param process domain logic process from command to result
+    * @param process domain logic process from request to response
     * @param settings settings for processors (from application.conf or reference.conf)
     * @param shutdown Akka Coordinated Shutdown
-    * @param correlated correlation between command and result, by default always true
+    * @param correlated correlation between request and response, by default always true
     * @param mat materializer to run the stream
-    * @tparam C command type
-    * @tparam R result type
-    * @return queue for command-promise pairs
+    * @tparam A request type
+    * @tparam B response type
+    * @return queue for request-promise pairs
     */
-  def apply[C, R](
-      process: Flow[C, R, Any],
+  def apply[A, B](
+      process: Flow[A, B, Any],
       settings: ProcessorSettings,
       shutdown: CoordinatedShutdown,
-      correlated: (C, R) => Boolean = (_: C, _: R) => true
-  )(implicit mat: Materializer): Processor[C, R] = {
+      correlated: (A, B) => Boolean = (_: A, _: B) => true
+  )(implicit mat: Materializer): Processor[A, B] = {
     val (sourceQueueWithComplete, done) =
       Source
-        .queue[(C, Promise[R])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
-        .via(embed(process, settings.maxNrOfInFlightCommands))
+        .queue[(A, Promise[B])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
+        .via(embed(process, settings.maxNrOfInFlightRequests))
         .toMat(Sink.foreach {
-          case (r, (c, p)) if !correlated(c, r) => p.tryFailure(NotCorrelated(c, r))
-          case (r, (_, p))                      => p.trySuccess(r)
+          case (response, (request, promisedResponse)) if !correlated(request, response) =>
+            promisedResponse.tryFailure(NotCorrelated(request, response))
+          case (response, (_, promisedResponse)) =>
+            promisedResponse.trySuccess(response)
         })(Keep.both)
         .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
         .run()
+
     shutdown.addTask(PhaseServiceRequestsDone, "processor") { () =>
       sourceQueueWithComplete.complete()
       done // `sourceQueueWithComplete.watchCompletion` seems broken, hence use `done`
     }
+
     sourceQueueWithComplete
   }
 
-  private def embed[C, R](process: Flow[C, R, Any], bufferSize: Int) =
+  private def embed[A, B](process: Flow[A, B, Any], bufferSize: Int) =
     Flow.fromGraph(GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._
-      val nest  = builder.add(Flow[(C, Promise[R])].map { case (c, p) => (c, (c, p)) })
-      val unzip = builder.add(Unzip[C, (C, Promise[R])]())
-      val zip   = builder.add(Zip[R, (C, Promise[R])]())
-      val buf   = builder.add(Flow[(C, Promise[R])].buffer(bufferSize, OverflowStrategy.backpressure))
+      val nest =
+        builder.add(Flow[(A, Promise[B])].map {
+          case (request, promisedResponse) => (request, (request, promisedResponse))
+        })
+      val unzip = builder.add(Unzip[A, (A, Promise[B])]())
+      val zip   = builder.add(Zip[B, (A, Promise[B])]())
+      val buf   = builder.add(Flow[(A, Promise[B])].buffer(bufferSize, OverflowStrategy.backpressure))
 
       // format: OFF
       nest ~> unzip.in

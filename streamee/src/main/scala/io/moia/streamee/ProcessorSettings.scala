@@ -62,21 +62,21 @@ sealed trait ProcessorSettings extends Extension {
   }
 
   /**
-    * The maximum number of commands which can be in-flight in the wrapped domain logic process.
+    * The maximum number of requests which can be in-flight in the wrapped domain logic process.
     *
-    * Large values should not be an issue, because for each command in-flight there is just a
+    * Large values should not be an issue, because for each request in-flight there is just a
     * buffered promise (which is rather lightweight).
     *
     * Must be positive!
     */
-  final val maxNrOfInFlightCommands: Int = {
-    val maxNrOfInFlightCommands =
-      system.settings.config.getInt("streamee.processor.max-nr-of-in-flight-commands")
-    if (maxNrOfInFlightCommands <= 0)
+  final val maxNrOfInFlightRequests: Int = {
+    val maxNrOfInFlightRequests =
+      system.settings.config.getInt("streamee.processor.max-nr-of-in-flight-requests")
+    if (maxNrOfInFlightRequests <= 0)
       throw new IllegalArgumentException(
-        "streamee.processor.max-nr-of-in-flight-commands must be positive!"
+        "streamee.processor.max-nr-of-in-flight-requests must be positive!"
       )
-    maxNrOfInFlightCommands
+    maxNrOfInFlightRequests
   }
 }
 

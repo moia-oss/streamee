@@ -17,11 +17,11 @@
 package io.moia.streamee
 package demo
 
+import akka.actor.{ ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import akka.actor.typed.{ ActorSystem, Behavior, Terminated }
-import akka.actor.{ ActorSystem => UntypedSystem, CoordinatedShutdown, Scheduler }
-import akka.cluster.typed.{ Cluster, SelfUp, Subscribe }
+import akka.actor.typed.{ ActorSystem, Behavior }
+import akka.actor.typed.scaladsl.Behaviors
+import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.stream.Materializer
@@ -48,37 +48,25 @@ object Main extends Logging {
 
     AkkaManagement(system.toUntyped).start()
     ClusterBootstrap(system.toUntyped).start()
-
-    logger.info(s"${system.name} started and ready to join cluster")
   }
 
   def apply(config: Config): Behavior[SelfUp] =
     Behaviors.setup { context =>
+      context.log.info("{} started and ready to join cluster", context.system.name)
+
       Cluster(context.system).subscriptions ! Subscribe(context.self, classOf[SelfUp])
 
-      Behaviors
-        .receiveMessage[SelfUp] { _ =>
-          logger.info(s"${context.system.name} joined cluster and is up")
-          onSelfUp(config, context)
-          Behaviors.empty
-        }
-        .receiveSignal {
-          case (_, Terminated(actor)) =>
-            logger.error(s"Shutting down, because $actor terminated!")
-            CoordinatedShutdown(context.system.toUntyped).run(TopLevelActorTerminated)
-            Behaviors.same
-        }
+      Behaviors.receive { (context, _) =>
+        context.log.info("{} joined cluster and is up", context.system.name)
+
+        Cluster(context.system).subscriptions ! Unsubscribe(context.self)
+
+        implicit val untypedSystem: UntypedSystem = context.system.toUntyped
+        implicit val mat: Materializer            = ActorMaterializer()(context.system)
+
+        Api(config.api)
+
+        Behaviors.empty
+      }
     }
-
-  private def onSelfUp(config: Config, context: ActorContext[SelfUp]) = {
-    implicit val untypedSystem: UntypedSystem = context.system.toUntyped
-    implicit val mat: Materializer            = ActorMaterializer()(context.system)
-    implicit val scheduler: Scheduler         = context.system.scheduler
-
-    val demoProcessor =
-      Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
-                ProcessorSettings(context.system),
-                CoordinatedShutdown(context.system.toUntyped))
-    Api(config.api, demoProcessor)
-  }
 }

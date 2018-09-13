@@ -78,10 +78,10 @@ object ProcessorDirectivesTests extends TestSuite with RouteTest with TestFramew
 
   private def route(processor: SourceQueue[(String, Promise[Boolean])]) =
     post {
-      entity(as[String]) { command =>
-        onProcessorSuccess(command, processor, 100.milliseconds.dilated, system.scheduler) {
-          result =>
-            if (result)
+      entity(as[String]) { request =>
+        onProcessorSuccess(request, processor, 100.milliseconds.dilated, system.scheduler) {
+          response =>
+            if (response)
               complete(StatusCodes.Created)
             else
               complete(StatusCodes.BadRequest)

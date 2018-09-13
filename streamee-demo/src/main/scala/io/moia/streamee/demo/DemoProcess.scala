@@ -21,22 +21,13 @@ import akka.actor.Scheduler
 import akka.pattern.after
 import akka.stream.scaladsl.Flow
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.duration.{ DurationInt, FiniteDuration }
-import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.DurationInt
 
 object DemoProcess extends Logging {
 
-  private def step(name: String, duration: FiniteDuration, scheduler: Scheduler)(
-      s: String
-  )(implicit ec: ExecutionContext) = {
-    logger.debug(s"Before $name")
-    val p = Promise[String]()
-    p.tryCompleteWith(after(duration, scheduler) {
-      logger.debug(s"After $name")
-      Future.successful(s)
-    })
-    p.future
-  }
+  final case class Request(id: String, n: Int)
+  final case class Response(id: String, n: Int)
 
   /**
     * Simple domain logic process for demo purposes.
@@ -50,8 +41,12 @@ object DemoProcess extends Logging {
     * allows for easily showing the effect of backpressure. For real-world applications usually a
     * higher value would be suitable.
     */
-  def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[String, String, NotUsed] =
-    Flow[String]
-      .mapAsync(1)(step("step1", 2.seconds, scheduler))
-      .mapAsync(1)(step("step2", 2.seconds, scheduler))
+def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[Request, Response, NotUsed] =
+  Flow[Request]
+    .mapAsync(1) {
+      case Request(id, n) => after(2.seconds, scheduler)(Future.successful((id, n * 42)))
+    }
+    .mapAsync(1) {
+      case (id, n) => after(2.seconds, scheduler)(Future.successful(Response(id, n)))
+    }
 }

@@ -17,18 +17,17 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.actor.{ ActorSystem, CoordinatedShutdown, Scheduler }
+import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.Materializer
-import akka.stream.scaladsl.SourceQueue
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ ExecutionContext, Promise }
+import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
 
 /**
@@ -42,14 +41,16 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(
-      config: Config,
-      demoProcessor: Processor[String, String]
-  )(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
+  def apply(config: Config)(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
     import config._
     import untypedSystem.dispatcher
 
     implicit val scheduler: Scheduler = untypedSystem.scheduler
+
+val demoProcessor =
+  Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
+            ProcessorSettings(untypedSystem),
+            CoordinatedShutdown(untypedSystem))
 
     Http()
       .bindAndHandle(
@@ -71,7 +72,7 @@ object Api extends Logging {
   }
 
   def route(
-      demoProcessor: SourceQueue[(String, Promise[String])],
+      demoProcessor: Processor[DemoProcess.Request, DemoProcess.Response],
       demoProcessorTimeout: FiniteDuration
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import Directives._
@@ -86,16 +87,14 @@ object Api extends Logging {
         }
       } ~
       post {
-        entity(as[Entity]) {
-          case Entity(s) =>
-            onProcessorSuccess(s, demoProcessor, demoProcessorTimeout, scheduler) {
-              case s if s.isEmpty =>
-                complete(StatusCodes.BadRequest -> "Empty entity!")
-              case s if s.startsWith("taxi") =>
-                complete(StatusCodes.Conflict -> "We don't like taxis ;-)")
-              case s =>
-                complete(StatusCodes.Created -> s)
-            }
+        entity(as[DemoProcess.Request]) { request =>
+          onProcessorSuccess(request, demoProcessor, demoProcessorTimeout, scheduler) {
+            case DemoProcess.Response(_, n) if n == 42 =>
+              complete(StatusCodes.BadRequest -> "Request must not have n == 1!")
+
+            case DemoProcess.Response(_, n) =>
+              complete(StatusCodes.Created -> n)
+          }
         }
       }
     }
