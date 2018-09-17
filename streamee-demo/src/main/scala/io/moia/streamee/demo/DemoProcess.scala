@@ -41,12 +41,12 @@ object DemoProcess extends Logging {
     * allows for easily showing the effect of backpressure. For real-world applications usually a
     * higher value would be suitable.
     */
-def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[Request, Response, NotUsed] =
-  Flow[Request]
-    .mapAsync(1) {
-      case Request(id, n) => after(2.seconds, scheduler)(Future.successful((id, n * 42)))
-    }
-    .mapAsync(1) {
-      case (id, n) => after(2.seconds, scheduler)(Future.successful(Response(id, n)))
-    }
+  def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[Request, Response, NotUsed] =
+    Flow[Request]
+      .mapAsync(1) {
+        case Request(id, n) => after(2.seconds, scheduler)(Future.successful((id, n * 42)))
+      }
+      .mapAsync(1) {
+        case (id, n) => after(2.seconds, scheduler)(Future.successful(Response(id, n)))
+      }
 }
