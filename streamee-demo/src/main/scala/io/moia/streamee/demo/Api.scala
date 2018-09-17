@@ -24,6 +24,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.Materializer
+import akka.Done
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
@@ -35,7 +36,10 @@ import scala.util.{ Failure, Success }
   */
 object Api extends Logging {
 
-  final case class Config(address: String, port: Int, demoProcessorTimeout: FiniteDuration)
+  final case class Config(address: String,
+                          port: Int,
+                          terminationDeadline: FiniteDuration,
+                          demoProcessorTimeout: FiniteDuration)
 
   private final case class Entity(s: String)
 
@@ -47,10 +51,10 @@ object Api extends Logging {
 
     implicit val scheduler: Scheduler = untypedSystem.scheduler
 
-val demoProcessor =
-  Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
-            ProcessorSettings(untypedSystem),
-            CoordinatedShutdown(untypedSystem))
+    val demoProcessor =
+      Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
+                ProcessorSettings(untypedSystem),
+                CoordinatedShutdown(untypedSystem))
 
     Http()
       .bindAndHandle(
@@ -66,7 +70,7 @@ val demoProcessor =
         case Success(binding) =>
           logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
           CoordinatedShutdown(untypedSystem).addTask(PhaseServiceUnbind, "api.unbind") { () =>
-            binding.unbind()
+            binding.terminate(terminationDeadline).map(_ => Done)
           }
       }
   }
