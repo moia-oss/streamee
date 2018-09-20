@@ -46,15 +46,17 @@ object Api extends Logging {
   private final object BindFailure extends Reason
 
   def apply(config: Config)(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
+    import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
     implicit val scheduler: Scheduler = untypedSystem.scheduler
 
     val demoProcessor =
-      Processor(DemoProcess(scheduler)(untypedSystem.dispatcher),
-                ProcessorSettings(untypedSystem),
-                CoordinatedShutdown(untypedSystem))
+      Processor(DemoProcess(), "demo-processor", ProcessorSettings(untypedSystem))(
+        _.correlationId,
+        _.correlationId
+      ).registerForCoordinatedShutdown(CoordinatedShutdown(untypedSystem))
 
     Http()
       .bindAndHandle(
@@ -81,7 +83,6 @@ object Api extends Logging {
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import Directives._
     import ErrorAccumulatingCirceSupport._
-    import ProcessorDirectives._
     import io.circe.generic.auto._
 
     pathSingleSlash {
@@ -92,12 +93,8 @@ object Api extends Logging {
       } ~
       post {
         entity(as[DemoProcess.Request]) { request =>
-          onProcessorSuccess(request, demoProcessor, demoProcessorTimeout, scheduler) {
-            case DemoProcess.Response(_, n) if n == 42 =>
-              complete(StatusCodes.BadRequest -> "Request must not have n == 1!")
-
-            case DemoProcess.Response(_, n) =>
-              complete(StatusCodes.Created -> n)
+          onSuccess(demoProcessor.process(request, demoProcessorTimeout)) {
+            case DemoProcess.Response(_, answer) => complete(StatusCodes.Created -> answer)
           }
         }
       }

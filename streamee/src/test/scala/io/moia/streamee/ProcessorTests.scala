@@ -16,169 +16,201 @@
 
 package io.moia.streamee
 
-import akka.actor.{ CoordinatedShutdown, ActorSystem => UntypedSystem }
-import akka.actor.typed.ActorSystem
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.pattern.after
-import akka.stream.{ Materializer, OverflowStrategy, QueueOfferResult }
-import akka.stream.scaladsl.{ Flow, SourceQueueWithComplete }
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.stream.{
+  ActorAttributes,
+  DelayOverflowStrategy,
+  Materializer,
+  OverflowStrategy,
+  Supervision
+}
+import akka.stream.scaladsl.Flow
 import akka.stream.typed.scaladsl.ActorMaterializer
-import akka.testkit.TestDuration
-import io.moia.streamee.ExpiringPromise.PromiseExpired
-import io.moia.streamee.Processor.NotCorrelated
-import scala.concurrent.{ Future, Promise }
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
 import utest._
 
-object ProcessorTests extends TestSuite {
+object ProcessorTests extends TestSuite with ActorTestKit {
 
-  private implicit val system: ActorSystem[Nothing] =
-    ActorSystem(Behaviors.empty, getClass.getSimpleName.init)
-
-  private implicit val untypedSystem: UntypedSystem =
-    system.toUntyped
+  private implicit val ec: ExecutionContext =
+    system.executionContext
 
   private implicit val mat: Materializer =
     ActorMaterializer()
 
-  private val scheduler = system.scheduler
-
-  private val shutdown = CoordinatedShutdown(system.toUntyped)
-
   private val plusOne = Flow[Int].map(_ + 1)
 
-  import system.executionContext
+  private val settings = ProcessorSettings(system)
 
   override def tests: Tests =
     Tests {
       'inTime - {
-        val processor = Processor(plusOne, ProcessorSettings(system), shutdown)
+        val processor = Processor(plusOne, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
 
-        val promise = ExpiringPromise[Int](100.milliseconds.dilated, scheduler)
-        processor.offer((42, promise))
-
-        promise.future.map(s => assert(s == 43))
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout),
+              processor.process(43, timeout),
+              processor.process(44, timeout),
+              processor.process(45, timeout)
+            )
+          )
+          .map { responses =>
+            assert(responses == List(43, 44, 45, 46))
+          }
       }
 
       'notInTime - {
         val process   = plusOne.delay(1.second, OverflowStrategy.backpressure)
-        val processor = Processor(process, ProcessorSettings(system), shutdown)
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
 
-        val timeout = 100.milliseconds.dilated
-        val promise = ExpiringPromise[Int](timeout, scheduler)
-
-        Future.sequence(
-          List(
-            processor.offer((42, promise)).map(r => assert(r == QueueOfferResult.Enqueued)),
-            promise.future.failed.map(t => assert(t == PromiseExpired(timeout)))
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout),
+              processor.process(43, timeout),
+              processor.process(44, timeout),
+              processor.process(45, timeout)
+            ).map(_.failed)
           )
-        )
+          .map { responses =>
+            assert(
+              responses == List(PromiseExpired(timeout, "42"),
+                                PromiseExpired(timeout, "43"),
+                                PromiseExpired(timeout, "44"),
+                                PromiseExpired(timeout, "45"))
+            )
+          }
+      }
+
+      'reorder - {
+        val process   = plusOne.grouped(2).mapConcat { case Seq(n1, n2) => List(n2, n1) }
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
+
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout),
+              processor.process(43, timeout),
+              processor.process(44, timeout),
+              processor.process(45, timeout)
+            )
+          )
+          .map { responses =>
+            assert(responses == List(43, 44, 45, 46))
+          }
+      }
+
+      'filter - {
+        val process   = plusOne.filter(_ % 2 != 0)
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
+
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout),
+              processor.process(43, timeout).failed,
+              processor.process(44, timeout),
+              processor.process(45, timeout).failed
+            )
+          )
+          .map { responses =>
+            assert(
+              responses == List(43,
+                                PromiseExpired(timeout, "43"),
+                                45,
+                                PromiseExpired(timeout, "45"))
+            )
+          }
+      }
+
+      'resume - {
+        val process =
+          plusOne
+            .map(n => if (n % 2 == 0) throw new Exception("boom") else n)
+            .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume))
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
+
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout),
+              processor.process(43, timeout).failed,
+              processor.process(44, timeout),
+              processor.process(45, timeout).failed
+            )
+          )
+          .map { responses =>
+            assert(
+              responses == List(43,
+                                PromiseExpired(timeout, "43"),
+                                45,
+                                PromiseExpired(timeout, "45"))
+            )
+          }
       }
 
       'processInFlightOnShutdown - {
-        val process   = plusOne.delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
-        val processor = Processor(process, ProcessorSettings(system), shutdown)
+        val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
 
-        val timeout  = 500.milliseconds.dilated
-        val promise1 = ExpiringPromise[Int](timeout, scheduler)
-        val promise2 = ExpiringPromise[Int](timeout, scheduler)
-        val promise3 = ExpiringPromise[Int](timeout, scheduler)
-        val promise4 = ExpiringPromise[Int](timeout, scheduler)
-
+        val responses =
+          Future
+            .sequence(
+              List(
+                processor.process(42, timeout),
+                processor.process(43, timeout),
+                processor.process(44, timeout),
+                processor.process(45, timeout),
+              )
+            )
         for {
-          _ <- processor.offer((42, promise1))
-          _ <- processor.offer((43, promise2))
-          _ <- processor.offer((44, promise3))
-          _ <- processor.offer((45, promise4))
-        } processor.asInstanceOf[SourceQueueWithComplete[(Int, Promise[Int])]].complete()
-
-        Future.sequence(
-          List(
-            promise1.future.map(s => assert(s == 43)),
-            promise2.future.map(s => assert(s == 44)),
-            promise3.future.map(s => assert(s == 45)),
-            promise4.future.map(s => assert(s == 46))
-          )
-        )
+          _  <- processor.shutdown()
+          rs <- responses
+        } yield assert(rs == List(43, 44, 45, 46))
       }
 
       'noLongerEnqueueOnShutdown - {
-        val process   = plusOne.delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
-        val processor = Processor(process, ProcessorSettings(system), shutdown)
+        val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
 
-        val timeout  = 500.milliseconds.dilated
-        val promise1 = ExpiringPromise[Int](timeout, scheduler)
-        val promise2 = ExpiringPromise[Int](timeout, scheduler)
-        val promise3 = ExpiringPromise[Int](timeout, scheduler)
-        val promise4 = ExpiringPromise[Int](timeout, scheduler)
-
-        for {
-          _ <- processor.offer((42, promise1))
-          _ <- processor.offer((43, promise2))
-          _ = processor.asInstanceOf[SourceQueueWithComplete[(Int, Promise[Int])]].complete()
-          _ <- processor.offer((44, promise3))
-          _ <- processor.offer((45, promise4))
-        } ()
-
-        Future.sequence(
-          List(
-            promise1.future.map(s => assert(s == 43)),
-            promise2.future.map(s => assert(s == 44)),
-            promise3.future.failed.map(t => assert(t == PromiseExpired(timeout))),
-            promise4.future.failed.map(t => assert(t == PromiseExpired(timeout)))
+        processor.shutdown()
+        Future
+          .sequence(
+            List(
+              processor.process(42, timeout).failed,
+              processor.process(43, timeout).failed,
+              processor.process(44, timeout).failed,
+              processor.process(45, timeout).failed,
+            )
           )
-        )
-      }
-
-      'notCorrelatedFilter - {
-        val process = plusOne.filter(_ % 2 != 0)
-        val processor =
-          Processor(process, ProcessorSettings(system), shutdown, (c: Int, r: Int) => c + 1 == r)
-
-        val timeout  = 100.milliseconds.dilated
-        val promise1 = ExpiringPromise[Int](timeout, scheduler)
-        val promise2 = ExpiringPromise[Int](timeout, scheduler)
-        val promise3 = ExpiringPromise[Int](timeout, scheduler)
-        processor.offer((42, promise1))
-        processor.offer((43, promise2))
-        processor.offer((44, promise3))
-
-        Future.sequence(
-          List(
-            promise1.future.map(s => assert(s == 43)),
-            promise2.future.failed.map(t => assert(t == NotCorrelated(43, 45))),
-            promise3.future.failed.map(t => assert(t == PromiseExpired(timeout)))
-          )
-        )
-      }
-
-      'notCorrelatedUnordered - {
-        val process =
-          plusOne.mapAsyncUnordered(42) { n =>
-            if (n % 2 != 0)
-              Future.successful(n)
-            else
-              after(100.milliseconds.dilated, scheduler)(Future.successful(n))
+          .map { responses =>
+            assert(responses.map(_ => "failure") == List.fill(4)("failure"))
           }
-        val processor =
-          Processor(process, ProcessorSettings(system), shutdown, (c: Int, r: Int) => c + 1 == r)
+      }
 
-        val timeout  = 500.milliseconds.dilated
-        val promise1 = ExpiringPromise[Int](timeout, scheduler)
-        val promise2 = ExpiringPromise[Int](timeout, scheduler)
-        val promise3 = ExpiringPromise[Int](timeout, scheduler)
-        processor.offer((42, promise1))
-        processor.offer((43, promise2))
-        processor.offer((44, promise3))
+      'swipe - {
+        val process =
+          plusOne
+            .buffer(100, OverflowStrategy.backpressure)
+            .delay(500.milliseconds, OverflowStrategy.backpressure)
+        val settings  = PlainProcessorSettings(1, 100.milliseconds)
+        val processor = Processor(process, "processor", settings)(identity, _ - 1)
+        val timeout   = 100.milliseconds
 
-        Future.sequence(
-          List(
-            promise1.future.map(s => assert(s == 43)),
-            promise2.future.failed.map(t => assert(t == NotCorrelated(43, 45))),
-            promise3.future.failed.map(t => assert(t == NotCorrelated(44, 44)))
-          )
-        )
+        val responses = 1.to(100).map(n => processor.process(n, timeout).failed)
+        Future
+          .sequence(responses)
+          .map(_.map(_.getClass.getSimpleName))
+          .map(rs => assert(rs == List.fill(100)(classOf[PromiseExpired].getSimpleName)))
       }
     }
 

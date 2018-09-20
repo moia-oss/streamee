@@ -18,6 +18,8 @@ package io.moia.streamee
 
 import akka.actor.{ ActorSystem => UntypedActorSystem }
 import akka.actor.typed.{ ActorSystem, Extension, ExtensionId }
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 
 /**
   * Settings for processors. Can be accessed from untyped and typed Akka code.
@@ -40,7 +42,6 @@ object ProcessorSettings extends ExtensionId[ProcessorSettings] {
   * Settings for processors.
   */
 sealed trait ProcessorSettings extends Extension {
-  this: ProcessorSettingsExtension =>
 
   /**
     * Buffer size of the processor queue. Must be positive!
@@ -50,35 +51,51 @@ sealed trait ProcessorSettings extends Extension {
     *
     * ATTENTNION: Currently must be 1, see https://github.com/akka/akka/issues/25349!
     */
-  final val bufferSize: Int = {
+  def bufferSize: Int
+
+  /**
+    * The interval at which promised responses that have completed are removed from the internal
+    * processor logic. Must be positive!
+    *
+    * Should be roughly the same duration like the expiry timeout of the promises.
+    */
+  def sweepCompleteResponsesInterval: FiniteDuration
+}
+
+/**
+  * Settings for processors. Mainly useful for testing.
+  */
+final case class PlainProcessorSettings(bufferSize: Int,
+                                        sweepCompleteResponsesInterval: FiniteDuration)
+    extends ProcessorSettings {
+
+  require(bufferSize > 0, "streamee.processor.buffer-size must be positive!")
+  require(bufferSize == 1, "streamee.processor.buffer-size currently must be 1!")
+  require(sweepCompleteResponsesInterval > Duration.Zero,
+          "streamee.processor.sweep-complete-responses-interval must be positive!")
+}
+
+/**
+  * Settings for processors.
+  */
+private final class ProcessorSettingsExtension(val system: ActorSystem[_])
+    extends ProcessorSettings
+    with Extension {
+  //this: ProcessorSettings =>
+
+  val bufferSize: Int = {
     val bufferSize = system.settings.config.getInt("streamee.processor.buffer-size")
-    if (bufferSize <= 0)
-      throw new IllegalArgumentException("streamee.processor.buffer-size must be positive!")
-    if (bufferSize != 1)
-      throw new IllegalArgumentException(
-        "streamee.processor.buffer-size currently must be 1, see docs in reference.conf!"
-      )
+    require(bufferSize > 0, "streamee.processor.buffer-size must be positive!")
+    require(bufferSize == 1, "streamee.processor.buffer-size currently must be 1!")
     bufferSize
   }
 
-  /**
-    * The maximum number of requests which can be in-flight in the wrapped domain logic process.
-    *
-    * Large values should not be an issue, because for each request in-flight there is just a
-    * buffered promise (which is rather lightweight).
-    *
-    * Must be positive!
-    */
-  final val maxNrOfInFlightRequests: Int = {
-    val maxNrOfInFlightRequests =
-      system.settings.config.getInt("streamee.processor.max-nr-of-in-flight-requests")
-    if (maxNrOfInFlightRequests <= 0)
-      throw new IllegalArgumentException(
-        "streamee.processor.max-nr-of-in-flight-requests must be positive!"
-      )
-    maxNrOfInFlightRequests
+  val sweepCompleteResponsesInterval: FiniteDuration = {
+    val duration =
+      system.settings.config.getDuration("streamee.processor.sweep-complete-responses-interval")
+    val sweepPromisesInterval = FiniteDuration(duration.toNanos, TimeUnit.NANOSECONDS)
+    require(sweepPromisesInterval > Duration.Zero,
+            "streamee.processor.sweep-complete-responses-interval must be positive!")
+    sweepPromisesInterval
   }
 }
-
-private[streamee] final class ProcessorSettingsExtension(val system: ActorSystem[_])
-    extends ProcessorSettings
