@@ -18,31 +18,36 @@ package io.moia.streamee
 
 import akka.actor.Scheduler
 import akka.pattern.after
-import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * Creates a promise which expires. See [[ExpiringPromise.apply]] for details.
   */
 object ExpiringPromise {
 
-  final case class PromiseExpired(timeout: FiniteDuration)
-      extends Exception(s"Promise not completed successfully within $timeout!")
-
   /**
     * Creates a promise which expires. It is either completed successfully before the given
     * `timeout` or completed with a [[PromiseExpired]] exception.
     *
     * @param timeout maximum duration for the promise to be completed successfully
-    * @param scheduler Akka scheduler needed for timeout handling
-    * @param ec Scala execution context for timeout handling
-    * @tparam R response type
+    * @param hint optional information to be passed to the [[PromiseExpired]]
+    * @tparam A result type
     */
-  def apply[R](timeout: FiniteDuration,
-               scheduler: Scheduler)(implicit ec: ExecutionContext): Promise[R] = {
-    val promisedR       = Promise[R]()
-    val responseTimeout = after(timeout, scheduler)(Future.failed(PromiseExpired(timeout)))
-    promisedR.tryCompleteWith(responseTimeout)
-    promisedR
+  def apply[A](timeout: FiniteDuration, hint: String = "")(implicit ec: ExecutionContext,
+                                                           scheduler: Scheduler): Promise[A] = {
+    val result          = Promise[A]()
+    val responseTimeout = after(timeout, scheduler)(Future.failed(PromiseExpired(timeout, hint)))
+    result.tryCompleteWith(responseTimeout)
+    result
   }
 }
+
+/**
+  * Exception which signals that a `Promise` has expired.
+  *
+  * @param timeout maximum duration for the promise to be completed successfully
+  * @param hint optional information about the expired promise
+  */
+final case class PromiseExpired(timeout: FiniteDuration, hint: String = "")
+    extends Exception(s"Promise $hint expired after $timeout!")

@@ -26,27 +26,36 @@ import scala.concurrent.duration.DurationInt
 
 object DemoProcess extends Logging {
 
-  final case class Request(id: String, n: Int)
-  final case class Response(id: String, n: Int)
+  final case class Request(correlationId: Long, question: String) {
+    require(question.nonEmpty, "question must not be empty!")
+  }
+  final case class Response(correlationId: Long, answer: String)
 
   /**
-    * Simple domain logic process for demo purposes.
+    * Simple domain logic process for demo purposes. Always answers with "42" ;-)
     *
     * The process is comprised of two stages (aka steps or tasks). Each of these performs its work
-    * asynchronously, hence `mapAsync` is used. Typical real-world examples for such stages are
-    * calls to external services (e.g. via HTTP or gRPC) or interacting with actors in a
-    * request-response way (via the ask pattern).
+    * asynchronously and after an artificial delay, hence `mapAsync` is used. Typical real-world
+    * examples for such stages are calls to external services (e.g. via HTTP or gRPC) or interacting
+    * with actors in a request-response way (via the ask pattern).
     *
     * The value 1 for the `parallelism` of `mapAsync` is chosen for demonstration purposes only: it
     * allows for easily showing the effect of backpressure. For real-world applications usually a
     * higher value would be suitable.
     */
-  def apply(scheduler: Scheduler)(implicit ec: ExecutionContext): Flow[Request, Response, NotUsed] =
+  def apply()(implicit ec: ExecutionContext,
+              scheduler: Scheduler): Flow[Request, Response, NotUsed] =
     Flow[Request]
       .mapAsync(1) {
-        case Request(id, n) => after(2.seconds, scheduler)(Future.successful((id, n * 42)))
+        case request @ Request(_, question) =>
+          after(2.seconds, scheduler) {
+            Future.successful((request, question.length * 42))
+          }
       }
       .mapAsync(1) {
-        case (id, n) => after(2.seconds, scheduler)(Future.successful(Response(id, n)))
+        case (Request(correlationId, question), n) =>
+          after(2.seconds, scheduler) {
+            Future.successful(Response(correlationId, (n / question.length).toString))
+          }
       }
 }

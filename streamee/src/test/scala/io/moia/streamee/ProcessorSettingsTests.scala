@@ -19,13 +19,14 @@ package io.moia.streamee
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import com.typesafe.config.ConfigFactory
+import scala.concurrent.duration.DurationInt
 import utest._
 
 object ProcessorSettingsTests extends TestSuite {
 
   override def tests: Tests =
     Tests {
-      'throwNonPositiveBufferSize - {
+      'bufferSizeTthrowNonPositive - {
         val config =
           ConfigFactory
             .parseString("streamee.processor.buffer-size=0")
@@ -35,7 +36,7 @@ object ProcessorSettingsTests extends TestSuite {
         finally system.terminate()
       }
 
-      'throwNotOneBufferSize - {
+      'bufferSizeThrowNotOne - {
         val config =
           ConfigFactory
             .parseString("streamee.processor.buffer-size=2")
@@ -46,10 +47,7 @@ object ProcessorSettingsTests extends TestSuite {
       }
 
       'bufferSize - {
-        val config =
-          ConfigFactory
-            .parseString("streamee.processor.buffer-size=1")
-            .withFallback(ConfigFactory.load())
+        val config = ConfigFactory.load()
         val system = ActorSystem[Nothing](Behaviors.empty, getClass.getSimpleName.init, config)
         try {
           val bufferSize = ProcessorSettings(system).bufferSize
@@ -57,25 +55,22 @@ object ProcessorSettingsTests extends TestSuite {
         } finally system.terminate()
       }
 
-      'throwNonPositiveMaxNrOfInFlightRequests - {
+      'sweepPromisesIntervalThrowNonPositive - {
         val config =
           ConfigFactory
-            .parseString("streamee.processor.max-nr-of-in-flight-requests=0")
+            .parseString("streamee.processor.sweep-complete-responses-interval=0")
             .withFallback(ConfigFactory.load())
         val system = ActorSystem[Nothing](Behaviors.empty, getClass.getSimpleName.init, config)
         try intercept[IllegalArgumentException](ProcessorSettings(system))
         finally system.terminate()
       }
 
-      'maxNrOfInFlightRequests - {
-        val config =
-          ConfigFactory
-            .parseString("streamee.processor.max-nr-of-in-flight-requests=1024")
-            .withFallback(ConfigFactory.load())
+      'sweepPromisesInterval - {
+        val config = ConfigFactory.load()
         val system = ActorSystem[Nothing](Behaviors.empty, getClass.getSimpleName.init, config)
         try {
-          val maxNrOfInFlightRequests = ProcessorSettings(system).maxNrOfInFlightRequests
-          assert(maxNrOfInFlightRequests == 1024)
+          val sweepPromisesInterval = ProcessorSettings(system).sweepCompleteResponsesInterval
+          assert(sweepPromisesInterval == 3.seconds)
         } finally system.terminate()
       }
     }

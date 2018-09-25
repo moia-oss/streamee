@@ -16,21 +16,61 @@
 
 package io.moia.streamee
 
-import akka.actor.CoordinatedShutdown
-import akka.actor.CoordinatedShutdown.PhaseServiceRequestsDone
-import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, Sink, Source, Unzip, Zip }
-import akka.stream.{ ActorAttributes, FlowShape, Materializer, OverflowStrategy, Supervision }
+import akka.{ Done, NotUsed }
+import akka.actor.{ CoordinatedShutdown, Scheduler }
+import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
+import akka.http.scaladsl.server.ExceptionHandler
+import akka.http.scaladsl.server.Directives.complete
+import akka.stream.{
+  Attributes,
+  ClosedShape,
+  FanInShape2,
+  Inlet,
+  Materializer,
+  Outlet,
+  OverflowStrategy,
+  QueueOfferResult
+}
+import akka.stream.scaladsl.{
+  Flow,
+  GraphDSL,
+  Keep,
+  RunnableGraph,
+  Sink,
+  Source,
+  SourceQueueWithComplete,
+  Unzip
+}
+import akka.stream.stage.{
+  GraphStage,
+  GraphStageLogic,
+  InHandler,
+  OutHandler,
+  TimerGraphStageLogic
+}
+import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
+import io.moia.streamee.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.Promise
+import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses. See
   * [[Processor.apply]] for details.
   */
-object Processor extends Logging {
+object Processor {
 
-  final case class NotCorrelated[A, B](a: A, b: B)
-      extends Exception(s"Request $a and response $b are not correlated!")
+  final case class ProcessorUnavailable(name: String)
+      extends Exception(s"Processor $name cannot accept offers at this time!")
+
+  final case class UnexpectedQueueOfferResult(result: QueueOfferResult)
+      extends Exception(s"QueueOfferResult $result was not expected!")
+
+  implicit val processorUnavailableHandler: ExceptionHandler =
+    ExceptionHandler {
+      case ProcessorUnavailable(name) =>
+        complete(ServiceUnavailable -> s"Processor $name cannot accept offers at this time!")
+    }
 
   /**
     * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
@@ -38,67 +78,170 @@ object Processor extends Logging {
     * are available, the promise given together with the request is completed with success. If the
     * process back-pressures, offered requests are dropped (fail fast).
     *
-    * A task is registered with Akka Coordinated Shutdown in the "service-requests-done" phase to
-    * ensure that no more requests are accepted and all in-flight requests have been processed
-    * before continuing with the shutdown.
-    *
-    * '''Attention''': the given domain logic process must emit exactly one response for every
-    * request and the sequence of the elements in the process must be maintained! Give a specific
-    * `correlated` function to verify this.
-    *
     * @param process domain logic process from request to response
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
     * @param settings settings for processors (from application.conf or reference.conf)
-    * @param shutdown Akka Coordinated Shutdown
-    * @param correlated correlation between request and response, by default always true
-    * @param mat materializer to run the stream
+    * @param correlateRequest correlation function for the request
+    * @param correlateResponse correlation function for the response
     * @tparam A request type
     * @tparam B response type
-    * @return queue for request-promise pairs
+    * @return [[Processor]] for offering requests and shutting down
     */
-  def apply[A, B](
-      process: Flow[A, B, Any],
-      settings: ProcessorSettings,
-      shutdown: CoordinatedShutdown,
-      correlated: (A, B) => Boolean = (_: A, _: B) => true
-  )(implicit mat: Materializer): Processor[A, B] = {
-    val (sourceQueueWithComplete, done) =
+  def apply[A, B, C](process: Flow[A, B, Any], name: String, settings: ProcessorSettings)(
+      correlateRequest: A => C,
+      correlateResponse: B => C
+  )(implicit mat: Materializer, ec: ExecutionContext, scheduler: Scheduler): Processor[A, B] = {
+    import settings._
+
+    val source =
       Source
-        .queue[(A, Promise[B])](settings.bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
-        .via(embed(process, settings.maxNrOfInFlightRequests))
-        .toMat(Sink.foreach {
-          case (response, (request, promisedResponse)) if !correlated(request, response) =>
-            promisedResponse.tryFailure(NotCorrelated(request, response))
-          case (response, (_, promisedResponse)) =>
-            promisedResponse.trySuccess(response)
-        })(Keep.both)
-        .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume)) // The stream must not die!
+        .queue[(A, Promise[B])](bufferSize, OverflowStrategy.dropNew) // Must be 1: for 0 offers could "hang", for larger values completing would not work, see: https://github.com/akka/akka/issues/25349
+        .map { case reqAndRes @ (req, _) => (reqAndRes, req) }
+
+    val (queue, done) =
+      RunnableGraph
+        .fromGraph(GraphDSL.create(source, Sink.ignore)(Keep.both) {
+          implicit builder => (source, ignore) =>
+            import GraphDSL.Implicits._
+
+            val unzip = builder.add(Unzip[(A, Promise[B]), A]())
+            val promises =
+              builder.add(
+                new PromisesStage[A, B, C](correlateRequest,
+                                           correlateResponse,
+                                           sweepCompleteResponsesInterval)
+              )
+
+            // format: off
+            source ~> unzip.in
+                      unzip.out0       ~>      promises.in0
+                      unzip.out1 ~> process ~> promises.in1
+                                               promises.out ~> ignore
+            // format: on
+
+            ClosedShape
+        })
         .run()
 
-    shutdown.addTask(PhaseServiceRequestsDone, "processor") { () =>
-      sourceQueueWithComplete.complete()
-      done // `sourceQueueWithComplete.watchCompletion` seems broken, hence use `done`
-    }
+    new ProcessorImpl(queue, done, name)
+  }
+}
 
-    sourceQueueWithComplete
+/**
+  * Process requests with a running process or shut it down.
+  */
+sealed trait Processor[A, B] {
+
+  /**
+    * Offers the given request to the running process. The returned `Future` is either completed
+    * successfully with the response or failed if it cannot be offered, e.g. because of back
+    * pressure.
+    *
+    * @param request request to be processed
+    * @param timeout maximum duration for the request to be processed, i.e. the related promise to
+    *                be completed
+    * @return `Future` for the response
+    */
+  def process(request: A, timeout: FiniteDuration)(implicit ec: ExecutionContext,
+                                                   scheduler: Scheduler): Future[B]
+
+  /**
+    * Shuts down the running process. Already accepted requests are still processed, but no new ones
+    * accepted. The returened `Future` is completed once all requests have been processed.
+    *
+    * @return `Future` signaling that all requests have been processed
+    */
+  def shutdown(): Future[Done]
+
+  /**
+    * Registers shutdown of this processor during coordinated shutdown in the service-requests-done
+    * phase.
+    *
+    * @return this instance
+    */
+  def registerForCoordinatedShutdown(coordinatedShutdown: CoordinatedShutdown): this.type = {
+    coordinatedShutdown.addTask(CoordinatedShutdown.PhaseServiceRequestsDone, "processor") { () =>
+      shutdown()
+    }
+    this
+  }
+}
+
+private final class ProcessorImpl[A, B](queue: SourceQueueWithComplete[(A, Promise[B])],
+                                        done: Future[Done],
+                                        name: String)
+    extends Processor[A, B] {
+
+  override def process(request: A, timeout: FiniteDuration)(implicit ec: ExecutionContext,
+                                                            scheduler: Scheduler): Future[B] = {
+    val promisedResponse = ExpiringPromise[B](timeout, request.toString)
+    queue.offer((request, promisedResponse)).flatMap {
+      case Enqueued => promisedResponse.future
+      case Dropped  => Future.failed(ProcessorUnavailable(name))
+      case other    => Future.failed(UnexpectedQueueOfferResult(other))
+    }
   }
 
-  private def embed[A, B](process: Flow[A, B, Any], bufferSize: Int) =
-    Flow.fromGraph(GraphDSL.create() { implicit builder =>
-      import GraphDSL.Implicits._
-      val nest =
-        builder.add(Flow[(A, Promise[B])].map {
-          case (request, promisedResponse) => (request, (request, promisedResponse))
-        })
-      val unzip = builder.add(Unzip[A, (A, Promise[B])]())
-      val zip   = builder.add(Zip[B, (A, Promise[B])]())
-      val buf   = builder.add(Flow[(A, Promise[B])].buffer(bufferSize, OverflowStrategy.backpressure))
+  override def shutdown(): Future[Done] = {
+    queue.complete()
+    done
+  }
+}
 
-      // format: OFF
-      nest ~> unzip.in
-              unzip.out0 ~> process ~> zip.in0
-              unzip.out1 ~>   buf   ~> zip.in1
-      // format: ON
+private final class PromisesStage[A, B, C](correlateRequest: A => C,
+                                           correlateResponse: B => C,
+                                           gcInterval: FiniteDuration)
+    extends GraphStage[FanInShape2[(A, Promise[B]), B, NotUsed]]
+    with Logging {
 
-      FlowShape(nest.in, zip.out)
-    })
+  override val shape: FanInShape2[(A, Promise[B]), B, NotUsed] =
+    new FanInShape2(Inlet[(A, Promise[B])]("PromisesStage.in0"),
+                    Inlet[B]("PromisesStage.in1"),
+                    Outlet[NotUsed]("PromisesStage.out"))
+
+  override def createLogic(attributes: Attributes): GraphStageLogic =
+    new TimerGraphStageLogic(shape) {
+      import shape._
+
+      private var reqToRes = Map.empty[C, Promise[B]]
+
+      setHandler(
+        in0,
+        new InHandler {
+          override def onPush(): Unit = {
+            val (req, res) = grab(in0)
+            reqToRes += correlateRequest(req) -> res
+            if (!hasBeenPulled(in0)) pull(in0)
+          }
+
+          // Only in1 must complete the stage!
+          override def onUpstreamFinish(): Unit =
+            ()
+        }
+      )
+
+      setHandler(
+        in1,
+        new InHandler {
+          override def onPush(): Unit = {
+            val res = grab(in1)
+            reqToRes.get(correlateResponse(res)).foreach(_.trySuccess(res))
+            push(out, NotUsed)
+          }
+        }
+      )
+
+      setHandler(out, new OutHandler {
+        override def onPull(): Unit = {
+          if (!isClosed(in0) && !hasBeenPulled(in0)) pull(in0)
+          pull(in1)
+        }
+      })
+
+      override def preStart(): Unit =
+        schedulePeriodicallyWithInitialDelay("gc", gcInterval, gcInterval)
+
+      override protected def onTimer(timerKey: Any): Unit =
+        reqToRes = reqToRes.filter { case (_, res) => !res.isCompleted }
+    }
 }

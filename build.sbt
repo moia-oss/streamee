@@ -25,6 +25,7 @@ lazy val `streamee` =
         library.log4jApiScala,
         library.akkaActorTestkitTyped % Test,
         library.akkaHttpTestkit       % Test,
+        library.log4jCore             % Test,
         library.scalaCheck            % Test,
         library.utest                 % Test
       )
@@ -65,10 +66,10 @@ lazy val library =
     object Version {
       val akka           = "2.5.16"
       val akkaHttp       = "10.1.5"
-      val akkaHttpJson   = "1.21.0"
+      val akkaHttpJson   = "1.22.0"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.17.0"
-      val circe          = "0.9.3"
+      val akkaManagement = "0.18.0"
+      val circe          = "0.10.0"
       val disruptor      = "3.4.2"
       val log4j          = "2.11.1"
       val log4jApiScala  = "11.0"
