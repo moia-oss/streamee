@@ -63,7 +63,7 @@ import scala.concurrent.duration.FiniteDuration
 object Processor {
 
   final case class ProcessorUnavailable(name: String)
-      extends Exception(s"Processor $name cannot accept offers at this time!")
+      extends Exception(s"Processor $name cannot accept requests at this time!")
 
   final case class UnexpectedQueueOfferResult(result: QueueOfferResult)
       extends Exception(s"QueueOfferResult $result was not expected!")

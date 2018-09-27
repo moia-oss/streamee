@@ -74,10 +74,19 @@ def apply()(implicit ec: ExecutionContext,
 ``` 
 
 Next we have to create the actual processor, i.e. the running stream into which the process is
-embedded, by calling `Processor.apply` thereby giving the process and processor settings. Most
-probably we also want to register with `CoordinatedShutdown`.
+embedded, by calling `Processor.apply` thereby giving the process, a name and functions to
+correlate request and response.
 
-In the demo subproject "streamee-demo" this happens in `Api`:
+In the demo subproject "streamee-demo" this happens in `Main`:
+
+``` scala
+val demoProcessor =
+  Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
+```
+
+Actually the above is just a short form for the below, i.e. already conveniently registering with
+`CoordinatedShutdown`:
+
 
 ``` scala
 val demoProcessor =
