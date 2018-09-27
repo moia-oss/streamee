@@ -18,9 +18,11 @@ package io.moia.streamee
 
 import akka.{ Done, NotUsed }
 import akka.actor.{ CoordinatedShutdown, Scheduler }
+import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
-import akka.http.scaladsl.server.ExceptionHandler
 import akka.http.scaladsl.server.Directives.complete
+import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.{
   Attributes,
   ClosedShape,
@@ -71,6 +73,33 @@ object Processor {
       case ProcessorUnavailable(name) =>
         complete(ServiceUnavailable -> s"Processor $name cannot accept offers at this time!")
     }
+
+  /**
+    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
+    * Requests offered via the returned queue are pushed into the given `process`. Once responses
+    * are available, the promise given together with the request is completed with success. If the
+    * process back-pressures, offered requests are dropped (fail fast).
+    *
+    * This factory is conveniently creating default [[ProcessorSettings]] and also registering
+    * the returned [[Processor]] with coordinated shutdown.
+    *
+    * @param process domain logic process from request to response
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param correlateRequest correlation function for the request
+    * @param correlateResponse correlation function for the response
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for offering requests and shutting down, already registered with coordinated shutdown
+    */
+  def apply[A, B, C](process: Flow[A, B, Any], name: String)(
+      correlateRequest: A => C,
+      correlateResponse: B => C
+  )(implicit mat: Materializer, ec: ExecutionContext, system: ActorSystem[_]): Processor[A, B] =
+    Processor(process, name, ProcessorSettings(system))(correlateRequest, correlateResponse)(
+      mat,
+      ec,
+      system.scheduler
+    ).registerWithCoordinatedShutdown(CoordinatedShutdown(system.toUntyped))
 
   /**
     * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
@@ -159,7 +188,7 @@ sealed trait Processor[A, B] {
     *
     * @return this instance
     */
-  def registerForCoordinatedShutdown(coordinatedShutdown: CoordinatedShutdown): this.type = {
+  def registerWithCoordinatedShutdown(coordinatedShutdown: CoordinatedShutdown): this.type = {
     coordinatedShutdown.addTask(CoordinatedShutdown.PhaseServiceRequestsDone, "processor") { () =>
       shutdown()
     }
