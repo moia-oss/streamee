@@ -38,12 +38,12 @@ requests are served before shutdown at least hard. Streamee on the other hand of
 hooks into Akka's coordinated shutdown which makes sure that during shutdown no more requests are
 accepted and – very important – all in-flight requests have been processed.
 
-## Installation
+## Dependencies
 
-Include streamee in your project by adding the following to your `build.sbt`:
+Include Streamee in your project by adding the following to your `build.sbt`:
 
 ```
-libraryDependencies += "io.moia" %% "streamee" % "4.0.0"
+libraryDependencies += "io.moia" %% "streamee" % "4.0.0" // find the latest version at the badge at the top  
 ```
 
 Artifacts are hosted on Maven Central.
@@ -125,7 +125,7 @@ import Processor.processorUnavailableHandler
 
 This code is open source software licensed under the [Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0.html).
 
-## Publishing
+## Publishing (for maintainers)
 
 To publish a release to Maven Central follow these steps:
 
