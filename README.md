@@ -1,5 +1,6 @@
 # Streamee #
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.moia/streamee_2.12.svg)](https://maven-badges.herokuapp.com/maven-central/io.moia/streamee_2.12)
 [![CircleCI](https://circleci.com/gh/moia-dev/streamee/tree/master.svg?style=svg)](https://circleci.com/gh/moia-dev/streamee/tree/master)
 
 ## Motivation
