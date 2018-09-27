@@ -17,14 +17,16 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.{ ActorSystem, CoordinatedShutdown, Scheduler }
+import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
+import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.Materializer
 import akka.Done
+import akka.actor.typed.ActorSystem
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
@@ -45,18 +47,15 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(config: Config)(implicit untypedSystem: ActorSystem, mat: Materializer): Unit = {
+  def apply(config: Config)(implicit untypedSystem: UntypedSystem, mat: Materializer): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
-    implicit val scheduler: Scheduler = untypedSystem.scheduler
+    implicit val system: ActorSystem[_] = untypedSystem.toTyped
+    implicit val scheduler: Scheduler   = untypedSystem.scheduler
 
-    val demoProcessor =
-      Processor(DemoProcess(), "demo-processor", ProcessorSettings(untypedSystem))(
-        _.correlationId,
-        _.correlationId
-      ).registerForCoordinatedShutdown(CoordinatedShutdown(untypedSystem))
+    val demoProcessor = Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
 
     Http()
       .bindAndHandle(

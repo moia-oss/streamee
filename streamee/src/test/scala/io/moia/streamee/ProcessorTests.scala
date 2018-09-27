@@ -159,7 +159,7 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       'processInFlightOnShutdown - {
         val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 500.milliseconds
 
         val responses =
           Future
