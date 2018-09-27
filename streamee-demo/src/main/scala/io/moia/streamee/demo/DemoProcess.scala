@@ -20,16 +20,17 @@ import akka.NotUsed
 import akka.actor.Scheduler
 import akka.pattern.after
 import akka.stream.scaladsl.Flow
+import java.util.UUID
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
 
 object DemoProcess extends Logging {
 
-  final case class Request(correlationId: Long, question: String) {
+  final case class Request(question: String, correlationId: UUID = UUID.randomUUID()) {
     require(question.nonEmpty, "question must not be empty!")
   }
-  final case class Response(correlationId: Long, answer: String)
+  final case class Response(answer: String, correlationId: UUID = UUID.randomUUID())
 
   /**
     * Simple domain logic process for demo purposes. Always answers with "42" ;-)
@@ -47,15 +48,15 @@ object DemoProcess extends Logging {
               scheduler: Scheduler): Flow[Request, Response, NotUsed] =
     Flow[Request]
       .mapAsync(1) {
-        case request @ Request(_, question) =>
+        case request @ Request(question, _) =>
           after(2.seconds, scheduler) {
             Future.successful((request, question.length * 42))
           }
       }
       .mapAsync(1) {
-        case (Request(correlationId, question), n) =>
+        case (Request(question, correlationId), n) =>
           after(2.seconds, scheduler) {
-            Future.successful(Response(correlationId, (n / question.length).toString))
+            Future.successful(Response((n / question.length).toString, correlationId))
           }
       }
 }

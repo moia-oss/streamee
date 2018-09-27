@@ -41,7 +41,7 @@ object Api extends Logging {
                           terminationDeadline: FiniteDuration,
                           demoProcessorTimeout: FiniteDuration)
 
-  private final case class Entity(s: String)
+  private final case class Request(question: String)
 
   private final object BindFailure extends Reason
 
@@ -89,10 +89,11 @@ object Api extends Logging {
         }
       } ~
       post {
-        entity(as[DemoProcess.Request]) { request =>
-          onSuccess(demoProcessor.process(request, demoProcessorTimeout)) {
-            case DemoProcess.Response(_, answer) => complete(StatusCodes.Created -> answer)
-          }
+        entity(as[Request]) {
+          case Request(question) =>
+            onSuccess(demoProcessor.process(DemoProcess.Request(question), demoProcessorTimeout)) {
+              case DemoProcess.Response(answer, _) => complete(StatusCodes.Created -> answer)
+            }
         }
       }
     }

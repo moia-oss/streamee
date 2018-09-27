@@ -60,15 +60,15 @@ def apply()(implicit ec: ExecutionContext,
             scheduler: Scheduler): Flow[Request, Response, NotUsed] =
   Flow[Request]
     .mapAsync(1) {
-      case request @ Request(_, question) =>
+      case request @ Request(question, _) =>
         after(2.seconds, scheduler) {
           Future.successful((request, question.length * 42))
         }
     }
     .mapAsync(1) {
-      case (Request(correlationId, question), n) =>
+      case (Request(question, correlationId), n) =>
         after(2.seconds, scheduler) {
-          Future.successful(Response(correlationId, (n / question.length).toString))
+          Future.successful(Response((n / question.length).toString, correlationId))
         }
     }
 ``` 
@@ -96,6 +96,18 @@ val demoProcessor =
   ).registerForCoordinatedShutdown(CoordinatedShutdown(untypedSystem))
 ```
 
+Correlating request and response is an essential requirement for Streamee. Ideally we can use some
+field, e.g. `correlationId`, as part of request and response and thread it through.
+
+In "streamee-demo" this is how it looks like in `DemoProcess`:
+
+``` scala
+final case class Request(question: String, correlationId: UUID = UUID.randomUUID()) {
+  require(question.nonEmpty, "question must not be empty!")
+}
+final case class Response(answer: String, correlationId: UUID = UUID.randomUUID())
+``` 
+
 Requests offered to the returned `Processor` via the `process` method are emitted into the given
 process. Once a response is available, the returned `Future` is completed successfully. If the
 process back-pressures, requests are dropped and the returned `Future`s are completed with a failure
@@ -108,10 +120,11 @@ In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
 post {
-  entity(as[DemoProcess.Request]) { request =>
-    onSuccess(demoProcessor.process(request, demoProcessorTimeout)) {
-      case DemoProcess.Response(_, answer) => complete(StatusCodes.Created -> answer)
-    }
+  entity(as[Request]) {
+    case Request(question) =>
+      onSuccess(demoProcessor.process(DemoProcess.Request(question), demoProcessorTimeout)) {
+        case DemoProcess.Response(answer, _) => complete(StatusCodes.Created -> answer)
+      }
   }
 }
 ```  
