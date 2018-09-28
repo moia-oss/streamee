@@ -56,8 +56,9 @@ use the type `Flow[A, B, Any]` where `A` is the request type and `R` is the resp
 In the demo subproject "streamee-demo" one simple process is defined in the `DemoProcess` object:
 
 ``` scala
-def apply()(implicit ec: ExecutionContext,
-            scheduler: Scheduler): Flow[Request, Response, NotUsed] =
+type Process = Flow[Request, Response, NotUsed]
+
+def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
   Flow[Request]
     .mapAsync(1) {
       case request @ Request(question, _) =>
@@ -77,11 +78,10 @@ Next we have to create the actual processor, i.e. the running stream into which 
 embedded, by calling `Processor.apply` thereby giving the process, a name and functions to
 correlate request and response.
 
-In the demo subproject "streamee-demo" this happens in `Main`:
+In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
-val demoProcessor =
-  Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
+val demoProcessor = Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
 ```
 
 Actually the above is just a short form for the below, i.e. already conveniently registering with

@@ -17,10 +17,11 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.{ Scheduler, ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.Reason
+import akka.actor.Scheduler
 import akka.actor.typed.{ ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
@@ -35,7 +36,6 @@ import scala.concurrent.ExecutionContext
   * Runner for this demo. Creates actor system, API, etc.
   */
 object Main extends Logging {
-  import akka.actor.typed.scaladsl.adapter._
 
   final case class Config(api: Api.Config)
 
@@ -62,16 +62,12 @@ object Main extends Logging {
 
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
-        implicit val system: ActorSystem[_]       = context.system
-        implicit val untypedSystem: UntypedSystem = context.system.toUntyped
-        implicit val mat: Materializer            = ActorMaterializer()(context.system)
-        implicit val ec: ExecutionContext         = context.executionContext
-        implicit val scheduler: Scheduler         = context.system.scheduler
+        implicit val system: ActorSystem[_] = context.system
+        implicit val mat: Materializer      = ActorMaterializer()(context.system)
+        implicit val ec: ExecutionContext   = context.executionContext
+        implicit val scheduler: Scheduler   = context.system.scheduler
 
-        val demoProcessor =
-          Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
-
-        Api(config.api, demoProcessor)
+        Api(config.api, DemoProcess())
 
         Behaviors.empty
       }

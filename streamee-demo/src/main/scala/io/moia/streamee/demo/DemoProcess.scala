@@ -27,6 +27,8 @@ import scala.concurrent.duration.DurationInt
 
 object DemoProcess extends Logging {
 
+  type Process = Flow[Request, Response, NotUsed]
+
   final case class Request(question: String, correlationId: UUID = UUID.randomUUID()) {
     require(question.nonEmpty, "question must not be empty!")
   }
@@ -44,19 +46,18 @@ object DemoProcess extends Logging {
     * allows for easily showing the effect of backpressure. For real-world applications usually a
     * higher value would be suitable.
     */
-  def apply()(implicit ec: ExecutionContext,
-              scheduler: Scheduler): Flow[Request, Response, NotUsed] =
-    Flow[Request]
-      .mapAsync(1) {
-        case request @ Request(question, _) =>
-          after(2.seconds, scheduler) {
-            Future.successful((request, question.length * 42))
-          }
-      }
-      .mapAsync(1) {
-        case (Request(question, correlationId), n) =>
-          after(2.seconds, scheduler) {
-            Future.successful(Response((n / question.length).toString, correlationId))
-          }
-      }
+def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
+  Flow[Request]
+    .mapAsync(1) {
+      case request @ Request(question, _) =>
+        after(2.seconds, scheduler) {
+          Future.successful((request, question.length * 42))
+        }
+    }
+    .mapAsync(1) {
+      case (Request(question, correlationId), n) =>
+        after(2.seconds, scheduler) {
+          Future.successful(Response((n / question.length).toString, correlationId))
+        }
+    }
 }

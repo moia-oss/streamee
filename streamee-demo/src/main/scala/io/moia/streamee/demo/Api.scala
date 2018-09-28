@@ -25,6 +25,8 @@ import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.Materializer
 import akka.Done
+import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
@@ -45,15 +47,16 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(
-      config: Config,
-      demoProcessor: Processor[DemoProcess.Request, DemoProcess.Response]
-  )(implicit untypedSystem: UntypedSystem, mat: Materializer): Unit = {
+  def apply(config: Config, demoProcess: DemoProcess.Process)(implicit system: ActorSystem[_],
+                                                              mat: Materializer,
+                                                              scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
-    implicit val scheduler: Scheduler = untypedSystem.scheduler
+    implicit val untypedSystem: UntypedSystem = system.toUntyped
+
+    val demoProcessor = Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
 
     Http()
       .bindAndHandle(
