@@ -16,15 +16,11 @@
 
 package io.moia.streamee
 
-import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.ExecutionContext
 import utest._
 
-object ExpiringPromiseTests extends TestSuite with ActorTestKit {
-
-  private implicit val ec: ExecutionContext =
-    system.executionContext
+object ExpiringPromiseTests extends ActorTestSuite {
+  import testKit._
 
   override def tests: Tests =
     Tests {
@@ -41,9 +37,4 @@ object ExpiringPromiseTests extends TestSuite with ActorTestKit {
         promise.future.map(s => assert(s == "success"))
       }
     }
-
-  override def utestAfterAll(): Unit = {
-    system.terminate()
-    super.utestAfterAll()
-  }
 }

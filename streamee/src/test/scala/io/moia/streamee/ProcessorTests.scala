@@ -16,27 +16,15 @@
 
 package io.moia.streamee
 
-import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.stream.{
-  ActorAttributes,
-  DelayOverflowStrategy,
-  Materializer,
-  OverflowStrategy,
-  Supervision
-}
+import akka.stream.{ ActorAttributes, DelayOverflowStrategy, OverflowStrategy, Supervision }
 import akka.stream.scaladsl.Flow
-import akka.stream.typed.scaladsl.ActorMaterializer
-import scala.concurrent.{ ExecutionContext, Future }
+import akka.testkit.TestDuration
+import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import utest._
 
-object ProcessorTests extends TestSuite with ActorTestKit {
-
-  private implicit val ec: ExecutionContext =
-    system.executionContext
-
-  private implicit val mat: Materializer =
-    ActorMaterializer()
+object ProcessorTests extends ActorTestSuite {
+  import testKit._
 
   private val plusOne = Flow[Int].map(_ + 1)
 
@@ -46,7 +34,7 @@ object ProcessorTests extends TestSuite with ActorTestKit {
     Tests {
       'inTime - {
         val processor = Processor(plusOne, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         Future
           .sequence(
@@ -63,9 +51,9 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       }
 
       'notInTime - {
-        val process   = plusOne.delay(1.second, OverflowStrategy.backpressure)
+        val process   = plusOne.delay(1.second.dilated, OverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         Future
           .sequence(
@@ -89,7 +77,7 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       'reorder - {
         val process   = plusOne.grouped(2).mapConcat { case Seq(n1, n2) => List(n2, n1) }
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         Future
           .sequence(
@@ -108,7 +96,7 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       'filter - {
         val process   = plusOne.filter(_ % 2 != 0)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         Future
           .sequence(
@@ -135,7 +123,7 @@ object ProcessorTests extends TestSuite with ActorTestKit {
             .map(n => if (n % 2 == 0) throw new Exception("boom") else n)
             .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume))
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         Future
           .sequence(
@@ -157,9 +145,9 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       }
 
       'processInFlightOnShutdown - {
-        val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
+        val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 500.milliseconds
+        val timeout   = 1000.milliseconds.dilated
 
         val responses =
           Future
@@ -178,9 +166,9 @@ object ProcessorTests extends TestSuite with ActorTestKit {
       }
 
       'noLongerEnqueueOnShutdown - {
-        val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
+        val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         processor.shutdown()
         Future
@@ -201,10 +189,10 @@ object ProcessorTests extends TestSuite with ActorTestKit {
         val process =
           plusOne
             .buffer(100, OverflowStrategy.backpressure)
-            .delay(500.milliseconds, OverflowStrategy.backpressure)
-        val settings  = PlainProcessorSettings(1, 100.milliseconds)
+            .delay(500.milliseconds.dilated, OverflowStrategy.backpressure)
+        val settings  = PlainProcessorSettings(1, 100.milliseconds.dilated)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 100.milliseconds.dilated
 
         val responses = 1.to(100).map(n => processor.process(n, timeout).failed)
         Future
@@ -213,9 +201,4 @@ object ProcessorTests extends TestSuite with ActorTestKit {
           .map(rs => assert(rs == List.fill(100)(classOf[PromiseExpired].getSimpleName)))
       }
     }
-
-  override def utestAfterAll(): Unit = {
-    system.terminate()
-    super.utestAfterAll()
-  }
 }

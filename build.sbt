@@ -25,6 +25,7 @@ lazy val `streamee` =
         library.log4jApiScala,
         library.akkaActorTestkitTyped % Test,
         library.akkaHttpTestkit       % Test,
+        library.akkaStreamTestkit     % Test,
         library.log4jCore             % Test,
         library.scalaCheck            % Test,
         library.utest                 % Test
@@ -64,7 +65,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.16"
+      val akka           = "2.5.17"
       val akkaHttp       = "10.1.5"
       val akkaHttpJson   = "1.22.0"
       val akkaLog4j      = "1.6.1"
@@ -75,7 +76,7 @@ lazy val library =
       val log4jApiScala  = "11.0"
       val pureConfig     = "0.9.2"
       val scalaCheck     = "1.14.0"
-      val utest          = "0.6.5"
+      val utest          = "0.6.6"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
@@ -86,6 +87,7 @@ lazy val library =
     val akkaLog4j                      = "de.heikoseeberger"             %% "akka-log4j"                        % Version.akkaLog4j
     val akkaManagementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
     val akkaManagementClusterHttp      = "com.lightbend.akka.management" %% "akka-management-cluster-http"      % Version.akkaManagement
+    val akkaStreamTestkit              = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
     val akkaStreamTyped                = "com.typesafe.akka"             %% "akka-stream-typed"                 % Version.akka
     val circeGeneric                   = "io.circe"                      %% "circe-generic"                     % Version.circe
     val disruptor                      = "com.lmax"                      %  "disruptor"                         % Version.disruptor
