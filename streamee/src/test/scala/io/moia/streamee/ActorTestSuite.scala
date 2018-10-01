@@ -16,25 +16,27 @@
 
 package io.moia.streamee
 
-import scala.concurrent.duration.DurationInt
-import utest._
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.stream.typed.scaladsl.ActorMaterializer
+import akka.stream.Materializer
+import scala.concurrent.ExecutionContext
+import utest.TestSuite
 
-object ExpiringPromiseTests extends ActorTestSuite {
+trait ActorTestSuite extends TestSuite {
+
+  protected val testKit: ActorTestKit =
+    ActorTestKit()
+
   import testKit._
 
-  override def tests: Tests =
-    Tests {
-      'expire - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout, "hint")
-        promise.future.failed.map(e => assert(e == PromiseExpired(timeout, "hint")))
-      }
+  protected implicit val ec: ExecutionContext =
+    system.executionContext
 
-      'expireNot - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
-        promise.trySuccess("success")
-        promise.future.map(s => assert(s == "success"))
-      }
-    }
+  protected implicit val mat: Materializer =
+    ActorMaterializer()
+
+  override def utestAfterAll(): Unit = {
+    shutdownTestKit()
+    super.utestAfterAll()
+  }
 }

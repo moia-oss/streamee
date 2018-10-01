@@ -16,27 +16,14 @@
 
 package io.moia.streamee
 
-import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.stream.{
-  ActorAttributes,
-  DelayOverflowStrategy,
-  Materializer,
-  OverflowStrategy,
-  Supervision
-}
+import akka.stream.{ ActorAttributes, DelayOverflowStrategy, OverflowStrategy, Supervision }
 import akka.stream.scaladsl.Flow
-import akka.stream.typed.scaladsl.ActorMaterializer
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import utest._
 
-object ProcessorTests extends TestSuite with ActorTestKit {
-
-  private implicit val ec: ExecutionContext =
-    system.executionContext
-
-  private implicit val mat: Materializer =
-    ActorMaterializer()
+object ProcessorTests extends ActorTestSuite {
+  import testKit._
 
   private val plusOne = Flow[Int].map(_ + 1)
 
@@ -213,9 +200,4 @@ object ProcessorTests extends TestSuite with ActorTestKit {
           .map(rs => assert(rs == List.fill(100)(classOf[PromiseExpired].getSimpleName)))
       }
     }
-
-  override def utestAfterAll(): Unit = {
-    system.terminate()
-    super.utestAfterAll()
-  }
 }
