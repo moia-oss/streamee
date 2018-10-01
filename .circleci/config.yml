@@ -35,4 +35,4 @@ jobs:
         key: sbt-v1-deps-{{ checksum "build.sbt" }}
     - run:
         name: Running tests
-        command: sbt -no-colors -batch "; test"
+        command: sbt -no-colors -batch -Dakka.test.timefactor=3.0 "; test"

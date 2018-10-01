@@ -16,7 +16,9 @@
 
 package io.moia.streamee
 
+import akka.actor.{ ActorSystem => UntypedSystem }
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.stream.typed.scaladsl.ActorMaterializer
 import akka.stream.Materializer
 import scala.concurrent.ExecutionContext
@@ -28,6 +30,9 @@ trait ActorTestSuite extends TestSuite {
     ActorTestKit()
 
   import testKit._
+
+  protected implicit val untypedSystem: UntypedSystem =
+    system.toUntyped
 
   protected implicit val ec: ExecutionContext =
     system.executionContext
