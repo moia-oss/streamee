@@ -56,7 +56,9 @@ object Api extends Logging {
 
     implicit val untypedSystem: UntypedSystem = system.toUntyped
 
-    val demoProcessor = Processor(DemoProcess(), "demo-processor")(_.correlationId, _.correlationId)
+    val demoProcessor =
+      Processor(DemoProcess(), "demo-processor")(_.correlationId,
+                                                 _.fold(_.correlationId, _.correlationId))
 
     Http()
       .bindAndHandle(
@@ -78,7 +80,7 @@ object Api extends Logging {
   }
 
   def route(
-      demoProcessor: Processor[DemoProcess.Request, DemoProcess.Response],
+      demoProcessor: Processor[DemoProcess.Request, DemoProcess.ErrorOr[DemoProcess.Response]],
       demoProcessorTimeout: FiniteDuration
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import Directives._
@@ -95,7 +97,14 @@ object Api extends Logging {
         entity(as[Request]) {
           case Request(question) =>
             onSuccess(demoProcessor.process(DemoProcess.Request(question), demoProcessorTimeout)) {
-              case DemoProcess.Response(answer, _) => complete(StatusCodes.Created -> answer)
+              case Left(DemoProcess.Error.EmptyQuestion(_)) =>
+                complete(StatusCodes.BadRequest -> "Empty question not allowed!")
+
+              case Left(_) =>
+                complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
+
+              case Right(DemoProcess.Response(answer, _)) =>
+                complete(StatusCodes.Created -> answer)
             }
         }
       }
