@@ -33,7 +33,7 @@ object ProcessorTests extends ActorTestSuite {
     Tests {
       'inTime - {
         val processor = Processor(plusOne, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         Future
           .sequence(
@@ -52,7 +52,7 @@ object ProcessorTests extends ActorTestSuite {
       'notInTime - {
         val process   = plusOne.delay(1.second, OverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         Future
           .sequence(
@@ -76,7 +76,7 @@ object ProcessorTests extends ActorTestSuite {
       'reorder - {
         val process   = plusOne.grouped(2).mapConcat { case Seq(n1, n2) => List(n2, n1) }
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         Future
           .sequence(
@@ -95,7 +95,7 @@ object ProcessorTests extends ActorTestSuite {
       'filter - {
         val process   = plusOne.filter(_ % 2 != 0)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         Future
           .sequence(
@@ -122,7 +122,7 @@ object ProcessorTests extends ActorTestSuite {
             .map(n => if (n % 2 == 0) throw new Exception("boom") else n)
             .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume))
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         Future
           .sequence(
@@ -167,7 +167,7 @@ object ProcessorTests extends ActorTestSuite {
       'noLongerEnqueueOnShutdown - {
         val process   = plusOne.delay(50.milliseconds, DelayOverflowStrategy.backpressure)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         processor.shutdown()
         Future
@@ -191,7 +191,7 @@ object ProcessorTests extends ActorTestSuite {
             .delay(500.milliseconds, OverflowStrategy.backpressure)
         val settings  = PlainProcessorSettings(1, 100.milliseconds)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
-        val timeout   = 100.milliseconds
+        val timeout   = 200.milliseconds
 
         val responses = 1.to(100).map(n => processor.process(n, timeout).failed)
         Future
