@@ -16,7 +16,7 @@
 
 package io.moia.streamee
 
-import akka.stream.{ ActorAttributes, DelayOverflowStrategy, OverflowStrategy, Supervision }
+import akka.stream.{ DelayOverflowStrategy, OverflowStrategy }
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestDuration
 import scala.concurrent.Future
@@ -119,9 +119,7 @@ object ProcessorTests extends ActorTestSuite {
 
       'resume - {
         val process =
-          plusOne
-            .map(n => if (n % 2 == 0) throw new Exception("boom") else n)
-            .withAttributes(ActorAttributes.supervisionStrategy(_ => Supervision.Resume))
+          plusOne.map(n => if (n % 2 == 0) throw new Exception("boom") else n)
         val processor = Processor(process, "processor", settings)(identity, _ - 1)
         val timeout   = 100.milliseconds.dilated
 

@@ -24,6 +24,7 @@ import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.{
+  ActorAttributes,
   Attributes,
   ClosedShape,
   FanInShape2,
@@ -31,7 +32,8 @@ import akka.stream.{
   Materializer,
   Outlet,
   OverflowStrategy,
-  QueueOfferResult
+  QueueOfferResult,
+  Supervision
 }
 import akka.stream.scaladsl.{
   Flow,
@@ -60,7 +62,7 @@ import scala.concurrent.duration.FiniteDuration
   * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses. See
   * [[Processor.apply]] for details.
   */
-object Processor {
+object Processor extends Logging {
 
   final case class ProcessorUnavailable(name: String)
       extends Exception(s"Processor $name cannot accept requests at this time!")
@@ -73,6 +75,11 @@ object Processor {
       case ProcessorUnavailable(name) =>
         complete(ServiceUnavailable -> s"Processor $name cannot accept offers at this time!")
     }
+
+  def resume(name: String)(cause: Throwable): Supervision.Directive = {
+    logger.error(s"Processor $name failed and resumes", cause)
+    Supervision.Resume
+  }
 
   /**
     * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
@@ -150,6 +157,7 @@ object Processor {
 
             ClosedShape
         })
+        .withAttributes(ActorAttributes.supervisionStrategy(resume(name)))
         .run()
 
     new ProcessorImpl(queue, done, name)
