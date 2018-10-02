@@ -56,9 +56,10 @@ object Api extends Logging {
 
     implicit val untypedSystem: UntypedSystem = system.toUntyped
 
-    val demoProcessor =
-      Processor(DemoProcess(), "demo-processor")(_.correlationId,
-                                                 _.fold(_.correlationId, _.correlationId))
+    val demoProcessor = Processor(DemoProcess(),
+                                  demoProcessorTimeout,
+                                  "demo-processor",
+                                  CoordinatedShutdown(untypedSystem))
 
     Http()
       .bindAndHandle(
@@ -96,15 +97,15 @@ object Api extends Logging {
       post {
         entity(as[Request]) {
           case Request(question) =>
-            onSuccess(demoProcessor.process(DemoProcess.Request(question), demoProcessorTimeout)) {
-              case Left(DemoProcess.Error.EmptyQuestion(_)) =>
+            onSuccess(demoProcessor.process(DemoProcess.Request(question))) {
+              case Left(DemoProcess.Error.EmptyQuestion) =>
                 complete(StatusCodes.BadRequest -> "Empty question not allowed!")
 
               case Left(_) =>
                 complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
 
-              case Right(DemoProcess.Response(answer, _)) =>
-                complete(StatusCodes.Created -> answer)
+              case Right(DemoProcess.Response(answer)) =>
+                complete(StatusCodes.Created -> s"The answer is $answer")
             }
         }
       }

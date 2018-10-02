@@ -19,9 +19,9 @@ package io.moia.streamee.demo
 import akka.NotUsed
 import akka.actor.Scheduler
 import akka.pattern.after
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Unzip }
+import akka.stream.FlowShape
 import io.moia.streamee.demo.DemoProcess.Error.LookupAnswerFailure
-import java.util.UUID
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
@@ -35,96 +35,125 @@ object DemoProcess extends Logging {
 
   type ErrorOr[A] = Either[Error, A]
 
-  sealed trait Error {
-    def correlationId: UUID
-  }
+  sealed trait Error
 
   final object Error {
-    final case class EmptyQuestion(correlationId: UUID)                         extends Error
-    final case class LookupAnswerFailure(cause: Throwable, correlationId: UUID) extends Error
+    final case object EmptyQuestion                        extends Error
+    final case class LookupAnswerFailure(cause: Throwable) extends Error
   }
 
   // Overall process
 
-  final case class Request(question: String, correlationId: UUID = UUID.randomUUID())
-  final case class Response(answer: String, correlationId: UUID = UUID.randomUUID())
+  final case class Request(question: String)
+  final case class Response(answer: String)
 
   /**
     * Simple domain logic process for demo purposes. Always answers with "42" ;-)
     */
   def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
     Flow[Request]
-      .map(Right[Error, Request]) // To make all stages look alike
-      // fist stage
+    // Lift into ErrorOr to make all stages look alike
+      .map(Right[Error, Request])
+      // Via fist stage
       .map(_.map {
-        case request @ Request(question, _) => ValidateQuestionIn(question, request)
+        case Request(question) => ValidateQuestionIn(question)
       })
       .via(validateQuestion)
-      // second stage
+      // Via second stage
       .map(_.map {
-        case ValidateQuestionOut(question, request) => LookupAnswerIn(question, request)
+        case ValidateQuestionOut(question) => LookupAnswersIn(question)
       })
-      .via(lookupAnswerStage)
-      // third stage
+      .via(lookupAnswersStage)
+      // Via third stage
       .map(_.map {
-        case LookupAnswerOut(_, request) => FourtyTwoIn(request)
+        case LookupAnswersOut(answer) => FourtyTwoIn(answer)
       })
       .via(fourtyTwo)
-      // response
+      // To response
       .map(_.map {
-        case FourtyTwoOut(fourtyTwo, request) => Response(fourtyTwo, request.correlationId)
+        case FourtyTwoOut(fourtyTwo) => Response(fourtyTwo)
       })
 
   // First stage
 
-  final case class ValidateQuestionIn(question: String, request: Request)
-  final case class ValidateQuestionOut(question: String, request: Request)
+  final case class ValidateQuestionIn(question: String)
+  final case class ValidateQuestionOut(question: String)
 
   def validateQuestion: Stage[ValidateQuestionIn, ValidateQuestionOut] =
     Flow[ErrorOr[ValidateQuestionIn]]
       .map(_.flatMap {
-        case ValidateQuestionIn(question, request) =>
+        case ValidateQuestionIn(question) =>
           if (question.isEmpty)
-            Left(Error.EmptyQuestion(request.correlationId))
+            Left(Error.EmptyQuestion)
           else
-            Right(ValidateQuestionOut(question, request))
+            Right(ValidateQuestionOut(question))
       })
 
   // Second stage
 
-  final case class LookupAnswerIn(question: String, request: Request)
-  final case class LookupAnswerOut(answer: String, request: Request)
+  final case class LookupAnswersIn(question: String)
+  final case class LookupAnswersOut(answer: String)
 
-  def lookupAnswerStage(implicit ec: ExecutionContext,
-                        scheduler: Scheduler): Stage[LookupAnswerIn, LookupAnswerOut] =
-    Flow[ErrorOr[LookupAnswerIn]]
+  def lookupAnswersStage(implicit ec: ExecutionContext,
+                         scheduler: Scheduler): Stage[LookupAnswersIn, LookupAnswersOut] =
+    Flow[ErrorOr[LookupAnswersIn]]
       .mapAsyncUnordered(2) {
         case Left(error) =>
           Future.successful(Left(error))
-        case Right(LookupAnswerIn(question, request)) =>
+        case Right(LookupAnswersIn(question)) =>
           lookupAnswer(question)
-            .map(answer => LookupAnswerOut(answer, request))
-            .recoverToEither(t => LookupAnswerFailure(t, request.correlationId))
+            .map(answer => LookupAnswersOut(answer))
+            .recoverToEither(t => LookupAnswerFailure(t))
       }
 
   def lookupAnswer(question: String)(implicit ec: ExecutionContext,
                                      scheduler: Scheduler): Future[String] =
     after(4.seconds, scheduler)(Future.successful(question.reverse))
 
-  // Third stage (sometimes throwing random exceptions)
+  // Third stage, using a non-trivial graph and sometimes throwing random exceptions
 
-  final case class FourtyTwoIn(request: Request)
-  final case class FourtyTwoOut(fourtyTwo: String, request: Request)
+  final case class FourtyTwoIn(answer: String)
+  final case class FourtyTwoOut(fourtyTwo: String)
 
   def fourtyTwo: Stage[FourtyTwoIn, FourtyTwoOut] =
-    Flow[ErrorOr[FourtyTwoIn]]
-      .map(_.map {
-        case FourtyTwoIn(request) =>
-          if (Random.nextInt(10) == 7)
-            throw new Exception("It's 7 again!")
-          else
-            FourtyTwoOut("42", request)
-      })
+    Flow.fromGraph(GraphDSL.create() { implicit builder =>
+      import GraphDSL.Implicits._
+
+      val fromErrorOr =
+        builder.add(
+          Flow[ErrorOr[FourtyTwoIn]]
+            .map {
+              case Left(error)                => (Some(error), None)
+              case Right(FourtyTwoIn(answer)) => (None, Some(answer))
+            }
+        )
+      val unzip = builder.add(Unzip[Option[Error], Option[String]])
+      val failFast =
+        builder.add(Flow[Option[Error]].collect {
+          case e @ Some(_) => (e, Option.empty[String])
+        })
+      val collectString = builder.add(Flow[Option[String]].collect { case Some(s) => s })
+      val fourtyTwo =
+        builder.add(Flow[String].map { _ =>
+          if (Random.nextInt(7) == 0) throw new Exception("Random exception again!") else "42"
+        })
+      val lift  = builder.add(Flow[String].map(s => (Option.empty[Error], Some(s))))
+      val merge = builder.add(Merge[(Option[Error], Option[String])](2, eagerComplete = true))
+      val toErrorOr =
+        builder.add(Flow[(Option[Error], Option[String])].collect {
+          case (Some(error), None) => Left(error)
+          case (None, Some(s))     => Right(FourtyTwoOut(s))
+        })
+
+      // format: off
+      fromErrorOr ~> unzip.in
+                     unzip.out0 ~> failFast                   ~>         merge.in(0)
+                     unzip.out1 ~> collectString ~> fourtyTwo ~> lift ~> merge.in(1)                               
+                                                                         merge.out   ~> toErrorOr
+      // format: on
+
+      FlowShape(fromErrorOr.in, toErrorOr.out)
+    })
 
   // Helpers
 
