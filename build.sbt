@@ -45,14 +45,15 @@ lazy val `streamee-demo` =
         library.akkaDiscoveryDns,
         library.akkaHttp,
         library.akkaHttpCirce,
-        library.akkaLog4j,
         library.akkaManagementClusterBootstrap,
         library.akkaManagementClusterHttp,
+        library.akkaSlf4j,
         library.akkaStreamTyped,
         library.circeGeneric,
         library.disruptor,
         library.log4jApiScala,
         library.log4jCore,
+        library.log4jSlf4j,
         library.pureConfig
       ),
       publishArtifact := false
@@ -84,9 +85,9 @@ lazy val library =
     val akkaHttp                       = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
     val akkaHttpCirce                  = "de.heikoseeberger"             %% "akka-http-circe"                   % Version.akkaHttpJson
     val akkaHttpTestkit                = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
-    val akkaLog4j                      = "de.heikoseeberger"             %% "akka-log4j"                        % Version.akkaLog4j
     val akkaManagementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
     val akkaManagementClusterHttp      = "com.lightbend.akka.management" %% "akka-management-cluster-http"      % Version.akkaManagement
+    val akkaSlf4j                      = "com.typesafe.akka"             %% "akka-slf4j"                        % Version.akka
     val akkaStreamTestkit              = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
     val akkaStreamTyped                = "com.typesafe.akka"             %% "akka-stream-typed"                 % Version.akka
     val circeGeneric                   = "io.circe"                      %% "circe-generic"                     % Version.circe
@@ -94,6 +95,7 @@ lazy val library =
     val log4jApi                       = "org.apache.logging.log4j"      %  "log4j-api"                         % Version.log4j
     val log4jApiScala                  = "org.apache.logging.log4j"      %% "log4j-api-scala"                   % Version.log4jApiScala
     val log4jCore                      = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
+    val log4jSlf4j                     = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
     val pureConfig                     = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
     val scalaCheck                     = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
     val utest                          = "com.lihaoyi"                   %% "utest"                             % Version.utest

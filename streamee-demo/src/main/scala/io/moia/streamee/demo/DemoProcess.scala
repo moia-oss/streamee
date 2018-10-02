@@ -25,7 +25,7 @@ import java.util.UUID
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Random, Success }
 
 object DemoProcess extends Logging {
 
@@ -111,7 +111,7 @@ object DemoProcess extends Logging {
                                      scheduler: Scheduler): Future[String] =
     after(4.seconds, scheduler)(Future.successful(question.reverse))
 
-  // Third stage
+  // Third stage (sometimes throwing random exceptions)
 
   final case class FourtyTwoIn(request: Request)
   final case class FourtyTwoOut(fourtyTwo: String, request: Request)
@@ -119,7 +119,11 @@ object DemoProcess extends Logging {
   def fourtyTwo: Stage[FourtyTwoIn, FourtyTwoOut] =
     Flow[ErrorOr[FourtyTwoIn]]
       .map(_.map {
-        case FourtyTwoIn(request) => FourtyTwoOut("42", request)
+        case FourtyTwoIn(request) =>
+          if (Random.nextInt(10) == 7)
+            throw new Exception("It's 7 again!")
+          else
+            FourtyTwoOut("42", request)
       })
 
   // Helpers
