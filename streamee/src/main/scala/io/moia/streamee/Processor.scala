@@ -16,22 +16,19 @@
 
 package io.moia.streamee
 
+import akka.Done
 import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
-import akka.stream.{ Materializer, OverflowStrategy, QueueOfferResult }
-import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
-import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
-import akka.Done
-import io.moia.streamee.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
+import akka.stream.{ Materializer, QueueOfferResult }
+import akka.stream.scaladsl.Flow
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future, Promise }
-import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.FiniteDuration
 
 /**
-  * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses. See
-  * [[Processor.apply]] for details.
+  * Factories and more for [[Processor]]s.
   */
 object Processor extends Logging {
 
@@ -48,7 +45,7 @@ object Processor extends Logging {
     }
 
   /**
-    * Creates a [[Processor]] and also registers it with coordinated shutdown.
+    * Creates a per-request [[Processor]] and also registers it with coordinated shutdown.
     *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
@@ -58,16 +55,16 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down, already registered with coordinated shutdown
     */
-  def apply[A, B](
+  def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
       name: String,
       shutdown: CoordinatedShutdown
   )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
-    Processor(process, timeout, name).registerWithCoordinatedShutdown(shutdown)
+    perRequest(process, timeout, name).registerWithCoordinatedShutdown(shutdown)
 
   /**
-    * Creates a [[Processor]].
+    * Creates a per-request [[Processor]].
     *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
@@ -76,18 +73,72 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  def apply[A, B](
+  def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
       name: String
   )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
-    new ProcessorImpl(process, timeout, name)
+    new PerRequestProcessor(process, timeout, name)
+
+  /**
+    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
+    * Requests offered via the returned queue are pushed into the given `process`. Once responses
+    * are available, the promise given together with the request is completed with success. If the
+    * process back-pressures, offered requests are dropped (fail fast).
+    *
+    * @param process domain logic process from request to response
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param correlateRequest correlation function for the request
+    * @param correlateResponse correlation function for the response
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for offering requests and shutting down
+    */
+  def permanent[A, B, C](process: Flow[A, B, Any],
+                         timeout: FiniteDuration,
+                         name: String,
+                         bufferSize: Int,
+                         shutdown: CoordinatedShutdown)(
+      correlateRequest: A => C,
+      correlateResponse: B => C
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
+    permanent(process, timeout, name, bufferSize)(correlateRequest, correlateResponse)
+      .registerWithCoordinatedShutdown(shutdown)
+
+  /**
+    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
+    * Requests offered via the returned queue are pushed into the given `process`. Once responses
+    * are available, the promise given together with the request is completed with success. If the
+    * process back-pressures, offered requests are dropped (fail fast).
+    *
+    * @param process domain logic process from request to response
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param correlateRequest correlation function for the request
+    * @param correlateResponse correlation function for the response
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for offering requests and shutting down
+    */
+  def permanent[A, B, C](process: Flow[A, B, Any],
+                         timeout: FiniteDuration,
+                         name: String,
+                         bufferSize: Int)(
+      correlateRequest: A => C,
+      correlateResponse: B => C
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
+    new PermanentProcessor(process,
+                           timeout,
+                           name,
+                           bufferSize,
+                           timeout * 2,
+                           correlateRequest,
+                           correlateResponse)
 }
 
 /**
   * Process requests with a running process or shut it down.
   */
-sealed trait Processor[A, B] {
+trait Processor[A, B] {
 
   /**
     * Runs this processor's process for a single request. The returned `Future` is either completed
@@ -113,45 +164,10 @@ sealed trait Processor[A, B] {
     *
     * @return this instance
     */
-  def registerWithCoordinatedShutdown(coordinatedShutdown: CoordinatedShutdown): this.type = {
+  final def registerWithCoordinatedShutdown(coordinatedShutdown: CoordinatedShutdown): this.type = {
     coordinatedShutdown.addTask(CoordinatedShutdown.PhaseServiceRequestsDone, "processor") { () =>
       shutdown()
     }
     this
-  }
-}
-
-private final class ProcessorImpl[A, B](
-    process: Flow[A, B, Any],
-    timeout: FiniteDuration,
-    name: String
-)(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler)
-    extends Processor[A, B] {
-
-  require(timeout > Duration.Zero, s"timeout must be positive, but was $timeout!")
-
-  private val (queue, done) =
-    Source
-      .queue[(A, Promise[B])](1, OverflowStrategy.dropNew) // No need to use a large buffer, beause a substream is run for each request!
-      .toMat(Sink.foreach {
-        case (request, response) =>
-          response.completeWith(Source.single(request).via(process).runWith(Sink.head))
-      })(Keep.both)
-      .run()
-
-  override def process(request: A): Future[B] = {
-    val response = ExpiringPromise[B](timeout, s"from processor $name for request $request")
-    queue
-      .offer((request, response))
-      .flatMap {
-        case Enqueued => response.future
-        case Dropped  => Future.failed(ProcessorUnavailable(name))
-        case other    => Future.failed(UnexpectedQueueOfferResult(other))
-      }
-  }
-
-  override def shutdown(): Future[Done] = {
-    queue.complete()
-    done
   }
 }

@@ -23,7 +23,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import utest._
 
-object ProcessorTests extends ActorTestSuite {
+object PerRequestProcessorTests extends ActorTestSuite {
   import testKit._
 
   private val plusOne = Flow[Int].map(_ + 1)
@@ -32,12 +32,12 @@ object ProcessorTests extends ActorTestSuite {
     Tests {
       'applyIllegalTimeout - {
         intercept[IllegalArgumentException] {
-          Processor(plusOne, 0.seconds, "processor")
+          Processor.perRequest(plusOne, 0.seconds, "processor")
         }
       }
 
       'inTime - {
-        val processor = Processor(plusOne, 100.milliseconds.dilated, "processor")
+        val processor = Processor.perRequest(plusOne, 100.milliseconds.dilated, "processor")
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -51,7 +51,7 @@ object ProcessorTests extends ActorTestSuite {
       'notInTime - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.delay(1.second.dilated, OverflowStrategy.backpressure)
-        val processor = Processor(process, timeout, "processor")
+        val processor = Processor.perRequest(process, timeout, "processor")
 
         val pe42 = PromiseExpired(timeout, "from processor processor for request 42")
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
@@ -70,7 +70,7 @@ object ProcessorTests extends ActorTestSuite {
       'resume - {
         val boom      = new Exception("boom")
         val process   = plusOne.map(n => if (n % 2 == 0) throw boom else n)
-        val processor = Processor(process, 100.milliseconds.dilated, "processor")
+        val processor = Processor.perRequest(process, 100.milliseconds.dilated, "processor")
 
         Future
           .sequence {
@@ -90,7 +90,7 @@ object ProcessorTests extends ActorTestSuite {
 
       'processInFlightOnShutdown - {
         val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor(process, 1000.milliseconds.dilated, "processor")
+        val processor = Processor.perRequest(process, 1000.milliseconds.dilated, "processor")
 
         val responses = Future.sequence(List(42, 43, 44, 45).map(processor.process))
         for {
@@ -101,7 +101,7 @@ object ProcessorTests extends ActorTestSuite {
 
       'noLongerEnqueueOnShutdown - {
         val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor(process, 1000.milliseconds.dilated, "processor")
+        val processor = Processor.perRequest(process, 1000.milliseconds.dilated, "processor")
 
         processor.shutdown()
         Future

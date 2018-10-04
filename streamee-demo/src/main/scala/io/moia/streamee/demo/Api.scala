@@ -56,10 +56,10 @@ object Api extends Logging {
 
     implicit val untypedSystem: UntypedSystem = system.toUntyped
 
-    val demoProcessor = Processor(DemoProcess(),
-                                  demoProcessorTimeout,
-                                  "demo-processor",
-                                  CoordinatedShutdown(untypedSystem))
+    val demoProcessor = Processor.perRequest(DemoProcess(),
+                                             demoProcessorTimeout,
+                                             "demo-processor",
+                                             CoordinatedShutdown(untypedSystem))
 
     Http()
       .bindAndHandle(
