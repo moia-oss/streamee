@@ -54,10 +54,10 @@ object Processor extends Logging {
   /**
     * Creates a per-request [[Processor]] and also registers it with coordinated shutdown.
     *
-    * When the `process` method of such a per-request processor is called, it runs the given process
-    * in a sub-flow for the single request. The returned `Future` is either completed successfully
-    * with the response or failed does not create the response not in time. Notice that there is no
-    * back-pressure over requests due to using sub-flows.
+    * When the `process` method of such a per-request processor is called, it runs the process in a
+    * sub-flow for the given single request. The returned `Future` is either completed successfully
+    * with the response or failed if the processor does not create the response in time. Notice that
+    * there is no back pressure over requests due to using sub-flows.
     *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
@@ -78,10 +78,10 @@ object Processor extends Logging {
   /**
     * Creates a per-request [[Processor]].
     *
-    * When the `process` method of such a per-request processor is called, it runs the given process
-    * in a sub-flow for the single request. The returned `Future` is either completed successfully
-    * with the response or failed does not create the response not in time. Notice that there is no
-    * back-pressure over requests due to using sub-flows.
+    * When the `process` method of such a per-request processor is called, it runs the process in a
+    * sub-flow for the given single request. The returned `Future` is either completed successfully
+    * with the response or failed if the processor does not create the response in time. Notice that
+    * there is no back pressure over requests due to using sub-flows.
     *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
