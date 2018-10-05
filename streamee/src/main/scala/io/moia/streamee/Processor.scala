@@ -56,10 +56,10 @@ object Processor extends Logging {
     *
     * When the `process` method of such a per-request processor is called, it runs the process in a
     * sub-flow for the given single request. The returned `Future` is either completed successfully
-    * with the response or failed if the processor does not create the response in time. Notice that
-    * there is no back pressure over requests due to using sub-flows.
+    * with the first response or failed if the processor does not create the response in time.
+    * Notice that there is no back pressure over requests due to using sub-flows.
     *
-    * @param process domain logic process from request to response
+    * @param process domain logic process from request to response; only the first response is considered
     * @param timeout maximum duration for the request to be processed; must be positive!
     * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
     * @param shutdown Akka Coordinated Shutdown
@@ -80,10 +80,10 @@ object Processor extends Logging {
     *
     * When the `process` method of such a per-request processor is called, it runs the process in a
     * sub-flow for the given single request. The returned `Future` is either completed successfully
-    * with the response or failed if the processor does not create the response in time. Notice that
-    * there is no back pressure over requests due to using sub-flows.
+    * with the first response or failed if the processor does not create the response in time.
+    * Notice that there is no back pressure over requests due to using sub-flows.
     *
-    * @param process domain logic process from request to response
+    * @param process domain logic process from request to response; only the first response is considered
     * @param timeout maximum duration for the request to be processed; must be positive!
     * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
     * @tparam A request type
@@ -96,6 +96,52 @@ object Processor extends Logging {
       name: String
   )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
     new PerRequestProcessor(process, timeout, name)
+
+  /**
+    * Creates a per-request [[Processor]] and also registers it with coordinated shutdown.
+    *
+    * When the `process` method of such a per-request processor is called, it runs the handler in a
+    * sub-flow for the given single request. The returned `Future` is either completed successfully
+    * with the response or failed if the processor does not create the response in time. Notice that
+    * there is no back pressure over requests due to using sub-flows.
+    *
+    * @param handler domain logic handler from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param shutdown Akka Coordinated Shutdown
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for offering requests and shutting down
+    */
+  def perRequest[A, B](
+      handler: A => Future[B],
+      timeout: FiniteDuration,
+      name: String,
+      shutdown: CoordinatedShutdown
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
+    perRequest(handler, timeout, name).registerWithCoordinatedShutdown(shutdown)
+
+  /**
+    * Creates a per-request [[Processor]].
+    *
+    * When the `process` method of such a per-request processor is called, it runs the handler in a
+    * sub-flow for the given single request. The returned `Future` is either completed successfully
+    * with the response or failed if the processor does not create the response in time. Notice that
+    * there is no back pressure over requests due to using sub-flows.
+    *
+    * @param handler domain logic handler from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for offering requests and shutting down
+    */
+  def perRequest[A, B](
+      handler: A => Future[B],
+      timeout: FiniteDuration,
+      name: String
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
+    new PerRequestProcessor(Flow[A].mapAsync(1)(handler), timeout, name)
 
   /**
     * Creates a permanent [[Processor]] and also registers it with coordinated shutdown.

@@ -48,6 +48,21 @@ object PerRequestProcessorTests extends ActorTestSuite {
           }
       }
 
+      'inTimeHandler - {
+        val processor =
+          Processor.perRequest((n: Int) => Future.successful(n + 1),
+                               100.milliseconds.dilated,
+                               "processor")
+
+        Future
+          .sequence(List(42, 43, 44, 45).map(processor.process))
+          .map { responses =>
+            assert {
+              responses == List(43, 44, 45, 46)
+            }
+          }
+      }
+
       'notInTime - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.delay(1.second.dilated, OverflowStrategy.backpressure)
