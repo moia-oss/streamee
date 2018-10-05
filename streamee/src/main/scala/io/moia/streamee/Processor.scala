@@ -32,12 +32,19 @@ import scala.concurrent.duration.FiniteDuration
   */
 object Processor extends Logging {
 
+  /**
+    * Signals that a [[Processor]] cannot process requests at this time. Only relevant for
+    * permanent [[Processor]]s.
+    */
   final case class ProcessorUnavailable(name: String)
       extends Exception(s"Processor $name cannot accept requests at this time!")
 
   final case class UnexpectedQueueOfferResult(result: QueueOfferResult)
       extends Exception(s"QueueOfferResult $result was not expected!")
 
+  /**
+    * Maps [[ProcessorUnavailable]] exceptions to HTTP status code 503 "Service Unavailable".
+    */
   implicit val processorUnavailableHandler: ExceptionHandler =
     ExceptionHandler {
       case ProcessorUnavailable(name) =>
@@ -46,6 +53,11 @@ object Processor extends Logging {
 
   /**
     * Creates a per-request [[Processor]] and also registers it with coordinated shutdown.
+    *
+    * When the `process` method of such a per-request processor is called, it runs the given process
+    * in a sub-flow for the single request. The returned `Future` is either completed successfully
+    * with the response or failed does not create the response not in time. Notice that there is no
+    * back-pressure over requests due to using sub-flows.
     *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
@@ -66,6 +78,11 @@ object Processor extends Logging {
   /**
     * Creates a per-request [[Processor]].
     *
+    * When the `process` method of such a per-request processor is called, it runs the given process
+    * in a sub-flow for the single request. The returned `Future` is either completed successfully
+    * with the response or failed does not create the response not in time. Notice that there is no
+    * back-pressure over requests due to using sub-flows.
+    *
     * @param process domain logic process from request to response
     * @param timeout maximum duration for the request to be processed; must be positive!
     * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
@@ -81,13 +98,18 @@ object Processor extends Logging {
     new PerRequestProcessor(process, timeout, name)
 
   /**
-    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
-    * Requests offered via the returned queue are pushed into the given `process`. Once responses
-    * are available, the promise given together with the request is completed with success. If the
-    * process back-pressures, offered requests are dropped (fail fast).
+    * Creates a permanent [[Processor]] and also registers it with coordinated shutdown.
+    *
+    * When the `process` method of such a permanent processor is called, it emits the request into
+    * the given process. The returned `Future` is either completed successfully with the response or
+    * failed if the process back pressures or does not create the response not in time. Notice that
+    * for permanent processors correlation functions between request and response need to be given.
     *
     * @param process domain logic process from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
     * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param bufferSize size of the buffer of the input queue of the permanent processor
+    * @param shutdown Akka Coordinated Shutdown
     * @param correlateRequest correlation function for the request
     * @param correlateResponse correlation function for the response
     * @tparam A request type
@@ -106,13 +128,17 @@ object Processor extends Logging {
       .registerWithCoordinatedShutdown(shutdown)
 
   /**
-    * Runs a domain logic process (Akka Streams flow) accepting requests and producing responses.
-    * Requests offered via the returned queue are pushed into the given `process`. Once responses
-    * are available, the promise given together with the request is completed with success. If the
-    * process back-pressures, offered requests are dropped (fail fast).
+    * Creates a permanent [[Processor]].
+    *
+    * When the `process` method of such a permanent processor is called, it emits the request into
+    * the given process. The returned `Future` is either completed successfully with the response or
+    * failed if the process back pressures or does not create the response not in time. Notice that
+    * for permanent processors correlation functions between request and response need to be given.
     *
     * @param process domain logic process from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
     * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param bufferSize size of the buffer of the input queue of the permanent processor
     * @param correlateRequest correlation function for the request
     * @param correlateResponse correlation function for the response
     * @tparam A request type
@@ -126,24 +152,17 @@ object Processor extends Logging {
       correlateRequest: A => C,
       correlateResponse: B => C
   )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
-    new PermanentProcessor(process,
-                           timeout,
-                           name,
-                           bufferSize,
-                           timeout * 2,
-                           correlateRequest,
-                           correlateResponse)
+    new PermanentProcessor(process, timeout, name, bufferSize, correlateRequest, correlateResponse)
 }
 
 /**
-  * Process requests with a running process or shut it down.
+  * Processes requests: for a given request, a `Future` for the response is returned. Also allows
+  * for shutdown and registration with Akka Coordinated Shutdown.
   */
 trait Processor[A, B] {
 
   /**
-    * Runs this processor's process for a single request. The returned `Future` is either completed
-    * successfully with the response or failed if the process back pressures or does not create the
-    * response not in time.
+    * Processes a request.
     *
     * @param request request to be processed
     * @return `Future` for the response

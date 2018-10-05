@@ -21,13 +21,12 @@ import akka.actor.Scheduler
 import akka.pattern.after
 import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Unzip }
 import akka.stream.FlowShape
-import io.moia.streamee.demo.DemoProcess.Error.LookupAnswerFailure
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
 import scala.util.{ Failure, Random, Success }
 
-object DemoProcess extends Logging {
+object FourtyTwo extends Logging {
 
   type Process = Flow[Request, ErrorOr[Response], NotUsed]
 
@@ -103,7 +102,7 @@ object DemoProcess extends Logging {
         case Right(LookupAnswersIn(question)) =>
           lookupAnswer(question)
             .map(answer => LookupAnswersOut(answer))
-            .recoverToEither(t => LookupAnswerFailure(t))
+            .recoverToEither(t => Error.LookupAnswerFailure(t))
       }
 
   def lookupAnswer(question: String)(implicit ec: ExecutionContext,
@@ -132,7 +131,7 @@ object DemoProcess extends Logging {
         builder.add(Flow[Option[Error]].collect {
           case e @ Some(_) => (e, Option.empty[String])
         })
-      val collectString = builder.add(Flow[Option[String]].collect { case Some(s) => s })
+      val collectSuccess = builder.add(Flow[Option[String]].collect { case Some(s) => s })
       val fourtyTwo =
         builder.add(Flow[String].map { _ =>
           if (Random.nextInt(7) == 0) throw new Exception("Random exception again!") else "42"
@@ -147,9 +146,9 @@ object DemoProcess extends Logging {
 
       // format: off
       fromErrorOr ~> unzip.in
-                     unzip.out0 ~> failFast                   ~>         merge.in(0)
-                     unzip.out1 ~> collectString ~> fourtyTwo ~> lift ~> merge.in(1)                               
-                                                                         merge.out   ~> toErrorOr
+                     unzip.out0 ~> failFast                    ~>         merge.in(0)
+                     unzip.out1 ~> collectSuccess ~> fourtyTwo ~> lift ~> merge.in(1)
+                                                                          merge.out   ~> toErrorOr
       // format: on
 
       FlowShape(fromErrorOr.in, toErrorOr.out)

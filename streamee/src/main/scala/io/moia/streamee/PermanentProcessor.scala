@@ -41,7 +41,7 @@ import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import io.moia.streamee.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future, Promise }
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 
 private object PermanentProcessor extends Logging {
 
@@ -60,14 +60,14 @@ private object PermanentProcessor extends Logging {
       new TimerGraphStageLogic(shape) {
         import shape._
 
-        private var reqToRes = Map.empty[C, Promise[B]]
+        private var responses = Map.empty[C, Promise[B]]
 
         setHandler(
           in0,
           new InHandler {
             override def onPush(): Unit = {
               val (req, res) = grab(in0)
-              reqToRes += correlateRequest(req) -> res
+              responses += correlateRequest(req) -> res
               if (!hasBeenPulled(in0)) pull(in0)
             }
 
@@ -82,7 +82,7 @@ private object PermanentProcessor extends Logging {
           new InHandler {
             override def onPush(): Unit = {
               val res = grab(in1)
-              reqToRes.get(correlateResponse(res)).foreach(_.trySuccess(res))
+              responses.get(correlateResponse(res)).foreach(_.trySuccess(res))
               push(out, NotUsed)
             }
           }
@@ -101,7 +101,7 @@ private object PermanentProcessor extends Logging {
                                                sweepCompleteResponsesInterval)
 
         override protected def onTimer(timerKey: Any): Unit =
-          reqToRes = reqToRes.filter { case (_, res) => !res.isCompleted }
+          responses = responses.filter { case (_, response) => !response.isCompleted }
       }
   }
 
@@ -116,17 +116,19 @@ private final class PermanentProcessor[A, B, C](
     timeout: FiniteDuration,
     name: String,
     bufferSize: Int,
-    sweepCompleteResponsesInterval: FiniteDuration,
     correlateRequest: A => C,
     correlateResponse: B => C
 )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler)
     extends Processor[A, B] {
   import PermanentProcessor._
 
+  require(timeout > Duration.Zero, s"timeout must be positive, but was $timeout!")
+  require(bufferSize >= 0, s"bufferSize must not be negative, but was $bufferSize!")
+
   private val source =
     Source
       .queue[(A, Promise[B])](bufferSize, OverflowStrategy.dropNew)
-      .map { case reqAndRes @ (req, _) => (reqAndRes, req) }
+      .map { case requestAndResponse @ (request, _) => (requestAndResponse, request) }
 
   private val (queue, done) =
     RunnableGraph
@@ -137,9 +139,7 @@ private final class PermanentProcessor[A, B, C](
           val unzip = builder.add(Unzip[(A, Promise[B]), A]())
           val promises =
             builder.add(
-              new PromisesStage[A, B, C](correlateRequest,
-                                         correlateResponse,
-                                         sweepCompleteResponsesInterval)
+              new PromisesStage[A, B, C](correlateRequest, correlateResponse, timeout * 2)
             )
 
           // format: off
@@ -155,9 +155,9 @@ private final class PermanentProcessor[A, B, C](
       .run()
 
   override def process(request: A): Future[B] = {
-    val promisedResponse = ExpiringPromise[B](timeout, request.toString)
-    queue.offer((request, promisedResponse)).flatMap {
-      case Enqueued => promisedResponse.future
+    val response = ExpiringPromise[B](timeout, s"from processor $name for request $request")
+    queue.offer((request, response)).flatMap {
+      case Enqueued => response.future
       case Dropped  => Future.failed(ProcessorUnavailable(name))
       case other    => Future.failed(UnexpectedQueueOfferResult(other))
     }
