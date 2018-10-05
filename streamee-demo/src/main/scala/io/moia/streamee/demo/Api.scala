@@ -22,12 +22,11 @@ import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.server.{ Directives, Route }
+import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import akka.Done
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext
@@ -41,28 +40,39 @@ object Api extends Logging {
   final case class Config(address: String,
                           port: Int,
                           terminationDeadline: FiniteDuration,
-                          demoProcessorTimeout: FiniteDuration)
+                          processorTimeout: FiniteDuration,
+                          processorBufferSize: Int)
 
   private final case class Request(question: String)
 
   private final object BindFailure extends Reason
 
-  def apply(config: Config, demoProcess: DemoProcess.Process)(implicit system: ActorSystem[_],
-                                                              mat: Materializer,
-                                                              scheduler: Scheduler): Unit = {
+  def apply(config: Config, demoProcess: FourtyTwo.Process)(implicit system: ActorSystem[_],
+                                                            mat: Materializer,
+                                                            scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
     implicit val untypedSystem: UntypedSystem = system.toUntyped
 
-    val demoProcessor =
-      Processor(DemoProcess(), "demo-processor")(_.correlationId,
-                                                 _.fold(_.correlationId, _.correlationId))
+    val fourtyTwoProcessor = Processor.perRequest(FourtyTwo(),
+                                                  processorTimeout,
+                                                  "per-request",
+                                                  CoordinatedShutdown(untypedSystem))
+
+    val fourtyTwoCorrelatedProcessor =
+      Processor.permanent(
+        FourtyTwoCorrelated(),
+        processorTimeout,
+        "permanant",
+        processorBufferSize,
+        CoordinatedShutdown(untypedSystem)
+      )(_.correlationId, _.fold(_.correlationId, _.correlationId))
 
     Http()
       .bindAndHandle(
-        route(demoProcessor, demoProcessorTimeout),
+        route(fourtyTwoProcessor, fourtyTwoCorrelatedProcessor),
         address,
         port
       )
@@ -80,11 +90,14 @@ object Api extends Logging {
   }
 
   def route(
-      demoProcessor: Processor[DemoProcess.Request, DemoProcess.ErrorOr[DemoProcess.Response]],
-      demoProcessorTimeout: FiniteDuration
+      fourtyTwoProcessor: Processor[FourtyTwo.Request, FourtyTwo.ErrorOr[FourtyTwo.Response]],
+      fourtyTwoCorrelatedProcessor: Processor[
+        FourtyTwoCorrelated.Request,
+        FourtyTwoCorrelated.ErrorOr[FourtyTwoCorrelated.Response]
+      ]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
-    import Directives._
-    import ErrorAccumulatingCirceSupport._
+    import akka.http.scaladsl.server.Directives._
+    import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
     import io.circe.generic.auto._
 
     pathSingleSlash {
@@ -92,19 +105,38 @@ object Api extends Logging {
         complete {
           OK
         }
-      } ~
+      }
+    } ~
+    path("fourty-two") {
       post {
         entity(as[Request]) {
           case Request(question) =>
-            onSuccess(demoProcessor.process(DemoProcess.Request(question), demoProcessorTimeout)) {
-              case Left(DemoProcess.Error.EmptyQuestion(_)) =>
+            onSuccess(fourtyTwoProcessor.process(FourtyTwo.Request(question))) {
+              case Left(FourtyTwo.Error.EmptyQuestion) =>
                 complete(StatusCodes.BadRequest -> "Empty question not allowed!")
 
               case Left(_) =>
                 complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
 
-              case Right(DemoProcess.Response(answer, _)) =>
-                complete(StatusCodes.Created -> answer)
+              case Right(FourtyTwo.Response(answer)) =>
+                complete(StatusCodes.Created -> s"The answer is $answer")
+            }
+        }
+      }
+    } ~
+    path("fourty-two-correlated") {
+      post {
+        entity(as[Request]) {
+          case Request(question) =>
+            onSuccess(fourtyTwoCorrelatedProcessor.process(FourtyTwoCorrelated.Request(question))) {
+              case Left(FourtyTwoCorrelated.Error.EmptyQuestion(_)) =>
+                complete(StatusCodes.BadRequest -> "Empty question not allowed!")
+
+              case Left(_) =>
+                complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
+
+              case Right(FourtyTwoCorrelated.Response(answer, _)) =>
+                complete(StatusCodes.Created -> s"The answer is $answer")
             }
         }
       }
