@@ -67,7 +67,9 @@ object Main extends Logging {
         implicit val ec: ExecutionContext   = context.executionContext
         implicit val scheduler: Scheduler   = context.system.scheduler
 
-        Api(config.api, FourtyTwo())
+        val fourtyTwo = FourtyTwo()
+
+        Api(config.api, fourtyTwo)
 
         Behaviors.empty
       }

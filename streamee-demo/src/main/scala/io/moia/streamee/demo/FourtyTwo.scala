@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-package io.moia.streamee.demo
+package io.moia.streamee
+package demo
 
 import akka.NotUsed
 import akka.actor.Scheduler

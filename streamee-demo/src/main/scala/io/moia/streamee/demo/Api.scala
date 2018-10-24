@@ -47,19 +47,20 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(config: Config, demoProcess: FourtyTwo.Process)(implicit system: ActorSystem[_],
-                                                            mat: Materializer,
-                                                            scheduler: Scheduler): Unit = {
+  def apply(config: Config, fourtyTwo: FourtyTwo.Process)(implicit system: ActorSystem[_],
+                                                          mat: Materializer,
+                                                          scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
     implicit val untypedSystem: UntypedSystem = system.toUntyped
 
-    val fourtyTwoProcessor = Processor.perRequest(FourtyTwo(),
-                                                  processorTimeout,
-                                                  "per-request",
-                                                  CoordinatedShutdown(untypedSystem))
+    val fourtyTwoProcessor =
+      Processor.perRequest(fourtyTwo,
+                           processorTimeout,
+                           "per-request",
+                           CoordinatedShutdown(untypedSystem))
 
     val fourtyTwoCorrelatedProcessor =
       Processor.permanent(
