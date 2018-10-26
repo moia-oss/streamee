@@ -156,7 +156,7 @@ object Runner extends Logging {
           .run()
 
       shutdown.addTask(CoordinatedShutdown.PhaseServiceStop, "runner") { () =>
-        switch.shutdown()
+        context.self ! Shutdown
         done
       }
 
