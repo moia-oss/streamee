@@ -19,6 +19,7 @@ lazy val `streamee` =
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
+        library.akkaClusterShardingTyped,
         library.akkaHttp,
         library.akkaStreamTyped,
         library.log4jApi,
@@ -41,14 +42,11 @@ lazy val `streamee-demo` =
       Compile / packageDoc / publishArtifact := false,
       Compile / packageSrc / publishArtifact := false,
       libraryDependencies ++= Seq(
-        library.akkaClusterShardingTyped,
         library.akkaDiscoveryDns,
-        library.akkaHttp,
         library.akkaHttpCirce,
         library.akkaManagementClusterBootstrap,
         library.akkaManagementClusterHttp,
         library.akkaSlf4j,
-        library.akkaStreamTyped,
         library.circeGeneric,
         library.disruptor,
         library.log4jApiScala,
