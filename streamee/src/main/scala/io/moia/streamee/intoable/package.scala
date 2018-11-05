@@ -22,12 +22,19 @@ import akka.actor.Scheduler
 import akka.stream.{ Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, FlowOps, Source }
 import akka.util.Timeout
+import akka.NotUsed
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 
 package object intoable {
 
+  type IntoableFlow[A, B] = Flow[(A, Respondee[B]), (B, Respondee[B]), NotUsed]
+
+  type IntoableSinkRef[A, B] = SinkRef[(A, Respondee[B])]
+
   type Respondee[A] = ActorRef[Respondee.Command[A]]
+
+  type RespondeeFactory[A] = ActorRef[RespondeeFactory.Command[A]]
 
   /**
     * Extension methods for `Source`s.
@@ -38,14 +45,14 @@ package object intoable {
       * Attaches to an "intoable" process managed by a [[IntoableRunner]].
       */
     def into[O2](
-        sinkRefFor: O => Future[SinkRef[(O, Respondee[O2])]],
-        parallelism: Int,
-        responseTimeout: FiniteDuration
+        sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
+        responseTimeout: FiniteDuration,
+        parallelism: Int = 1024
     )(implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler,
       respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): Source[O2, M] =
-      intoImpl(source, sinkRefFor, parallelism, responseTimeout)
+      intoImpl(source, sinkRefFor, responseTimeout, parallelism)
   }
 
   /**
@@ -54,27 +61,27 @@ package object intoable {
   implicit final class FlowExt[I, O, M](val flow: Flow[I, O, M]) extends AnyVal { // Name FlowOps is taken by Akka!
 
     def into[O2](
-        sinkRefFor: O => Future[SinkRef[(O, Respondee[O2])]],
-        parallelism: Int,
-        responseTimeout: FiniteDuration
+        sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
+        responseTimeout: FiniteDuration,
+        parallelism: Int = 1024
     )(implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler,
       respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): Flow[I, O2, M] =
-      intoImpl(flow, sinkRefFor, parallelism, responseTimeout)
+      intoImpl(flow, sinkRefFor, responseTimeout, parallelism)
   }
 
   private def intoImpl[O, O2, M](
       flowOps: FlowOps[O, M],
-      sinkRefFor: O => Future[SinkRef[(O, Respondee[O2])]],
-      parallelism: Int,
-      responseTimeout: FiniteDuration
+      sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
+      responseTimeout: FiniteDuration,
+      parallelism: Int
   )(implicit mat: Materializer,
     ec: ExecutionContext,
     scheduler: Scheduler,
     respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): flowOps.Repr[O2] =
     flowOps
-      .mapAsync(parallelism) { request =>
+      .mapAsyncUnordered(parallelism) { request =>
         val response = Promise[O2]()
         val respondee = {
           implicit val timeout: Timeout = responseTimeout // Safe to use, because of fast local ask
@@ -94,7 +101,7 @@ package object intoable {
         }
         Future.successful((request, response)).zip(sinkRef.zip(respondee))
       }
-      .mapAsync(parallelism) {
+      .mapAsyncUnordered(parallelism) {
         case ((request, response), (sinkRef, respondee)) =>
           Source.single((request, respondee)).runWith(sinkRef)
           response.future

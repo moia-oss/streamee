@@ -19,7 +19,7 @@ package demo
 
 import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import akka.actor.typed.{ ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
@@ -66,13 +66,11 @@ object Main {
 
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
-        implicit val system: ActorSystem[_] = context.system
-        implicit val mat: Materializer      = ActorMaterializer()(context.system)
-        implicit val ec: ExecutionContext   = context.executionContext
-        implicit val scheduler: Scheduler   = context.system.scheduler
-
-        implicit val intRespondeeFactory: ActorRef[RespondeeFactory.Command[Int]] =
-          context.spawn(RespondeeFactory[Int](), "int-respondee-factory")
+        implicit val system: ActorSystem[_]                     = context.system
+        implicit val mat: Materializer                          = ActorMaterializer()(context.system)
+        implicit val ec: ExecutionContext                       = context.executionContext
+        implicit val scheduler: Scheduler                       = context.system.scheduler
+        implicit val intRespondeeFactory: RespondeeFactory[Int] = RespondeeFactory.spawn(context)
 
         val fourtyTwo = FourtyTwo()
 

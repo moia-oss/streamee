@@ -24,7 +24,13 @@ import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.actor.typed.ActorRef
 import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
 import akka.util.Timeout
-import io.moia.streamee.intoable.{ FlowExt, IntoableRunner, Respondee, RespondeeFactory }
+import io.moia.streamee.intoable.{
+  FlowExt,
+  IntoableFlow,
+  IntoableRunner,
+  Respondee,
+  RespondeeFactory
+}
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 
@@ -46,7 +52,7 @@ object Length {
     respondeeFactory: ActorRef[RespondeeFactory.Command[Int]]): Flow[String, String, NotUsed] = {
     import config._
     Flow[String]
-      .into(s => delayedLengthFor(s), 42, retryTimeout)
+      .into(s => delayedLengthFor(s), retryTimeout)
       .map(_.toString)
   }
 }
@@ -69,18 +75,18 @@ object DelayedLengthSharding {
 
   final case class Config(askTimeout: FiniteDuration)
 
-  val entityKey: EntityTypeKey[IntoableRunner.Command] =
-    EntityTypeKey[IntoableRunner.Command]("delayed-length-intoable-runner")
+  val entityKey: EntityTypeKey[IntoableRunner.Command[String, Int]] =
+    EntityTypeKey[IntoableRunner.Command[String, Int]]("delayed-length-intoable-runner")
 
-  def apply[A, B](
+  def apply(
       config: Config,
-      process: Flow[(A, Respondee[B]), (B, Respondee[B]), NotUsed],
+      process: IntoableFlow[String, Int],
       sharding: ClusterSharding,
       shutdown: CoordinatedShutdown
   )(implicit mat: Materializer): String => Future[SinkRef[(String, Respondee[Int])]] = {
-    val entity =
+    sharding.start(
       ShardedEntity(_ => IntoableRunner(process, shutdown), entityKey, IntoableRunner.Shutdown)
-    sharding.start(entity)
+    )
 
     implicit val timeout: Timeout = config.askTimeout
     sharding.entityRefFor(entityKey, _).ask(IntoableRunner.GetSinkRef.apply)

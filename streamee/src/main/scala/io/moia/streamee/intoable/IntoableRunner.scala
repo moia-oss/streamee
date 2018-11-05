@@ -18,11 +18,10 @@ package io.moia.streamee
 package intoable
 
 import akka.actor.CoordinatedShutdown
-import akka.actor.typed.scaladsl.Behaviors
-import akka.NotUsed
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.stream.{ KillSwitches, Materializer, SinkRef }
-import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, StreamRefs }
+import akka.actor.typed.scaladsl.Behaviors
+import akka.stream.{ KillSwitches, Materializer }
+import akka.stream.scaladsl.{ Keep, MergeHub, Sink, StreamRefs }
 import org.apache.logging.log4j.scala.Logging
 import scala.util.{ Failure, Success }
 
@@ -31,27 +30,26 @@ import scala.util.{ Failure, Success }
   */
 object IntoableRunner extends Logging {
 
-  sealed trait Command
-  final case class GetSinkRef[A, B](replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]])
-      extends Command
-  final case object Shutdown     extends Command
-  private final case object Stop extends Command
+  sealed trait Command[+A, +B]
+  final case class GetSinkRef[A, B](replyTo: ActorRef[IntoableSinkRef[A, B]]) extends Command[A, B]
+  final case object Shutdown                                                  extends Command[Nothing, Nothing]
+  private final case object Stop                                              extends Command[Nothing, Nothing]
 
   /**
     * Manages an "intoable" process, i.e. a `Flow` which takes pairs of request and response promise
     * and produces pairs of response and the response promise (expected to be threaded through). The
     * process is run with a sink that completes the threaded through promises and a merge hub source
     * which allows for attaching from another stream, e.g. conveniantly via
-    * [[io.moia.streamee.SourceOps.into]] or by obtaining a `SinkRef` via sending `GetSinkRef`.
+    * [[io.moia.streamee.intoable.SourceOps.into]] or by obtaining a `SinkRef` via sending
+    * `GetSinkRef`.
     *
     * The runner registers with Akka Coordinated Shutdown such that it gracefully completes all
     * in-flight requests. During shutdown no more `SinkRef`s can be obtained, i.e. clients have to
     * retry hoping for another runner instance to come up, e.g. when using Akka Cluster Sharding.
     */
-  def apply[A, B](process: Flow[(A, ActorRef[Respondee.Command[B]]),
-                                (B, ActorRef[Respondee.Command[B]]),
-                                NotUsed],
-                  shutdown: CoordinatedShutdown)(implicit mat: Materializer): Behavior[Command] =
+  def apply[A, B](process: IntoableFlow[A, B], shutdown: CoordinatedShutdown)(
+      implicit mat: Materializer
+  ): Behavior[Command[A, B]] =
     Behaviors.setup { context =>
       import context.executionContext
 
@@ -73,9 +71,7 @@ object IntoableRunner extends Logging {
       done.onComplete(_ => self ! Stop)
 
       Behaviors.receiveMessage {
-        case GetSinkRef(
-            replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]] @unchecked
-            ) =>
+        case GetSinkRef(replyTo: ActorRef[IntoableSinkRef[A, B]]) =>
           StreamRefs.sinkRef().to(sink).run().onComplete {
             case Failure(cause)   => logger.error("Cannot create SinkRef!", cause)
             case Success(sinkRef) => replyTo ! sinkRef
