@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia
+package io.moia.streamee
 
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
@@ -25,7 +25,7 @@ import akka.util.Timeout
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 
-package object streamee {
+package object intoable {
 
   type Respondee[A] = ActorRef[Respondee.Command[A]]
 
@@ -99,4 +99,5 @@ package object streamee {
           Source.single((request, respondee)).runWith(sinkRef)
           response.future
       }
+
 }

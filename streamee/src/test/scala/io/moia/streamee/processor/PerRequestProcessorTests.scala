@@ -15,6 +15,7 @@
  */
 
 package io.moia.streamee
+package processor
 
 import akka.stream.{ DelayOverflowStrategy, OverflowStrategy }
 import akka.stream.scaladsl.Flow

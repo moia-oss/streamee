@@ -27,6 +27,7 @@ import akka.stream.Materializer
 import akka.Done
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import io.moia.streamee.processor.Processor
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext

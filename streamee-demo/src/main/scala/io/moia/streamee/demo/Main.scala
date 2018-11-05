@@ -17,8 +17,8 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.CoordinatedShutdown.Reason
 import akka.actor.{ CoordinatedShutdown, Scheduler }
+import akka.actor.CoordinatedShutdown.Reason
 import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
@@ -28,15 +28,16 @@ import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
+import io.moia.streamee.intoable.RespondeeFactory
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
-import org.apache.logging.log4j.scala.Logging
+import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow
 import scala.concurrent.ExecutionContext
 
 /**
   * Runner for this demo. Creates actor system, API, etc.
   */
-object Main extends Logging {
+object Main {
 
   final case class Config(api: Api.Config,
                           length: Length.Config,
@@ -70,7 +71,7 @@ object Main extends Logging {
         implicit val ec: ExecutionContext   = context.executionContext
         implicit val scheduler: Scheduler   = context.system.scheduler
 
-        implicit val intRespondeFactory: ActorRef[RespondeeFactory.Command[Int]] =
+        implicit val intRespondeeFactory: ActorRef[RespondeeFactory.Command[Int]] =
           context.spawn(RespondeeFactory[Int](), "int-respondee-factory")
 
         val fourtyTwo = FourtyTwo()

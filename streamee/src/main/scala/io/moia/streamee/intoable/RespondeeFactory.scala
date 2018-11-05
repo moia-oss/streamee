@@ -15,6 +15,7 @@
  */
 
 package io.moia.streamee
+package intoable
 
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors

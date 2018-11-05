@@ -15,16 +15,15 @@
  */
 
 package io.moia.streamee
+package intoable
 
-import akka.NotUsed
 import akka.actor.CoordinatedShutdown
-import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
+import akka.NotUsed
+import akka.actor.typed.{ ActorRef, Behavior }
 import akka.stream.{ KillSwitches, Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, StreamRefs }
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.Promise
-import scala.concurrent.duration.FiniteDuration
 import scala.util.{ Failure, Success }
 
 /**
