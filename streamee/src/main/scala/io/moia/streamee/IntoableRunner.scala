@@ -20,19 +20,15 @@ import akka.NotUsed
 import akka.actor.CoordinatedShutdown
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
-import akka.cluster.sharding.typed.scaladsl.{
-  ClusterSharding,
-  EntityRef,
-  EntityTypeKey,
-  ShardedEntity
-}
-import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.stream.{ KillSwitches, Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, StreamRefs }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
 import scala.util.{ Failure, Success }
 
+/**
+  * Runs an "intoable" process, i.e. a `Flow` which takes pairs of request and response promises.
+  */
 object IntoableRunner extends Logging {
 
   sealed trait Command
@@ -40,6 +36,17 @@ object IntoableRunner extends Logging {
   final case object Shutdown                                                     extends Command
   private final case object Stop                                                 extends Command
 
+  /**
+    * Manages an "intoable" process, i.e. a `Flow` which takes pairs of request and response promise
+    * and produces pairs of response and the response promise (expected to be threaded through). The
+    * process is run with a sink that completes the threaded through promises and a merge hub source
+    * which allows for attaching from another stream, e.g. conveniantly via
+    * [[io.moia.streamee.SourceOps.into]] or by obtaining a `SinkRef` via sending `GetSinkRef`.
+    *
+    * The runner registers with Akka Coordinated Shutdown such that it gracefully completes all
+    * in-flight requests. During shutdown no more `SinkRef`s can be obtained, i.e. clients have to
+    * retry hoping for another runner instance to come up, e.g. when using Akka Cluster Sharding.
+    */
   def apply[A, B](process: Flow[(A, Promise[B]), (B, Promise[B]), NotUsed],
                   shutdown: CoordinatedShutdown)(implicit mat: Materializer): Behavior[Command] =
     Behaviors.setup { context =>
@@ -55,7 +62,7 @@ object IntoableRunner extends Logging {
           .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
           .run()
 
-      shutdown.addTask(CoordinatedShutdown.PhaseServiceStop, "runner") { () =>
+      shutdown.addTask(CoordinatedShutdown.PhaseServiceStop, "intoable-runner") { () =>
         self ! Shutdown
         done
       }
@@ -85,21 +92,4 @@ object IntoableRunner extends Logging {
           Behaviors.stopped
       }
     }
-}
-
-object IntoableRunnerSharding {
-  import IntoableRunner._
-
-  val entityKey: EntityTypeKey[Command] =
-    EntityTypeKey[Command](s"intoable-runner")
-
-  def start[A, B](process: Flow[(A, Promise[B]), (B, Promise[B]), NotUsed],
-                  sharding: ClusterSharding,
-                  shutdown: CoordinatedShutdown)(
-      implicit mat: Materializer
-  ): (ActorRef[ShardingEnvelope[Command]], String => EntityRef[GetSinkRef[A, B]]) = {
-    val region =
-      sharding.start(ShardedEntity(_ => IntoableRunner(process, shutdown), entityKey, Shutdown))
-    (region, sharding.entityRefFor(entityKey, _).asInstanceOf[EntityRef[GetSinkRef[A, B]]])
-  }
 }

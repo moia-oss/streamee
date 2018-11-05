@@ -18,10 +18,11 @@ package io.moia.streamee
 package demo
 
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.Scheduler
+import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.actor.typed.{ ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
@@ -37,7 +38,9 @@ import scala.concurrent.ExecutionContext
   */
 object Main extends Logging {
 
-  final case class Config(api: Api.Config)
+  final case class Config(api: Api.Config,
+                          length: Length.Config,
+                          delayedLengthSharding: DelayedLengthSharding.Config)
 
   final object TopLevelActorTerminated extends Reason
 
@@ -69,7 +72,14 @@ object Main extends Logging {
 
         val fourtyTwo = FourtyTwo()
 
-        Api(config.api, fourtyTwo)
+        val delayedLengthFor =
+          DelayedLengthSharding(config.delayedLengthSharding,
+                                DelayedLength(),
+                                ClusterSharding(system),
+                                CoordinatedShutdown(system.toUntyped))
+        val length = Length(config.length, delayedLengthFor)
+
+        Api(config.api, fourtyTwo, length)
 
         Behaviors.empty
       }

@@ -16,12 +16,10 @@
 
 package io.moia
 
-import akka.actor.typed.ActorRef
-import akka.cluster.sharding.typed.scaladsl.EntityRef
 import akka.stream.{ Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, FlowOps, Source }
-import akka.util.Timeout
-import scala.concurrent.{ Future, Promise }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.FiniteDuration
 
 package object streamee {
 
@@ -30,9 +28,15 @@ package object streamee {
     */
   implicit final class SourceOps[O, M](val source: Source[O, M]) extends AnyVal {
 
-    def into[O2](entityRef: O => EntityRef[IntoableRunner.GetSinkRef[O, O2]],
-                 parallelism: Int)(implicit ec: Materializer, timeout: Timeout): Source[O2, M] =
-      intoImpl(source, entityRef, parallelism)
+    /**
+      * Attaches to an "intoable" process managed by a [[IntoableRunner]].
+      */
+    def into[O2](
+        sinkRefFor: O => Future[SinkRef[(O, Promise[O2])]],
+        parallelism: Int,
+        retryTimeout: FiniteDuration
+    )(implicit mat: Materializer, ec: ExecutionContext): Source[O2, M] =
+      intoImpl(source, sinkRefFor, parallelism, retryTimeout)
   }
 
   /**
@@ -40,23 +44,29 @@ package object streamee {
     */
   implicit final class FlowExt[I, O, M](val flow: Flow[I, O, M]) extends AnyVal { // Name FlowOps is taken by Akka!
 
-    def into[O2](entityRef: O => EntityRef[IntoableRunner.GetSinkRef[O, O2]],
-                 parallelism: Int)(implicit ec: Materializer, timeout: Timeout): Flow[I, O2, M] =
-      intoImpl(flow, entityRef, parallelism)
+    def into[O2](
+        sinkRefFor: O => Future[SinkRef[(O, Promise[O2])]],
+        parallelism: Int,
+        retryTimeout: FiniteDuration
+    )(implicit mat: Materializer, ec: ExecutionContext): Flow[I, O2, M] =
+      intoImpl(flow, sinkRefFor, parallelism, retryTimeout)
   }
 
   private def intoImpl[O, O2, M](
       flowOps: FlowOps[O, M],
-      entityRef: O => EntityRef[IntoableRunner.GetSinkRef[O, O2]],
-      parallelism: Int
-  )(implicit mat: Materializer, askTimeout: Timeout): flowOps.Repr[O2] =
+      sinkRefFor: O => Future[SinkRef[(O, Promise[O2])]],
+      parallelism: Int,
+      retryTimeout: FiniteDuration
+  )(implicit mat: Materializer, ec: ExecutionContext): flowOps.Repr[O2] =
     flowOps
       .mapAsync(parallelism) { o =>
-        // TODO Retry!
+        val deadline = retryTimeout.fromNow
         val sinkRef =
-          entityRef(o).ask(
-            (replyTo: ActorRef[SinkRef[(O, Promise[O2])]]) => IntoableRunner.GetSinkRef(replyTo)
-          )
+          sinkRefFor(o)
+            .recoverWith {
+              case _ if deadline.hasTimeLeft => sinkRefFor(o)
+              case cause                     => Future.failed(cause)
+            }
         Future.successful(o).zip(sinkRef)
       }
       .mapAsync(parallelism) {
