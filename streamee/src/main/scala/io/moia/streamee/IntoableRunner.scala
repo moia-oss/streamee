@@ -24,6 +24,7 @@ import akka.stream.{ KillSwitches, Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, StreamRefs }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Promise
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{ Failure, Success }
 
 /**
@@ -32,9 +33,10 @@ import scala.util.{ Failure, Success }
 object IntoableRunner extends Logging {
 
   sealed trait Command
-  final case class GetSinkRef[A, B](replyTo: ActorRef[SinkRef[(A, Promise[B])]]) extends Command
-  final case object Shutdown                                                     extends Command
-  private final case object Stop                                                 extends Command
+  final case class GetSinkRef[A, B](replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]])
+      extends Command
+  final case object Shutdown     extends Command
+  private final case object Stop extends Command
 
   /**
     * Manages an "intoable" process, i.e. a `Flow` which takes pairs of request and response promise
@@ -47,7 +49,9 @@ object IntoableRunner extends Logging {
     * in-flight requests. During shutdown no more `SinkRef`s can be obtained, i.e. clients have to
     * retry hoping for another runner instance to come up, e.g. when using Akka Cluster Sharding.
     */
-  def apply[A, B](process: Flow[(A, Promise[B]), (B, Promise[B]), NotUsed],
+  def apply[A, B](process: Flow[(A, ActorRef[Respondee.Command[B]]),
+                                (B, ActorRef[Respondee.Command[B]]),
+                                NotUsed],
                   shutdown: CoordinatedShutdown)(implicit mat: Materializer): Behavior[Command] =
     Behaviors.setup { context =>
       import context.executionContext
@@ -56,10 +60,10 @@ object IntoableRunner extends Logging {
 
       val ((sink, switch), done) =
         MergeHub
-          .source[(A, Promise[B])]
+          .source[(A, ActorRef[Respondee.Command[B]])]
           .viaMat(KillSwitches.single)(Keep.both)
           .via(process)
-          .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
+          .toMat(Sink.foreach { case (b, r) => r ! Respondee.Response(b) })(Keep.both)
           .run()
 
       shutdown.addTask(CoordinatedShutdown.PhaseServiceStop, "intoable-runner") { () =>
@@ -70,7 +74,9 @@ object IntoableRunner extends Logging {
       done.onComplete(_ => self ! Stop)
 
       Behaviors.receiveMessage {
-        case GetSinkRef(replyTo: ActorRef[SinkRef[(A, Promise[B])]] @unchecked) =>
+        case GetSinkRef(
+            replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]] @unchecked
+            ) =>
           StreamRefs.sinkRef().to(sink).run().onComplete {
             case Failure(cause)   => logger.error("Cannot create SinkRef!", cause)
             case Success(sinkRef) => replyTo ! sinkRef

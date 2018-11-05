@@ -20,10 +20,11 @@ package demo
 import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef }
 import akka.stream.scaladsl.Flow
 import akka.NotUsed
-import akka.actor.CoordinatedShutdown
+import akka.actor.{ CoordinatedShutdown, Scheduler }
+import akka.actor.typed.ActorRef
 import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
 import akka.util.Timeout
-import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 
 /**
@@ -37,8 +38,11 @@ object Length {
 
   def apply(
       config: Config,
-      delayedLengthFor: String => Future[SinkRef[(String, Promise[Int])]]
-  )(implicit mat: Materializer, ec: ExecutionContext): Flow[String, String, NotUsed] = {
+      delayedLengthFor: String => Future[SinkRef[(String, Respondee[Int])]]
+  )(implicit mat: Materializer,
+    ec: ExecutionContext,
+    scheduler: Scheduler,
+    respondeeFactory: ActorRef[RespondeeFactory.Command[Int]]): Flow[String, String, NotUsed] = {
     import config._
     Flow[String]
       .into(s => delayedLengthFor(s), 42, retryTimeout)
@@ -51,8 +55,8 @@ object Length {
   */
 object DelayedLength {
 
-  def apply(): Flow[(String, Promise[Int]), (Int, Promise[Int]), NotUsed] =
-    Flow[(String, Promise[Int])]
+  def apply(): Flow[(String, Respondee[Int]), (Int, Respondee[Int]), NotUsed] =
+    Flow[(String, Respondee[Int])]
       .delay(4.seconds, DelayOverflowStrategy.backpressure)
       .map { case (s, p) => (s.length, p) }
 }
@@ -69,10 +73,10 @@ object DelayedLengthSharding {
 
   def apply[A, B](
       config: Config,
-      process: Flow[(A, Promise[B]), (B, Promise[B]), NotUsed],
+      process: Flow[(A, Respondee[B]), (B, Respondee[B]), NotUsed],
       sharding: ClusterSharding,
       shutdown: CoordinatedShutdown
-  )(implicit mat: Materializer): String => Future[SinkRef[(String, Promise[Int])]] = {
+  )(implicit mat: Materializer): String => Future[SinkRef[(String, Respondee[Int])]] = {
     val entity =
       ShardedEntity(_ => IntoableRunner(process, shutdown), entityKey, IntoableRunner.Shutdown)
     sharding.start(entity)
