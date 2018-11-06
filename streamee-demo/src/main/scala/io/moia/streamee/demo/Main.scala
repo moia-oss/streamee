@@ -17,17 +17,17 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.{ ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.{ ActorSystem, Behavior }
+import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.stream.typed.scaladsl.ActorMaterializer
 import akka.stream.Materializer
+import akka.stream.typed.scaladsl.ActorMaterializer
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow

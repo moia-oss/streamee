@@ -17,8 +17,8 @@
 package io.moia.streamee
 package intoable
 
-import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.{ ActorRef, Behavior }
 import scala.concurrent.Promise
 import scala.concurrent.duration.FiniteDuration
 

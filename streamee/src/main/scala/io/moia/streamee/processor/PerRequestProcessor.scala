@@ -19,12 +19,12 @@ package processor
 
 import akka.Done
 import akka.actor.Scheduler
-import akka.stream.{ Materializer, OverflowStrategy }
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
+import akka.stream.{ Materializer, OverflowStrategy }
 import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
-import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 
 private final class PerRequestProcessor[A, B](
     process: Flow[A, B, Any],

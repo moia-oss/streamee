@@ -17,18 +17,18 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
+import akka.Done
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
+import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
-import akka.Done
 import io.moia.streamee.processor.Processor
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{ Failure, Success }
 
 /**

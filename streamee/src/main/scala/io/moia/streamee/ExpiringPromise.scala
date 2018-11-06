@@ -18,8 +18,8 @@ package io.moia.streamee
 
 import akka.actor.Scheduler
 import akka.pattern.after
-import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 
 /**
   * Creates a promise which expires. See [[ExpiringPromise.apply]] for details.
