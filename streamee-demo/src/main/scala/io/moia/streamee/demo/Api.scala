@@ -25,8 +25,6 @@ import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import akka.Done
-import akka.actor.typed.ActorSystem
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import io.moia.streamee.processor.Processor
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
@@ -52,12 +50,10 @@ object Api extends Logging {
       config: Config,
       fourtyTwo: FourtyTwo.Process,
       length: Length.Process
-  )(implicit system: ActorSystem[_], mat: Materializer, scheduler: Scheduler): Unit = {
+  )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
-
-    implicit val untypedSystem: UntypedSystem = system.toUntyped
 
     val shutdown = CoordinatedShutdown(untypedSystem)
 

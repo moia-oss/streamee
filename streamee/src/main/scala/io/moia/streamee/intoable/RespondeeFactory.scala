@@ -31,6 +31,9 @@ object RespondeeFactory {
       extends Command[A]
   final case class RespondeeCreated[A](respondee: Respondee[A])
 
+  implicit def spawn[A, B](implicit context: ActorContext[A]): ActorRef[Command[B]] =
+    context.spawnAnonymous(RespondeeFactory[B]())
+
   def apply[A](): Behavior[Command[A]] =
     Behaviors.receive {
       case (context, CreateRespondee(response, responseTimeout, replyTo)) =>
@@ -38,9 +41,6 @@ object RespondeeFactory {
         replyTo ! RespondeeCreated(respondee)
         Behaviors.same
     }
-
-  def spawn[A](context: ActorContext[_]): ActorRef[Command[A]] =
-    context.spawnAnonymous(RespondeeFactory[A]())
 }
 
 object Respondee {

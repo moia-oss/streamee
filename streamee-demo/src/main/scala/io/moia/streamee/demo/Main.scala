@@ -17,18 +17,17 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.{ CoordinatedShutdown, Scheduler }
+import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.CoordinatedShutdown.Reason
 import akka.actor.typed.{ ActorSystem, Behavior }
-import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import io.moia.streamee.intoable.RespondeeFactory
+import akka.stream.Materializer
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow
@@ -58,32 +57,33 @@ object Main {
   def apply(config: Config): Behavior[SelfUp] =
     Behaviors.setup { context =>
       context.log.info("{} started and ready to join cluster", context.system.name)
-
       Cluster(context.system).subscriptions ! Subscribe(context.self, classOf[SelfUp])
 
       Behaviors.receive { (context, _) =>
         context.log.info("{} joined cluster and is up", context.system.name)
-
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
-        implicit val system: ActorSystem[_]                     = context.system
-        implicit val mat: Materializer                          = ActorMaterializer()(context.system)
-        implicit val ec: ExecutionContext                       = context.executionContext
-        implicit val scheduler: Scheduler                       = context.system.scheduler
-        implicit val intRespondeeFactory: RespondeeFactory[Int] = RespondeeFactory.spawn(context)
-
-        val fourtyTwo = FourtyTwo()
-
-        val delayedLengthFor =
-          DelayedLengthSharding(config.delayedLengthSharding,
-                                DelayedLength(),
-                                ClusterSharding(system),
-                                CoordinatedShutdown(system.toUntyped))
-        val length = Length(config.length, delayedLengthFor)
-
-        Api(config.api, fourtyTwo, length)
+        initialize(config)(context)
 
         Behaviors.empty
       }
     }
+
+  private def initialize(config: Config)(implicit context: ActorContext[_]) = {
+    implicit val mat: Materializer            = ActorMaterializer()(context.system)
+    implicit val ec: ExecutionContext         = context.executionContext
+    implicit val scheduler: Scheduler         = context.system.scheduler
+    implicit val untypedSystem: UntypedSystem = context.system.toUntyped
+
+    val fourtyTwo = FourtyTwo()
+
+    val delayedLengthFor =
+      DelayedLengthSharding(config.delayedLengthSharding,
+                            DelayedLength(),
+                            ClusterSharding(context.system),
+                            CoordinatedShutdown(context.system.toUntyped))
+    val length = Length(config.length, delayedLengthFor)
+
+    Api(config.api, fourtyTwo, length)
+  }
 }
