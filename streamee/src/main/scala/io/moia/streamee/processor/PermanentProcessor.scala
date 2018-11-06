@@ -15,6 +15,7 @@
  */
 
 package io.moia.streamee
+package processor
 
 import akka.{ Done, NotUsed }
 import akka.actor.Scheduler
@@ -38,7 +39,7 @@ import akka.stream.stage.{
   TimerGraphStageLogic
 }
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
-import io.moia.streamee.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
+import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, FiniteDuration }

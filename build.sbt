@@ -43,12 +43,10 @@ lazy val `streamee-demo` =
       libraryDependencies ++= Seq(
         library.akkaClusterShardingTyped,
         library.akkaDiscoveryDns,
-        library.akkaHttp,
         library.akkaHttpCirce,
         library.akkaManagementClusterBootstrap,
         library.akkaManagementClusterHttp,
         library.akkaSlf4j,
-        library.akkaStreamTyped,
         library.circeGeneric,
         library.disruptor,
         library.log4jApiScala,
@@ -70,12 +68,12 @@ lazy val library =
       val akkaHttp       = "10.1.5"
       val akkaHttpJson   = "1.22.0"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.18.0"
-      val circe          = "0.10.0"
+      val akkaManagement = "0.19.0"
+      val circe          = "0.10.1"
       val disruptor      = "3.4.2"
       val log4j          = "2.11.1"
       val log4jApiScala  = "11.0"
-      val pureConfig     = "0.9.2"
+      val pureConfig     = "0.10.0"
       val scalaCheck     = "1.14.0"
       val utest          = "0.6.6"
     }

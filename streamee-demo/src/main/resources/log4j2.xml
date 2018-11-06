@@ -7,12 +7,21 @@
                 <pattern>%date{HH:mm:ss} %-5level %logger{0} [%X{akkaSource}] - %msg%n</pattern>
             </PatternLayout>
         </Console>
+
+        <Console name="stdout-behavior">
+            <PatternLayout>
+                <pattern>%date{HH:mm:ss} %-5level [%X{akkaSource}] - %msg%n</pattern>
+            </PatternLayout>
+        </Console>
     </Appenders>
 
     <Loggers>
-        <Logger name="io.moia.streamee" level="${sys:loglevel.demoprocess:-debug}"
+        <Logger name="io.moia.streamee" level="${sys:loglevel.streamee:-debug}"
                 additivity="false">
             <AppenderRef ref="stdout"/>
+        </Logger>
+        <Logger name="akka.actor.typed.Behavior" level="${sys:loglevel.streamee:-debug}" additivity="false">
+            <AppenderRef ref="stdout-behavior"/>
         </Logger>
 
         <Root level="${sys:loglevel.root:-warn}">

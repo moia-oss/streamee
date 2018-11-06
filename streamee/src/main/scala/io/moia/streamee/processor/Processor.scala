@@ -15,6 +15,7 @@
  */
 
 package io.moia.streamee
+package processor
 
 import akka.Done
 import akka.actor.{ CoordinatedShutdown, Scheduler }

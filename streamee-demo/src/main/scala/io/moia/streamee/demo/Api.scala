@@ -25,8 +25,7 @@ import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import akka.Done
-import akka.actor.typed.ActorSystem
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
+import io.moia.streamee.processor.Processor
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext
@@ -47,19 +46,19 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(config: Config, demoProcess: FourtyTwo.Process)(implicit system: ActorSystem[_],
-                                                            mat: Materializer,
-                                                            scheduler: Scheduler): Unit = {
+  def apply(
+      config: Config,
+      fourtyTwo: FourtyTwo.Process,
+      length: Length.Process
+  )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
-    implicit val untypedSystem: UntypedSystem = system.toUntyped
+    val shutdown = CoordinatedShutdown(untypedSystem)
 
-    val fourtyTwoProcessor = Processor.perRequest(FourtyTwo(),
-                                                  processorTimeout,
-                                                  "per-request",
-                                                  CoordinatedShutdown(untypedSystem))
+    val fourtyTwoProcessor =
+      Processor.perRequest(fourtyTwo, processorTimeout, "per-request", shutdown)
 
     val fourtyTwoCorrelatedProcessor =
       Processor.permanent(
@@ -67,12 +66,14 @@ object Api extends Logging {
         processorTimeout,
         "permanant",
         processorBufferSize,
-        CoordinatedShutdown(untypedSystem)
+        shutdown
       )(_.correlationId, _.fold(_.correlationId, _.correlationId))
+
+    val lengthProcessor = Processor.perRequest(length, processorTimeout, "length", shutdown)
 
     Http()
       .bindAndHandle(
-        route(fourtyTwoProcessor, fourtyTwoCorrelatedProcessor),
+        route(fourtyTwoProcessor, fourtyTwoCorrelatedProcessor, lengthProcessor),
         address,
         port
       )
@@ -94,7 +95,8 @@ object Api extends Logging {
       fourtyTwoCorrelatedProcessor: Processor[
         FourtyTwoCorrelated.Request,
         FourtyTwoCorrelated.ErrorOr[FourtyTwoCorrelated.Response]
-      ]
+      ],
+      lengthProcessor: Processor[String, String]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -138,6 +140,13 @@ object Api extends Logging {
               case Right(FourtyTwoCorrelated.Response(answer, _)) =>
                 complete(StatusCodes.Created -> s"The answer is $answer")
             }
+        }
+      }
+    } ~
+    path("length") {
+      get {
+        complete {
+          lengthProcessor.process("o" * 42)
         }
       }
     }
