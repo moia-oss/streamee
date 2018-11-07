@@ -17,12 +17,12 @@
 package io.moia.streamee
 package demo
 
-import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef }
-import akka.stream.scaladsl.Flow
 import akka.NotUsed
-import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.actor.typed.ActorRef
+import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
+import akka.stream.scaladsl.Flow
+import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef }
 import akka.util.Timeout
 import io.moia.streamee.intoable.{
   FlowExt,
@@ -31,8 +31,8 @@ import io.moia.streamee.intoable.{
   Respondee,
   RespondeeFactory
 }
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
   * A trivial domain logic process demoing the use of `into`.
@@ -75,8 +75,8 @@ object DelayedLengthSharding {
 
   final case class Config(askTimeout: FiniteDuration)
 
-  val entityKey: EntityTypeKey[IntoableRunner.Command[String, Int]] =
-    EntityTypeKey[IntoableRunner.Command[String, Int]]("delayed-length-intoable-runner")
+  val entityKey: EntityTypeKey[IntoableRunner.Command] =
+    EntityTypeKey[IntoableRunner.Command]("delayed-length-intoable-runner")
 
   def apply(
       config: Config,

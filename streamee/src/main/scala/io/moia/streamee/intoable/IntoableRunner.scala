@@ -18,10 +18,10 @@ package io.moia.streamee
 package intoable
 
 import akka.actor.CoordinatedShutdown
-import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
-import akka.stream.{ KillSwitches, Materializer }
+import akka.actor.typed.{ ActorRef, Behavior }
 import akka.stream.scaladsl.{ Keep, MergeHub, Sink, StreamRefs }
+import akka.stream.{ KillSwitches, Materializer }
 import org.apache.logging.log4j.scala.Logging
 import scala.util.{ Failure, Success }
 
@@ -30,10 +30,10 @@ import scala.util.{ Failure, Success }
   */
 object IntoableRunner extends Logging {
 
-  sealed trait Command[+A, +B]
-  final case class GetSinkRef[A, B](replyTo: ActorRef[IntoableSinkRef[A, B]]) extends Command[A, B]
-  final case object Shutdown                                                  extends Command[Nothing, Nothing]
-  private final case object Stop                                              extends Command[Nothing, Nothing]
+  sealed trait Command
+  final case class GetSinkRef[A, B](replyTo: ActorRef[IntoableSinkRef[A, B]]) extends Command
+  final case object Shutdown                                                  extends Command
+  private final case object Stop                                              extends Command
 
   /**
     * Manages an "intoable" process, i.e. a `Flow` which takes pairs of request and response promise
@@ -49,7 +49,7 @@ object IntoableRunner extends Logging {
     */
   def apply[A, B](process: IntoableFlow[A, B], shutdown: CoordinatedShutdown)(
       implicit mat: Materializer
-  ): Behavior[Command[A, B]] =
+  ): Behavior[Command] =
     Behaviors.setup { context =>
       import context.executionContext
 
@@ -71,7 +71,7 @@ object IntoableRunner extends Logging {
       done.onComplete(_ => self ! Stop)
 
       Behaviors.receiveMessage {
-        case GetSinkRef(replyTo: ActorRef[IntoableSinkRef[A, B]]) =>
+        case GetSinkRef(replyTo: ActorRef[IntoableSinkRef[A, B]] @unchecked) =>
           StreamRefs.sinkRef().to(sink).run().onComplete {
             case Failure(cause)   => logger.error("Cannot create SinkRef!", cause)
             case Success(sinkRef) => replyTo ! sinkRef

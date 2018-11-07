@@ -16,11 +16,11 @@
 
 package io.moia.streamee
 
-import akka.actor.{ ActorSystem => UntypedSystem }
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.stream.typed.scaladsl.ActorMaterializer
+import akka.actor.{ ActorSystem => UntypedSystem }
 import akka.stream.Materializer
+import akka.stream.typed.scaladsl.ActorMaterializer
 import scala.concurrent.ExecutionContext
 import utest.TestSuite
 

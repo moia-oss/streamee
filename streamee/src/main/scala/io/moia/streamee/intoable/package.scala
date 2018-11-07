@@ -16,15 +16,15 @@
 
 package io.moia.streamee
 
+import akka.NotUsed
+import akka.actor.Scheduler
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
-import akka.actor.Scheduler
-import akka.stream.{ Materializer, SinkRef }
 import akka.stream.scaladsl.{ Flow, FlowOps, Source }
+import akka.stream.{ Materializer, SinkRef }
 import akka.util.Timeout
-import akka.NotUsed
-import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 
 package object intoable {
 

@@ -20,12 +20,12 @@ package demo
 import akka.NotUsed
 import akka.actor.Scheduler
 import akka.pattern.after
-import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Unzip }
 import akka.stream.FlowShape
+import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Unzip }
 import java.util.UUID
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Random, Success }
 
 object FourtyTwoCorrelated extends Logging {

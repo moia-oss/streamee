@@ -17,8 +17,16 @@
 package io.moia.streamee
 package processor
 
-import akka.{ Done, NotUsed }
 import akka.actor.Scheduler
+import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
+import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, RunnableGraph, Sink, Source, Unzip }
+import akka.stream.stage.{
+  GraphStage,
+  GraphStageLogic,
+  InHandler,
+  OutHandler,
+  TimerGraphStageLogic
+}
 import akka.stream.{
   ActorAttributes,
   Attributes,
@@ -30,19 +38,11 @@ import akka.stream.{
   OverflowStrategy,
   Supervision
 }
-import akka.stream.scaladsl.{ Flow, GraphDSL, Keep, RunnableGraph, Sink, Source, Unzip }
-import akka.stream.stage.{
-  GraphStage,
-  GraphStageLogic,
-  InHandler,
-  OutHandler,
-  TimerGraphStageLogic
-}
-import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
+import akka.{ Done, NotUsed }
 import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 
 private object PermanentProcessor extends Logging {
 

@@ -22,11 +22,11 @@ import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
-import akka.stream.{ Materializer, QueueOfferResult }
 import akka.stream.scaladsl.Flow
+import akka.stream.{ Materializer, QueueOfferResult }
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
   * Factories and more for [[Processor]]s.
