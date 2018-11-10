@@ -23,13 +23,12 @@ import akka.stream.scaladsl.{
   Flow,
   Keep,
   MergeHub,
-  RestartFlow,
   RestartSink,
   Sink,
   Source,
   StreamRefs
 }
-import io.moia.streamee.{ ExpiringPromise, PromiseExpired }
+import io.moia.streamee.ExpiringPromise
 import scala.concurrent.{ Await, Future, Promise }
 import scala.concurrent.duration.DurationInt
 
@@ -48,13 +47,10 @@ object PlaygroundRemote {
     import system.dispatcher
 
     val intoableFlow =
-      RestartFlow.withBackoff(1.second, 2.seconds, 0.1) { () =>
-        Flow[(Int, Promise[String])]
-          .delay(1.second, DelayOverflowStrategy.backpressure)
-          .throttle(1, 1.second, 10, ThrottleMode.shaping)
-          .map { case (n, p) => ("x" * n, p) }
-          .take(7)
-      }
+      Flow[(Int, Promise[String])]
+        .delay(1.second, DelayOverflowStrategy.backpressure)
+        .throttle(1, 1.second, 10, ThrottleMode.shaping)
+        .map { case (n, p) => ("x" * n, p) }
 
     def runIntoableFlow[A, B](
         intoableFlow: Flow[(A, Promise[B]), (B, Promise[B]), Any],
@@ -75,25 +71,21 @@ object PlaygroundRemote {
     def getIntoableSinkRef[A, B](intoableSink: Sink[(A, Promise[B]), Any]) = {
       println("Getting SinkRef")
       val sinkRef = Await.result(StreamRefs.sinkRef().to(intoableSink).run(), 1.second)
-      println("Got SinkRef")
-      sinkRef
+      Flow[(A, Promise[B])]
+        .take(7)
+        .to(sinkRef) // Simulating completion/failure of the SinkRef after 7 elements
     }
 
     val done =
       Source(1.to(100))
       // into-start
         .map(a => (a, ExpiringPromise[String](10.seconds, s"n = $a")))
-        .alsoTo(RestartSink.withBackoff(2.seconds, 4.seconds, 0.1) { () =>
-          println("Restarting")
+        .alsoTo(RestartSink.withBackoff(2.seconds, 4.seconds, 0) { () =>
           getIntoableSinkRef(intoableSink)
         })
-        .mapAsync(1) {
-          case (n, p) =>
-            p.future.map(Option.apply).recover { case _: PromiseExpired => None }
-        }
-        .collect { case Some(b) => b }
+        .mapAsync(1)(_._2.future)
         // into-end
-        .delay(2.seconds, DelayOverflowStrategy.backpressure)
+        //.delay(2.seconds, DelayOverflowStrategy.backpressure)
         .toMat(Sink.foreach { s =>
           println(s"client-out: ${s.length}")
         })(Keep.right)
