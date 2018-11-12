@@ -22,7 +22,7 @@ import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.stream.{ KillSwitches, Materializer, UniqueKillSwitch }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, Source, FlowOps => AkkaFlowOps }
 import akka.util.Timeout
-import akka.{ Done, NotUsed }
+import akka.Done
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 
