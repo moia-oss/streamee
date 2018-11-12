@@ -39,8 +39,7 @@ object PlaygroundLocal {
         .throttle(1, 1.second, 10, ThrottleMode.shaping)
         .map { case (n, p) => ("x" * n, p) }
 
-    val intoableSink =
-      runIntoableFlow(intoableFlow, 1)
+    val (intoableSink, _) = runIntoableFlow(intoableFlow, 1)
 
     val (switch, done) =
       Source(1.to(100))

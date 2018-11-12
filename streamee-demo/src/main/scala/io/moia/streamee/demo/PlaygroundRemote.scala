@@ -17,47 +17,113 @@
 package io.moia.streamee
 package demo
 
-import akka.actor.ActorSystem
+import akka.actor.{ ActorSystem, CoordinatedShutdown }
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.ActorRef
-import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, ThrottleMode }
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.scaladsl.Behaviors
+import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
+import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, Keep, RestartSink, Sink, Source, StreamRefs }
+import akka.util.Timeout
 import io.moia.streamee.intoable._
+import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration.DurationInt
+import scala.util.{ Failure, Success }
 
 object PlaygroundRemote {
 
-  // ###############################################################################################
-  // RUNNER
-  // ###############################################################################################
+  object Runner extends Logging {
+    sealed trait Command
+    final case class GetSinkRef[A, B](
+        replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]]
+    ) extends Command
+    final case object Shutdown     extends Command
+    private final case object Stop extends Command
+    //SinkRef[(A, ActorRef[Respondee.Command[B]])]
+
+    def apply[A, B](
+        intoableProcess: Flow[(A, ActorRef[Respondee.Command[B]]),
+                              (B, ActorRef[Respondee.Command[B]]),
+                              Any],
+        shutdown: CoordinatedShutdown
+    )(implicit mat: Materializer): Behavior[Command] =
+      Behaviors.setup { context =>
+        val self                         = context.self
+        val (intoableSink, switch, done) = runRemotelyIntoableFlow(intoableProcess, 42)
+
+        done.onComplete(_ => self ! Stop)(context.executionContext)
+
+        shutdown.addTask(CoordinatedShutdown.PhaseServiceStop, "runner") { () =>
+          self ! Shutdown
+          done
+        }
+
+        Behaviors.receive {
+          case (context,
+                GetSinkRef(
+                  replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]] @unchecked
+                )) =>
+            StreamRefs
+              .sinkRef()
+              .to(intoableSink)
+              .run()
+              .onComplete {
+                case Failure(cause)   => logger.error("Cannot create SinkRef!", cause)
+                case Success(sinkRef) => replyTo ! sinkRef
+              }(context.executionContext)
+            Behaviors.same
+
+          case (_, Shutdown) =>
+            logger.info("Shutdown requested")
+            switch.shutdown()
+
+            Behaviors.receiveMessagePartial {
+              case Stop =>
+                logger.info("Stopping because shutdown completed")
+                Behaviors.stopped
+            }
+
+          case (_, Stop) =>
+            logger.info("Stopping because process completed")
+            Behaviors.stopped
+        }
+      }
+  }
 
   def main(args: Array[String]): Unit = {
-    implicit val system    = ActorSystem()
+    implicit val system    = ActorSystem("streamee-demo")
     implicit val mat       = ActorMaterializer()
     implicit val scheduler = system.scheduler
 
     import system.dispatcher
 
-    val intoableFlow =
+    val process =
       Flow[(Int, ActorRef[Respondee.Command[String]])]
         .delay(1.second, DelayOverflowStrategy.backpressure)
         .throttle(1, 1.second, 10, ThrottleMode.shaping)
         .map { case (n, p) => ("x" * n, p) }
 
-    val (intoableSink, _) = runRemotelyIntoableFlow(intoableFlow, 1)
+    val sharding = ClusterSharding(system.toTyped)
+    val shutdown = CoordinatedShutdown(system)
 
-    def getIntoableSinkRef[A, B](intoableSink: Sink[(A, ActorRef[Respondee.Command[B]]), Any]) = {
+    val entityKey: EntityTypeKey[Runner.Command] =
+      EntityTypeKey[Runner.Command]("runner")
+    sharding.start(ShardedEntity(_ => Runner(process, shutdown), entityKey, Runner.Shutdown))
+    Thread.sleep(5000)
+
+    implicit val timeout: Timeout = 1.seconds
+    val sinkRefFor: String => Future[SinkRef[(Int, ActorRef[Respondee.Command[String]])]] =
+      sharding.entityRefFor(entityKey, _).ask(Runner.GetSinkRef.apply)
+
+    def getIntoableSinkRef(id: String) = {
       println("Getting SinkRef")
-      val sinkRef = Await.result(StreamRefs.sinkRef().to(intoableSink).run(), 1.second)
-      Flow[(A, ActorRef[Respondee.Command[B]])]
-        .take(7)
-        .to(sinkRef) // Simulating completion/failure of the SinkRef after 7 elements
+      Await.result(sinkRefFor(id), 1.seconds)
     }
 
     val restartedIntoableSinkRef =
       RestartSink.withBackoff(2.seconds, 4.seconds, 0) { () =>
-        getIntoableSinkRef(intoableSink)
+        getIntoableSinkRef("foo")
       }
 
     implicit val respondeeFactory: ActorRef[RespondeeFactory.Command[String]] =

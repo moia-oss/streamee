@@ -22,6 +22,7 @@ import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.stream.{ KillSwitches, Materializer, UniqueKillSwitch }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, Source, FlowOps => AkkaFlowOps }
 import akka.util.Timeout
+import akka.{ Done, NotUsed }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 
@@ -94,11 +95,11 @@ package object intoable {
   def runIntoableFlow[A, B](intoableFlow: Flow[(A, Promise[B]), (B, Promise[B]), Any],
                             bufferSize: Int)(
       implicit mat: Materializer
-  ): Sink[(A, Promise[B]), Any] =
+  ): (Sink[(A, Promise[B]), Any], Future[Done]) =
     MergeHub
       .source[(A, Promise[B])](bufferSize)
       .via(intoableFlow)
-      .to(Sink.foreach { case (b, p) => p.trySuccess(b) })
+      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
       .run()
 
   def runRemotelyIntoableFlow[A, B](intoableFlow: Flow[(A, ActorRef[Respondee.Command[B]]),
@@ -106,11 +107,13 @@ package object intoable {
                                                        Any],
                                     bufferSize: Int)(
       implicit mat: Materializer
-  ): (Sink[(A, ActorRef[Respondee.Command[B]]), Any], UniqueKillSwitch) =
+  ): (Sink[(A, ActorRef[Respondee.Command[B]]), Any], UniqueKillSwitch, Future[Done]) =
     MergeHub
       .source[(A, ActorRef[Respondee.Command[B]])](bufferSize)
       .viaMat(KillSwitches.single)(Keep.both)
       .via(intoableFlow)
-      .to(Sink.foreach { case (b, r) => r ! Respondee.Response(b) })
+      .toMat(Sink.foreach { case (b, r) => r ! Respondee.Response(b) }) {
+        case ((s, r), d) => (s, r, d)
+      }
       .run()
 }
