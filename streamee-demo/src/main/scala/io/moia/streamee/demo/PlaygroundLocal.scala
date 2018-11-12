@@ -14,73 +14,17 @@
  * limitations under the License.
  */
 
-package io.moia.streamee.demo
+package io.moia.streamee
+package demo
 
-import akka.actor.{ ActorSystem, Scheduler }
-import akka.stream.{
-  ActorMaterializer,
-  DelayOverflowStrategy,
-  KillSwitches,
-  Materializer,
-  ThrottleMode
-}
-import akka.stream.scaladsl.{ Flow, FlowOps, Keep, MergeHub, Sink, Source }
-import io.moia.streamee.ExpiringPromise
-import scala.concurrent.{ ExecutionContext, Future, Promise }
-import scala.concurrent.duration.{ DurationInt, FiniteDuration }
+import akka.actor.ActorSystem
+import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, KillSwitches, ThrottleMode }
+import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
+import io.moia.streamee.intoable._
+import scala.concurrent.{ Future, Promise }
+import scala.concurrent.duration.DurationInt
 
 object PlaygroundLocal {
-
-  // ###############################################################################################
-  // Local `into`
-  // ###############################################################################################
-
-  implicit final class SourceOps[A, M](val source: Source[A, M]) extends AnyVal {
-    def into[B](
-        intoableSink: Sink[(A, Promise[B]), Any],
-        responseTimeout: FiniteDuration,
-        parallelism: Int
-    )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[B, M] =
-      intoImpl(source, intoableSink, responseTimeout, parallelism)
-  }
-
-  implicit final class FlowExt[A, B, M](val flow: Flow[A, B, M]) extends AnyVal {
-    def into[C](
-        intoableSink: Sink[(B, Promise[C]), Any],
-        responseTimeout: FiniteDuration,
-        parallelism: Int
-    )(implicit ec: ExecutionContext, scheduler: Scheduler): Flow[A, C, M] =
-      intoImpl(flow, intoableSink, responseTimeout, parallelism)
-  }
-
-  private def intoImpl[A, B, M](
-      flowOps: FlowOps[A, M],
-      intoableSink: Sink[(A, Promise[B]), Any],
-      responseTimeout: FiniteDuration,
-      parallelism: Int
-  )(implicit ec: ExecutionContext, scheduler: Scheduler): flowOps.Repr[B] =
-    flowOps
-      .map(a => (a, ExpiringPromise[B](responseTimeout)))
-      .alsoTo(intoableSink)
-      .mapAsync(parallelism)(_._2.future)
-
-  // ###############################################################################################
-  // Local `runIntoableFlow`
-  // ###############################################################################################
-
-  def runIntoableFlow[A, B](intoableFlow: Flow[(A, Promise[B]), (B, Promise[B]), Any],
-                            bufferSize: Int)(
-      implicit mat: Materializer
-  ): Sink[(A, Promise[B]), Any] =
-    MergeHub
-      .source[(A, Promise[B])](bufferSize)
-      .via(intoableFlow)
-      .to(Sink.foreach { case (b, p) => p.trySuccess(b) })
-      .run()
-
-  // ###############################################################################################
-  // RUNNER
-  // ###############################################################################################
 
   def main(args: Array[String]): Unit = {
     implicit val system    = ActorSystem()

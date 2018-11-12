@@ -14,22 +14,16 @@
  * limitations under the License.
  */
 
-package io.moia.streamee.demo
+package io.moia.streamee
+package demo
 
 import akka.actor.ActorSystem
-import akka.event.{ Logging, LoggingAdapter }
-import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, ThrottleMode }
-import akka.stream.scaladsl.{
-  Flow,
-  Keep,
-  MergeHub,
-  RestartSink,
-  Sink,
-  Source,
-  StreamRefs
-}
-import io.moia.streamee.ExpiringPromise
-import scala.concurrent.{ Await, Future, Promise }
+import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.ActorRef
+import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, ThrottleMode }
+import akka.stream.scaladsl.{ Flow, Keep, RestartSink, Sink, Source, StreamRefs }
+import io.moia.streamee.intoable._
+import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration.DurationInt
 
 object PlaygroundRemote {
@@ -39,52 +33,39 @@ object PlaygroundRemote {
   // ###############################################################################################
 
   def main(args: Array[String]): Unit = {
-    implicit val system              = ActorSystem()
-    implicit val mat                 = ActorMaterializer()
-    implicit val scheduler           = system.scheduler
-    implicit val log: LoggingAdapter = Logging(system, getClass.getName)
+    implicit val system    = ActorSystem()
+    implicit val mat       = ActorMaterializer()
+    implicit val scheduler = system.scheduler
 
     import system.dispatcher
 
     val intoableFlow =
-      Flow[(Int, Promise[String])]
+      Flow[(Int, ActorRef[Respondee.Command[String]])]
         .delay(1.second, DelayOverflowStrategy.backpressure)
         .throttle(1, 1.second, 10, ThrottleMode.shaping)
         .map { case (n, p) => ("x" * n, p) }
 
-    def runIntoableFlow[A, B](
-        intoableFlow: Flow[(A, Promise[B]), (B, Promise[B]), Any],
-        bufferSize: Int
-    )(implicit mat: Materializer): Sink[(A, Promise[B]), Any] = {
-      val (mergeHubSink, intoableDone) =
-        MergeHub
-          .source[(A, Promise[B])](bufferSize)
-          .via(intoableFlow)
-          .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
-          .run()
-      intoableDone.onComplete(println)
-      mergeHubSink
-    }
+    val (intoableSink, _) = runRemotelyIntoableFlow(intoableFlow, 1)
 
-    val intoableSink = runIntoableFlow(intoableFlow, 1)
-
-    def getIntoableSinkRef[A, B](intoableSink: Sink[(A, Promise[B]), Any]) = {
+    def getIntoableSinkRef[A, B](intoableSink: Sink[(A, ActorRef[Respondee.Command[B]]), Any]) = {
       println("Getting SinkRef")
       val sinkRef = Await.result(StreamRefs.sinkRef().to(intoableSink).run(), 1.second)
-      Flow[(A, Promise[B])]
+      Flow[(A, ActorRef[Respondee.Command[B]])]
         .take(7)
         .to(sinkRef) // Simulating completion/failure of the SinkRef after 7 elements
     }
 
+    val restartedIntoableSinkRef =
+      RestartSink.withBackoff(2.seconds, 4.seconds, 0) { () =>
+        getIntoableSinkRef(intoableSink)
+      }
+
+    implicit val respondeeFactory: ActorRef[RespondeeFactory.Command[String]] =
+      system.spawnAnonymous(RespondeeFactory[String]())
+
     val done =
       Source(1.to(100))
-      // into-start
-        .map(a => (a, ExpiringPromise[String](10.seconds, s"n = $a")))
-        .alsoTo(RestartSink.withBackoff(2.seconds, 4.seconds, 0) { () =>
-          getIntoableSinkRef(intoableSink)
-        })
-        .mapAsync(1)(_._2.future)
-        // into-end
+        .intoRemote(restartedIntoableSinkRef, 10.seconds, 1)
         //.delay(2.seconds, DelayOverflowStrategy.backpressure)
         .toMat(Sink.foreach { s =>
           println(s"client-out: ${s.length}")
