@@ -16,95 +16,141 @@
 
 package io.moia.streamee
 
-import akka.NotUsed
 import akka.actor.Scheduler
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
-import akka.stream.scaladsl.{ Flow, FlowOps, Source }
-import akka.stream.{ Materializer, SinkRef }
+import akka.stream.{ KillSwitch, KillSwitches, Materializer }
+import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, Source, FlowOps => AkkaFlowOps }
 import akka.util.Timeout
-import scala.concurrent.duration.FiniteDuration
+import akka.Done
 import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.FiniteDuration
 
 package object intoable {
 
-  type IntoableFlow[A, B] = Flow[(A, Respondee[B]), (B, Respondee[B]), NotUsed]
+  type Respondee[A] = ActorRef[Respondee.Response[A]]
 
-  type IntoableSinkRef[A, B] = SinkRef[(A, Respondee[B])]
-
-  type Respondee[A] = ActorRef[Respondee.Command[A]]
-
-  type RespondeeFactory[A] = ActorRef[RespondeeFactory.Command[A]]
+  type RespondeeFactory[A] = ActorRef[RespondeeFactory.CreateRespondee[A]]
 
   /**
     * Extension methods for `Source`s.
     */
-  implicit final class SourceOps[O, M](val source: Source[O, M]) extends AnyVal {
+  implicit final class SourceOps[A, M](val source: Source[A, M]) extends AnyVal {
 
     /**
-      * Attaches to an "intoable" process managed by a [[IntoableRunner]].
+      * Input elements into the given `intoableSink` and output responses with the given
+      * `parallelism`.
       */
-    def into[O2](
-        sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
-        responseTimeout: FiniteDuration,
-        parallelism: Int = 1024
-    )(implicit mat: Materializer,
-      ec: ExecutionContext,
-      scheduler: Scheduler,
-      respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): Source[O2, M] =
-      intoImpl(source, sinkRefFor, responseTimeout, parallelism)
+    def into[B](
+        intoableSink: Sink[(A, Promise[B]), Any],
+        parallelism: Int
+    )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[B, M] =
+      intoImpl(source, intoableSink, parallelism)
+
+    /**
+      * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
+      * given `responseTimeout` and output responses with the given `parallelism`.
+      */
+    def into[B](remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
+                responseTimeout: FiniteDuration,
+                parallelism: Int)(implicit ec: ExecutionContext,
+                                  scheduler: Scheduler,
+                                  respondeeFactory: RespondeeFactory[B]): Source[B, M] =
+      intoImpl(source, remotelyIntoableSink, responseTimeout, parallelism)
   }
 
   /**
-    * Extension methods for `Flow`s.
+    * Extension methods for `Flows`s. Note: `akka.stream.scaladsl.FlowOps` has been renamed
+    * `AkkaFlowOps` in the imports.
     */
-  implicit final class FlowExt[I, O, M](val flow: Flow[I, O, M]) extends AnyVal { // Name FlowOps is taken by Akka!
+  implicit final class FlowOps[A, B, M](val flow: Flow[A, B, M]) extends AnyVal {
 
-    def into[O2](
-        sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
-        responseTimeout: FiniteDuration,
-        parallelism: Int = 1024
-    )(implicit mat: Materializer,
-      ec: ExecutionContext,
-      scheduler: Scheduler,
-      respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): Flow[I, O2, M] =
-      intoImpl(flow, sinkRefFor, responseTimeout, parallelism)
+    /**
+      * Input elements into the given `intoableSink` and output responses with the given
+      * `parallelism`.
+      */
+    def into[C](
+        intoableSink: Sink[(B, Promise[C]), Any],
+        parallelism: Int
+    )(implicit ec: ExecutionContext, scheduler: Scheduler): Flow[A, C, M] =
+      intoImpl(flow, intoableSink, parallelism)
+
+    /**
+      * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
+      * given `responseTimeout` and output responses with the given `parallelism`.
+      */
+    def into[C](remotelyIntoableSink: Sink[(B, Respondee[C]), Any],
+                responseTimeout: FiniteDuration,
+                parallelism: Int)(implicit ec: ExecutionContext,
+                                  scheduler: Scheduler,
+                                  respondeeFactory: RespondeeFactory[C]): Flow[A, C, M] =
+      intoImpl(flow, remotelyIntoableSink, responseTimeout, parallelism)
   }
 
-  private def intoImpl[O, O2, M](
-      flowOps: FlowOps[O, M],
-      sinkRefFor: O => Future[IntoableSinkRef[O, O2]],
+  /**
+    * Run the given `intoableProcess` with the given `bufferSize`.
+    *
+    * @return intoable sink to be used with `into` and completion signal
+    */
+  def runIntoableProcess[A, B](
+      intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
+      bufferSize: Int
+  )(implicit mat: Materializer): (Sink[(A, Promise[B]), Any], Future[Done]) =
+    MergeHub
+      .source[(A, Promise[B])](bufferSize)
+      .via(intoableProcess)
+      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
+      .run()
+
+  /**
+    * Run the given `remotelyIntoableProcess` with the given `bufferSize`.
+    *
+    * @return remotely intoable sink to be used with `into` and completion signal
+    */
+  def runRemotelyIntoableProcess[A, B](
+      remotelyIntoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
+      bufferSize: Int
+  )(implicit mat: Materializer): (Sink[(A, Respondee[B]), Any], KillSwitch, Future[Done]) =
+    MergeHub
+      .source[(A, Respondee[B])](bufferSize)
+      .viaMat(KillSwitches.single)(Keep.both)
+      .via(remotelyIntoableProcess)
+      .toMat(Sink.foreach { case (b, r) => r ! Respondee.Response(b) }) {
+        case ((s, r), d) => (s, r, d)
+      }
+      .run()
+
+  private def intoImpl[A, B, M](
+      flowOps: AkkaFlowOps[A, M],
+      intoableSink: Sink[(A, Promise[B]), Any],
+      parallelism: Int
+  )(implicit ec: ExecutionContext, scheduler: Scheduler): flowOps.Repr[B] =
+    flowOps
+      .map(a => (a, Promise[B]()))
+      .alsoTo(intoableSink)
+      .mapAsync(parallelism)(_._2.future)
+
+  private def intoImpl[A, B, M](
+      flowOps: AkkaFlowOps[A, M],
+      remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
       responseTimeout: FiniteDuration,
       parallelism: Int
-  )(implicit mat: Materializer,
-    ec: ExecutionContext,
+  )(implicit ec: ExecutionContext,
     scheduler: Scheduler,
-    respondeeFactory: ActorRef[RespondeeFactory.Command[O2]]): flowOps.Repr[O2] =
+    respondeeFactory: RespondeeFactory[B]): flowOps.Repr[B] =
     flowOps
-      .mapAsyncUnordered(parallelism) { request =>
-        val response = Promise[O2]()
-        val respondee = {
-          implicit val timeout: Timeout = responseTimeout // Safe to use, because of fast local ask
-          val created =
-          respondeeFactory ? { replyTo: ActorRef[RespondeeFactory.RespondeeCreated[O2]] =>
-            RespondeeFactory.CreateRespondee[O2](response, responseTimeout, replyTo)
-          }
-          created.map(x => x.respondee)
-        }
-        val sinkRef = {
-          val deadline = responseTimeout.fromNow
-          sinkRefFor(request)
-            .recoverWith {
-              case _ if deadline.hasTimeLeft => sinkRefFor(request)
-              case cause                     => Future.failed(cause)
-            }
-        }
-        Future.successful((request, response)).zip(sinkRef.zip(respondee))
+      .mapAsync(parallelism) { a =>
+        implicit val askTimeout: Timeout = responseTimeout // let's use the same timeout
+        val b                            = Promise[B]()
+        def createRespondee(replyTo: ActorRef[RespondeeFactory.RespondeeCreated[B]]) =
+          RespondeeFactory.CreateRespondee[B](b, responseTimeout, replyTo, s"a = $a")
+        val respondee = (respondeeFactory ? createRespondee).map(_.respondee)
+        Future.successful((a, b)).zip(respondee)
       }
-      .mapAsyncUnordered(parallelism) {
-        case ((request, response), (sinkRef, respondee)) =>
-          Source.single((request, respondee)).runWith(sinkRef)
-          response.future
-      }
-
+      .alsoTo(
+        Flow[((A, Promise[B]), Respondee[B])]
+          .map { case ((a, _), r) => (a, r) }
+          .to(remotelyIntoableSink)
+      )
+      .mapAsync(parallelism) { case ((_, b), _) => b.future }
 }

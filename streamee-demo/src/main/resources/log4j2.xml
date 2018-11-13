@@ -20,7 +20,7 @@
                 additivity="false">
             <AppenderRef ref="stdout"/>
         </Logger>
-        <Logger name="akka.actor.typed.Behavior" level="${sys:loglevel.streamee:-debug}" additivity="false">
+        <Logger name="akka.actor.typed.Behavior" level="${sys:loglevel.streamee:-info}" additivity="false">
             <AppenderRef ref="stdout-behavior"/>
         </Logger>
 
