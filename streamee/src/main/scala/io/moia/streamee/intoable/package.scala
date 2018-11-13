@@ -32,8 +32,15 @@ package object intoable {
 
   type RespondeeFactory[A] = ActorRef[RespondeeFactory.CreateRespondee[A]]
 
+  /**
+    * Extension methods for `Source`s.
+    */
   implicit final class SourceOps[A, M](val source: Source[A, M]) extends AnyVal {
 
+    /**
+      * Input elements into the given `intoableSink` which is expected to respond within the given
+      * `responseTimeout` and output responses with the given `parallelism`.
+      */
     def into[B](
         intoableSink: Sink[(A, Promise[B]), Any],
         responseTimeout: FiniteDuration,
@@ -41,16 +48,28 @@ package object intoable {
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[B, M] =
       intoImpl(source, intoableSink, responseTimeout, parallelism)
 
-    def into[B](intoableSink: Sink[(A, Respondee[B]), Any],
+    /**
+      * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
+      * given `responseTimeout` and output responses with the given `parallelism`.
+      */
+    def into[B](remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
                 responseTimeout: FiniteDuration,
                 parallelism: Int)(implicit ec: ExecutionContext,
                                   scheduler: Scheduler,
                                   respondeeFactory: RespondeeFactory[B]): Source[B, M] =
-      intoImpl(source, intoableSink, responseTimeout, parallelism)
+      intoImpl(source, remotelyIntoableSink, responseTimeout, parallelism)
   }
 
+  /**
+    * Extension methods for `Flows`s. Note: `akka.stream.scaladsl.FlowOps` has been renamed
+    * `AkkaFlowOps` in the imports.
+    */
   implicit final class FlowOps[A, B, M](val flow: Flow[A, B, M]) extends AnyVal {
 
+    /**
+      * Input elements into the given `intoableSink` which is expected to respond within the given
+      * `responseTimeout` and output responses with the given `parallelism`.
+      */
     def into[C](
         intoableSink: Sink[(B, Promise[C]), Any],
         responseTimeout: FiniteDuration,
@@ -58,13 +77,50 @@ package object intoable {
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Flow[A, C, M] =
       intoImpl(flow, intoableSink, responseTimeout, parallelism)
 
-    def into[C](intoableSink: Sink[(B, Respondee[C]), Any],
+    /**
+      * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
+      * given `responseTimeout` and output responses with the given `parallelism`.
+      */
+    def into[C](remotelyIntoableSink: Sink[(B, Respondee[C]), Any],
                 responseTimeout: FiniteDuration,
                 parallelism: Int)(implicit ec: ExecutionContext,
                                   scheduler: Scheduler,
                                   respondeeFactory: RespondeeFactory[C]): Flow[A, C, M] =
-      intoImpl(flow, intoableSink, responseTimeout, parallelism)
+      intoImpl(flow, remotelyIntoableSink, responseTimeout, parallelism)
   }
+
+  /**
+    * Run the given `intoableProcess` with the given `bufferSize`.
+    *
+    * @return intoable sink to be used with `into` and completion signal
+    */
+  def runIntoableProcess[A, B](
+      intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
+      bufferSize: Int
+  )(implicit mat: Materializer): (Sink[(A, Promise[B]), Any], Future[Done]) =
+    MergeHub
+      .source[(A, Promise[B])](bufferSize)
+      .via(intoableProcess)
+      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
+      .run()
+
+  /**
+    * Run the given `remotelyIntoableProcess` with the given `bufferSize`.
+    *
+    * @return remotely intoable sink to be used with `into` and completion signal
+    */
+  def runRemotelyIntoableProcess[A, B](
+      remotelyIntoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
+      bufferSize: Int
+  )(implicit mat: Materializer): (Sink[(A, Respondee[B]), Any], KillSwitch, Future[Done]) =
+    MergeHub
+      .source[(A, Respondee[B])](bufferSize)
+      .viaMat(KillSwitches.single)(Keep.both)
+      .via(remotelyIntoableProcess)
+      .toMat(Sink.foreach { case (b, r) => r ! Respondee.Response(b) }) {
+        case ((s, r), d) => (s, r, d)
+      }
+      .run()
 
   private def intoImpl[A, B, M](
       flowOps: AkkaFlowOps[A, M],
@@ -79,7 +135,7 @@ package object intoable {
 
   private def intoImpl[A, B, M](
       flowOps: AkkaFlowOps[A, M],
-      intoableSink: Sink[(A, Respondee[B]), Any],
+      remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
       responseTimeout: FiniteDuration,
       parallelism: Int
   )(implicit ec: ExecutionContext,
@@ -97,30 +153,7 @@ package object intoable {
       .alsoTo(
         Flow[((A, Promise[B]), Respondee[B])]
           .map { case ((a, _), r) => (a, r) }
-          .to(intoableSink)
+          .to(remotelyIntoableSink)
       )
-      .mapAsync(parallelism) { case ((a, b), _) => b.future }
-
-  def runIntoableProcess[A, B](intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
-                               bufferSize: Int)(
-      implicit mat: Materializer
-  ): (Sink[(A, Promise[B]), Any], Future[Done]) =
-    MergeHub
-      .source[(A, Promise[B])](bufferSize)
-      .via(intoableProcess)
-      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
-      .run()
-
-  def runRemotelyIntoableProcess[A, B](
-      intoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
-      bufferSize: Int
-  )(implicit mat: Materializer): (Sink[(A, Respondee[B]), Any], KillSwitch, Future[Done]) =
-    MergeHub
-      .source[(A, Respondee[B])](bufferSize)
-      .viaMat(KillSwitches.single)(Keep.both)
-      .via(intoableProcess)
-      .toMat(Sink.foreach { case (b, r) => r ! Respondee.Response(b) }) {
-        case ((s, r), d) => (s, r, d)
-      }
-      .run()
+      .mapAsync(parallelism) { case ((_, b), _) => b.future }
 }

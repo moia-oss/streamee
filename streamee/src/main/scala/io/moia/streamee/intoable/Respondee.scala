@@ -17,11 +17,15 @@
 package io.moia.streamee
 package intoable
 
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.scaladsl.Behaviors
 import scala.concurrent.Promise
 import scala.concurrent.duration.FiniteDuration
 
+/**
+  * Actor to capture responses from remotely intoable processes. Similar to `Promise`s, but location
+  * transparent.
+  */
 object Respondee {
 
   sealed trait Command
@@ -51,16 +55,17 @@ object Respondee {
       .narrow
 }
 
+/**
+  * Factory for [[Respondee]] actors.
+  */
 object RespondeeFactory {
 
   final case class CreateRespondee[A](response: Promise[A],
                                       responseTimeout: FiniteDuration,
                                       replyTo: ActorRef[RespondeeCreated[A]],
                                       hint: String = "")
-  final case class RespondeeCreated[A](respondee: ActorRef[Respondee.Response[A]])
 
-  implicit def spawn[A, B](implicit context: ActorContext[B]): ActorRef[CreateRespondee[A]] =
-    context.spawnAnonymous(RespondeeFactory[A]())
+  final case class RespondeeCreated[A](respondee: ActorRef[Respondee.Response[A]])
 
   def apply[A](): Behavior[CreateRespondee[A]] =
     Behaviors.receive {

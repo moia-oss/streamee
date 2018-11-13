@@ -34,6 +34,9 @@ import scala.util.{ Failure, Success }
 
 object PlaygroundRemote {
 
+  implicit def spawn[A](implicit untypedSystem: ActorSystem): RespondeeFactory[A] =
+    untypedSystem.spawnAnonymous(RespondeeFactory[A]())
+
   object Runner extends Logging {
     sealed trait Command
     final case class GetSinkRef[A, B](replyTo: ActorRef[SinkRef[(A, Respondee[B])]]) extends Command
@@ -128,8 +131,8 @@ object PlaygroundRemote {
         getIntoableSinkRef("foo")
       }
 
-    implicit val respondeeFactory: RespondeeFactory[String] =
-      system.spawnAnonymous(RespondeeFactory[String]())
+    //    implicit val respondeeFactory: RespondeeFactory[String] =
+    //      RespondeeFactory.CreateRespondee.spawn[String]
 
     val done =
       Source(1.to(Int.MaxValue))
