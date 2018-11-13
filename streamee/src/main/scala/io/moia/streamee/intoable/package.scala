@@ -38,15 +38,14 @@ package object intoable {
   implicit final class SourceOps[A, M](val source: Source[A, M]) extends AnyVal {
 
     /**
-      * Input elements into the given `intoableSink` which is expected to respond within the given
-      * `responseTimeout` and output responses with the given `parallelism`.
+      * Input elements into the given `intoableSink` and output responses with the given
+      * `parallelism`.
       */
     def into[B](
         intoableSink: Sink[(A, Promise[B]), Any],
-        responseTimeout: FiniteDuration,
         parallelism: Int
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[B, M] =
-      intoImpl(source, intoableSink, responseTimeout, parallelism)
+      intoImpl(source, intoableSink, parallelism)
 
     /**
       * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
@@ -67,15 +66,14 @@ package object intoable {
   implicit final class FlowOps[A, B, M](val flow: Flow[A, B, M]) extends AnyVal {
 
     /**
-      * Input elements into the given `intoableSink` which is expected to respond within the given
-      * `responseTimeout` and output responses with the given `parallelism`.
+      * Input elements into the given `intoableSink` and output responses with the given
+      * `parallelism`.
       */
     def into[C](
         intoableSink: Sink[(B, Promise[C]), Any],
-        responseTimeout: FiniteDuration,
         parallelism: Int
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Flow[A, C, M] =
-      intoImpl(flow, intoableSink, responseTimeout, parallelism)
+      intoImpl(flow, intoableSink, parallelism)
 
     /**
       * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
@@ -125,11 +123,10 @@ package object intoable {
   private def intoImpl[A, B, M](
       flowOps: AkkaFlowOps[A, M],
       intoableSink: Sink[(A, Promise[B]), Any],
-      responseTimeout: FiniteDuration,
       parallelism: Int
   )(implicit ec: ExecutionContext, scheduler: Scheduler): flowOps.Repr[B] =
     flowOps
-      .map(a => (a, ExpiringPromise[B](responseTimeout)))
+      .map(a => (a, Promise[B]()))
       .alsoTo(intoableSink)
       .mapAsync(parallelism)(_._2.future)
 
