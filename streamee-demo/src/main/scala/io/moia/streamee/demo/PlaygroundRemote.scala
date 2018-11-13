@@ -22,6 +22,7 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
+import akka.cluster.typed.Cluster
 import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, Keep, RestartSink, Sink, Source, StreamRefs }
 import akka.util.Timeout
@@ -35,22 +36,18 @@ object PlaygroundRemote {
 
   object Runner extends Logging {
     sealed trait Command
-    final case class GetSinkRef[A, B](
-        replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]]
-    ) extends Command
-    final case object Shutdown     extends Command
-    private final case object Stop extends Command
-    //SinkRef[(A, ActorRef[Respondee.Command[B]])]
+    final case class GetSinkRef[A, B](replyTo: ActorRef[SinkRef[(A, Respondee[B])]]) extends Command
+    final case object Shutdown                                                       extends Command
+    private final case object Stop                                                   extends Command
 
-    def apply[A, B](
-        intoableProcess: Flow[(A, ActorRef[Respondee.Command[B]]),
-                              (B, ActorRef[Respondee.Command[B]]),
-                              Any],
-        shutdown: CoordinatedShutdown
-    )(implicit mat: Materializer): Behavior[Command] =
+    def apply[A, B](intoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
+                    shutdown: CoordinatedShutdown)(implicit mat: Materializer): Behavior[Command] =
       Behaviors.setup { context =>
+        val address = Cluster(context.system).selfMember.address
+        println(s"####### Runner started on $address")
+
         val self                         = context.self
-        val (intoableSink, switch, done) = runRemotelyIntoableFlow(intoableProcess, 42)
+        val (intoableSink, switch, done) = runRemotelyIntoableProcess(intoableProcess, 42)
 
         done.onComplete(_ => self ! Stop)(context.executionContext)
 
@@ -60,10 +57,7 @@ object PlaygroundRemote {
         }
 
         Behaviors.receive {
-          case (context,
-                GetSinkRef(
-                  replyTo: ActorRef[SinkRef[(A, ActorRef[Respondee.Command[B]])]] @unchecked
-                )) =>
+          case (context, GetSinkRef(replyTo: ActorRef[SinkRef[(A, Respondee[B])]] @unchecked)) =>
             StreamRefs
               .sinkRef()
               .to(intoableSink)
@@ -99,39 +93,47 @@ object PlaygroundRemote {
     import system.dispatcher
 
     val process =
-      Flow[(Int, ActorRef[Respondee.Command[String]])]
-        .delay(1.second, DelayOverflowStrategy.backpressure)
-        .throttle(1, 1.second, 10, ThrottleMode.shaping)
+      Flow[(Int, Respondee[String])]
+        .delay(2.seconds, DelayOverflowStrategy.backpressure)
+        .throttle(1, 2.second, 10, ThrottleMode.shaping)
         .map { case (n, p) => ("x" * n, p) }
 
     val sharding = ClusterSharding(system.toTyped)
     val shutdown = CoordinatedShutdown(system)
 
-    val entityKey: EntityTypeKey[Runner.Command] =
-      EntityTypeKey[Runner.Command]("runner")
+    val entityKey = EntityTypeKey[Runner.Command]("runner")
     sharding.start(ShardedEntity(_ => Runner(process, shutdown), entityKey, Runner.Shutdown))
-    Thread.sleep(5000)
+    Thread.sleep(3000)
 
-    implicit val timeout: Timeout = 1.seconds
-    val sinkRefFor: String => Future[SinkRef[(Int, ActorRef[Respondee.Command[String]])]] =
-      sharding.entityRefFor(entityKey, _).ask(Runner.GetSinkRef.apply)
+    def remotelyIntoableSinkFor[A, B](id: String): Future[Sink[(A, Respondee[B]), Any]] = {
+      implicit val askTimeout: Timeout = 1.second
+      sharding
+        .entityRefFor(entityKey, id)
+        .ask { replyTo: ActorRef[SinkRef[(A, Respondee[B])]] =>
+          Runner.GetSinkRef(replyTo)
+        }
+        .map(_.sink)
+        .recoverWith { case _ => remotelyIntoableSinkFor(id) }
+    }
 
     def getIntoableSinkRef(id: String) = {
       println("Getting SinkRef")
-      Await.result(sinkRefFor(id), 1.seconds)
+      val sinkRef = Await.result(remotelyIntoableSinkFor[Int, String](id), 20.seconds)
+      println(s"Got SinkRef: $sinkRef")
+      sinkRef
     }
 
     val restartedIntoableSinkRef =
-      RestartSink.withBackoff(2.seconds, 4.seconds, 0) { () =>
+      RestartSink.withBackoff(1.seconds, 4.seconds, 0) { () =>
         getIntoableSinkRef("foo")
       }
 
-    implicit val respondeeFactory: ActorRef[RespondeeFactory.Command[String]] =
+    implicit val respondeeFactory: RespondeeFactory[String] =
       system.spawnAnonymous(RespondeeFactory[String]())
 
     val done =
-      Source(1.to(100))
-        .intoRemote(restartedIntoableSinkRef, 10.seconds, 1)
+      Source(1.to(Int.MaxValue))
+        .into(restartedIntoableSinkRef, 20.seconds, 1)
         //.delay(2.seconds, DelayOverflowStrategy.backpressure)
         .toMat(Sink.foreach { s =>
           println(s"client-out: ${s.length}")

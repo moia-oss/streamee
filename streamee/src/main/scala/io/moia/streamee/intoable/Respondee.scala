@@ -24,21 +24,23 @@ import scala.concurrent.duration.FiniteDuration
 
 object Respondee {
 
-  sealed trait Command[+A]
-  private[intoable] final case class Response[A](a: A) extends Command[A]
-  private final case object Timeout                    extends Command[Nothing]
+  sealed trait Command
+  final case class Response[A] private (a: A) extends Command
+  private final case object Timeout           extends Command
 
-  final case class ResponseTimeoutException(timeout: FiniteDuration)
-      extends Exception(s"Not responded within $timeout!")
+  final case class ResponseTimeoutException(timeout: FiniteDuration, hint: String = "")
+      extends Exception(s"Not responded within $timeout! hint='$hint'")
 
-  def apply[A](response: Promise[A], responseTimeout: FiniteDuration): Behavior[Command[A]] =
+  def apply[A](response: Promise[A],
+               responseTimeout: FiniteDuration,
+               hint: String = ""): Behavior[Response[A]] =
     Behaviors
-      .withTimers[Command[A]] { timers =>
+      .withTimers[Command] { timers =>
         timers.startSingleTimer("response-timeout", Timeout, responseTimeout)
 
         Behaviors.receiveMessage {
           case Timeout =>
-            response.failure(ResponseTimeoutException(responseTimeout))
+            response.failure(ResponseTimeoutException(responseTimeout, hint))
             Behaviors.stopped
 
           case Response(a: A @unchecked) =>
@@ -46,24 +48,24 @@ object Respondee {
             Behaviors.stopped
         }
       }
+      .narrow
 }
 
 object RespondeeFactory {
 
-  sealed trait Command[A]
   final case class CreateRespondee[A](response: Promise[A],
                                       responseTimeout: FiniteDuration,
-                                      replyTo: ActorRef[RespondeeCreated[A]])
-      extends Command[A]
-  final case class RespondeeCreated[A](respondee: ActorRef[Respondee.Command[A]])
+                                      replyTo: ActorRef[RespondeeCreated[A]],
+                                      hint: String = "")
+  final case class RespondeeCreated[A](respondee: ActorRef[Respondee.Response[A]])
 
-  implicit def spawn[A, B](implicit context: ActorContext[A]): ActorRef[Command[B]] =
-    context.spawnAnonymous(RespondeeFactory[B]())
+  implicit def spawn[A, B](implicit context: ActorContext[B]): ActorRef[CreateRespondee[A]] =
+    context.spawnAnonymous(RespondeeFactory[A]())
 
-  def apply[A](): Behavior[Command[A]] =
+  def apply[A](): Behavior[CreateRespondee[A]] =
     Behaviors.receive {
-      case (context, CreateRespondee(response, responseTimeout, replyTo)) =>
-        val respondee = context.spawnAnonymous(Respondee(response, responseTimeout))
+      case (context, CreateRespondee(response, responseTimeout, replyTo, hint)) =>
+        val respondee = context.spawnAnonymous(Respondee(response, responseTimeout, hint))
         replyTo ! RespondeeCreated(respondee)
         Behaviors.same
     }
