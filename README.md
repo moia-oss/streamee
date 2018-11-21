@@ -5,7 +5,7 @@
 
 ## Motivation
 
-Streamee is a mirco library (micro all the things) for handling requests – most probably HTTP
+Streamee is a micro library (micro all the things) for handling requests – most probably HTTP
 requests, but any kind of request-response paradigm should be supported – with Akka Stream based
 processors for domain logic.
 
