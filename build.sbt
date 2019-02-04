@@ -64,16 +64,16 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.18"
-      val akkaHttp       = "10.1.5"
-      val akkaHttpJson   = "1.22.0"
+      val akka           = "2.5.20"
+      val akkaHttp       = "10.1.7"
+      val akkaHttpJson   = "1.25.2"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.19.0"
-      val circe          = "0.10.1"
+      val akkaManagement = "0.20.0"
+      val circe          = "0.11.1"
       val disruptor      = "3.4.2"
       val log4j          = "2.11.1"
       val log4jApiScala  = "11.0"
-      val pureConfig     = "0.10.0"
+      val pureConfig     = "0.10.1"
       val scalaCheck     = "1.14.0"
       val utest          = "0.6.6"
     }
@@ -112,7 +112,7 @@ lazy val settings =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.7",
+    scalaVersion := "2.12.8",
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),

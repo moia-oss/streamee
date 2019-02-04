@@ -6,7 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-    - image: hseeberger/scala-sbt:8u181_2.12.6_1.2.1
+    - image: hseeberger/scala-sbt:8u181_2.12.8_1.2.8
 
     working_directory: ~/repo
 
