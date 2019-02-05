@@ -20,7 +20,15 @@ import akka.actor.Scheduler
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.stream.{ KillSwitch, KillSwitches, Materializer }
-import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, Source, FlowOps => AkkaFlowOps }
+import akka.stream.scaladsl.{
+  Flow,
+  FlowWithContext,
+  Keep,
+  MergeHub,
+  Sink,
+  Source,
+  FlowOps => AkkaFlowOps
+}
 import akka.util.Timeout
 import akka.Done
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -92,10 +100,10 @@ package object intoable {
     *
     * @return intoable sink to be used with `into` and completion signal (which should not happen)
     */
-  def runIntoableProcess[A, B](
-      intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
-      bufferSize: Int
-  )(implicit mat: Materializer): (Sink[(A, Promise[B]), Any], Future[Done]) =
+  def runIntoableProcess[A, B](intoableProcess: FlowWithContext[Promise[B], A, Promise[B], B, Any],
+                               bufferSize: Int)(
+      implicit mat: Materializer
+  ): (Sink[(A, Promise[B]), Any], Future[Done]) =
     MergeHub
       .source[(A, Promise[B])](bufferSize)
       .via(intoableProcess)
@@ -111,7 +119,7 @@ package object intoable {
     *         (which should not happen except for using the kill switch)
     */
   def runRemotelyIntoableProcess[A, B](
-      remotelyIntoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
+      remotelyIntoableProcess: FlowWithContext[Respondee[B], A, Respondee[B], B, Any],
       bufferSize: Int
   )(implicit mat: Materializer): (Sink[(A, Respondee[B]), Any], KillSwitch, Future[Done]) =
     MergeHub
