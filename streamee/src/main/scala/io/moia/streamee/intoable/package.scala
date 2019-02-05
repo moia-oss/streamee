@@ -88,9 +88,9 @@ package object intoable {
   }
 
   /**
-    * Run the given `intoableProcess` with the given `bufferSize`.
+    * Run the given `intoableProcess` with the given `bufferSize` (must be positive).
     *
-    * @return intoable sink to be used with `into` and completion signal
+    * @return intoable sink to be used with `into` and completion signal (which should not happen)
     */
   def runIntoableProcess[A, B](
       intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
@@ -103,9 +103,12 @@ package object intoable {
       .run()
 
   /**
-    * Run the given `remotelyIntoableProcess` with the given `bufferSize`.
+    * Run the given `remotelyIntoableProcess` with the given `bufferSize` (must be positive). Notice
+    * that using the returned kill switch might result in dropping (loosing) `bufferSize` number of
+    * elements!
     *
-    * @return remotely intoable sink to be used with `into` and completion signal
+    * @return remotely intoable sink to be used with `into`, kill switch and completion signal
+    *         (which should not happen except for using the kill switch)
     */
   def runRemotelyIntoableProcess[A, B](
       remotelyIntoableProcess: Flow[(A, Respondee[B]), (B, Respondee[B]), Any],
