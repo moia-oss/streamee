@@ -18,6 +18,7 @@ package io.moia.streamee
 package intoable
 
 import akka.stream.scaladsl.{ Flow, Sink, Source }
+import akka.stream.testkit.scaladsl.TestSource
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.DurationInt
 import utest._
@@ -51,8 +52,8 @@ object IntoableTests extends ActorTestSuite {
       }
 
       'remotelyIntoable - {
-        val intoableProcess           = Flow[(Int, Respondee[Int])].map { case (n, p) => (n + 1, p) }
-        val (intoableSink, switch, _) = runRemotelyIntoableProcess(intoableProcess, 1)
+        val intoableProcess      = Flow[(Int, Respondee[Int])].map { case (n, p) => (n + 1, p) }
+        val (intoableSink, _, _) = runRemotelyIntoableProcess(intoableProcess, 1)
         val result1 =
           Source(0.to(9))
             .into(intoableSink, 1.second, 42)
@@ -68,6 +69,18 @@ object IntoableTests extends ActorTestSuite {
               assert(result == 11.to(20))
             }
         Future.sequence(List(result1, result2))
+      }
+
+      'remotelyIntoableSwitch - {
+        val (intoableSink, switch, _) = runRemotelyIntoableProcess(Flow[(Int, Respondee[Int])], 1)
+        val publisher =
+          TestSource
+            .probe[Int]
+            .into(intoableSink, 1.second, 42)
+            .to(Sink.ignore)
+            .run()
+        switch.shutdown()
+        publisher.expectCancellation()
       }
     }
 }
