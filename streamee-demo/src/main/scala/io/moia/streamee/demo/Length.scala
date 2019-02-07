@@ -14,65 +14,41 @@
  * limitations under the License.
  */
 
-///*
-// * Copyright 2018 MOIA GmbH
-// *
-// * Licensed under the Apache License, Version 2.0 (the "License");
-// * you may not use this file except in compliance with the License.
-// * You may obtain a copy of the License at
-// *
-// *     http://www.apache.org/licenses/LICENSE-2.0
-// *
-// * Unless required by applicable law or agreed to in writing, software
-// * distributed under the License is distributed on an "AS IS" BASIS,
-// * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// * See the License for the specific language governing permissions and
-// * limitations under the License.
-// */
-//
-//package io.moia.streamee
-//package demo
-//
-//import akka.NotUsed
-//import akka.actor.typed.ActorRef
-//import akka.actor.{ CoordinatedShutdown, Scheduler }
-//import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey, ShardedEntity }
-//import akka.stream.scaladsl.Flow
-//import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef }
-//import akka.util.Timeout
-//import io.moia.streamee.intoable.{
-//  FlowExt,
-//  IntoableFlow,
-//  IntoableRunner,
-//  Respondee,
-//  RespondeeFactory
-//}
-//import scala.concurrent.duration.{ DurationInt, FiniteDuration }
-//import scala.concurrent.{ ExecutionContext, Future }
-//
-///**
-//  * A trivial domain logic process demoing the use of `into`.
-//  */
-//object Length {
-//
-//  type Process = Flow[String, String, NotUsed]
-//
-//  final case class Config(retryTimeout: FiniteDuration)
-//
-//  def apply(
-//      config: Config,
-//      delayedLengthFor: String => Future[SinkRef[(String, Respondee[Int])]]
-//  )(implicit mat: Materializer,
-//    ec: ExecutionContext,
-//    scheduler: Scheduler,
-//    respondeeFactory: ActorRef[RespondeeFactory.Command[Int]]): Flow[String, String, NotUsed] = {
-//    import config._
+package io.moia.streamee
+package demo
+
+import akka.NotUsed
+import akka.actor.typed.ActorRef
+import akka.actor.Scheduler
+import akka.stream.Materializer
+import akka.stream.scaladsl.Flow
+import io.moia.streamee.intoable.RespondeeFactory
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
+
+/**
+  * A trivial domain logic process demoing the use of `into`.
+  */
+object Length {
+
+  type Process = Flow[String, String, NotUsed]
+
+  final case class Config(retryTimeout: FiniteDuration)
+
+  def apply(
+      config: Config,
+      /*delayedLengthFor: String => Future[SinkRef[(String, Respondee[Int])]]*/
+  )(implicit mat: Materializer,
+    ec: ExecutionContext,
+    scheduler: Scheduler,
+    respondeeFactory: ActorRef[RespondeeFactory.CreateRespondee[Int]])
+    : Flow[String, String, NotUsed] =
 //    Flow[String]
 //      .into(s => delayedLengthFor(s), retryTimeout)
 //      .map(_.toString)
-//  }
-//}
-//
+    Flow[String]
+}
+
 ///**
 //  * A trivial "intoable" process.
 //  */
