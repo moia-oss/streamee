@@ -42,7 +42,6 @@ lazy val `streamee-demo` =
       Compile / packageSrc / publishArtifact := false,
       libraryDependencies ++= Seq(
         library.akkaClusterShardingTyped,
-        library.akkaDiscoveryDns,
         library.akkaHttpCirce,
         library.akkaManagementClusterBootstrap,
         library.akkaManagementClusterHttp,
@@ -68,18 +67,17 @@ lazy val library =
       val akkaHttp       = "10.1.7"
       val akkaHttpJson   = "1.25.2"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.20.0"
+      val akkaManagement = "1.0.0-RC2"
       val circe          = "0.11.1"
       val disruptor      = "3.4.2"
       val log4j          = "2.11.1"
       val log4jApiScala  = "11.0"
-      val pureConfig     = "0.10.1"
+      val pureConfig     = "0.10.2"
       val scalaCheck     = "1.14.0"
       val utest          = "0.6.6"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
-    val akkaDiscoveryDns               = "com.lightbend.akka.discovery"  %% "akka-discovery-dns"                % Version.akkaManagement
     val akkaHttp                       = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
     val akkaHttpCirce                  = "de.heikoseeberger"             %% "akka-http-circe"                   % Version.akkaHttpJson
     val akkaHttpTestkit                = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
@@ -162,20 +160,26 @@ lazy val commandAliases =
     """|reStart
        |---
        |-Dstreamee-demo.api.port=8080
-       |-Dakka.management.http.hostname=127.0.0.1
-       |-Dakka.management.http.port=8558
        |-Dakka.remote.artery.canonical.hostname=127.0.0.1
        |-Dakka.remote.artery.canonical.port=25520
-       |-Dakka.cluster.seed-nodes.0=akka://streamee-demo@127.0.0.1:25520""".stripMargin
+       |-Dakka.management.http.hostname=127.0.0.1
+       |-Dakka.management.http.port=8558
+       |-Dakka.management.cluster.bootstrap.contact-point-discovery.required-contact-point-nr=1
+       |-Dakka.discovery.method=config
+       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.host=127.0.0.1
+       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.port=8558""".stripMargin
   ) ++
   addCommandAlias(
     "r1",
     """|reStart
        |---
        |-Dstreamee-demo.api.port=8081
-       |-Dakka.management.http.hostname=127.0.0.1
-       |-Dakka.management.http.port=8559
        |-Dakka.remote.artery.canonical.hostname=127.0.0.1
        |-Dakka.remote.artery.canonical.port=25521
-       |-Dakka.cluster.seed-nodes.0=akka://streamee-demo@127.0.0.1:25520""".stripMargin
+       |-Dakka.management.http.hostname=127.0.0.1
+       |-Dakka.management.http.port=8559
+       |-Dakka.management.cluster.bootstrap.contact-point-discovery.required-contact-point-nr=1
+       |-Dakka.discovery.method=config
+       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.host=127.0.0.1
+       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.port=8558""".stripMargin
   )
