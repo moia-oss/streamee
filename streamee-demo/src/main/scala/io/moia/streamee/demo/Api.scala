@@ -49,6 +49,7 @@ object Api extends Logging {
   def apply(
       config: Config,
       fourtyTwo: FourtyTwo.Process,
+      fourtyTwoCorrelated: FourtyTwoCorrelated.Process,
       length: Length.Process
   )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
@@ -62,7 +63,7 @@ object Api extends Logging {
 
     val fourtyTwoCorrelatedProcessor =
       Processor.permanent(
-        FourtyTwoCorrelated(),
+        fourtyTwoCorrelated,
         processorTimeout,
         "permanant",
         processorBufferSize,

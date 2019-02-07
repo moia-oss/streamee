@@ -36,6 +36,14 @@ import scala.concurrent.duration.FiniteDuration
 
 package object intoable {
 
+  type IntoableSink[A, B] = Sink[(A, Promise[B]), Any]
+
+  type IntoableProcess[-A, B] = FlowWithContext[Promise[B], A, Promise[B], B, Any]
+
+  type RemotelyIntoableSink[A, B] = Sink[(A, Respondee[B]), Any]
+
+  type RemotelyIntoableProcess[-A, B] = FlowWithContext[Respondee[B], A, Respondee[B], B, Any]
+
   type Respondee[A] = ActorRef[Respondee.Response[A]]
 
   type RespondeeFactory[A] = ActorRef[RespondeeFactory.CreateRespondee[A]]
@@ -50,7 +58,7 @@ package object intoable {
       * `parallelism`.
       */
     def into[B](
-        intoableSink: Sink[(A, Promise[B]), Any],
+        intoableSink: IntoableSink[A, B],
         parallelism: Int
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[B, M] =
       intoImpl(source, intoableSink, parallelism)
@@ -59,7 +67,7 @@ package object intoable {
       * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
       * given `responseTimeout` and output responses with the given `parallelism`.
       */
-    def into[B](remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
+    def into[B](remotelyIntoableSink: RemotelyIntoableSink[A, B],
                 responseTimeout: FiniteDuration,
                 parallelism: Int)(implicit ec: ExecutionContext,
                                   scheduler: Scheduler,
@@ -78,7 +86,7 @@ package object intoable {
       * `parallelism`.
       */
     def into[C](
-        intoableSink: Sink[(B, Promise[C]), Any],
+        intoableSink: IntoableSink[B, C],
         parallelism: Int
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Flow[A, C, M] =
       intoImpl(flow, intoableSink, parallelism)
@@ -87,7 +95,7 @@ package object intoable {
       * Input elements into the given `remotelyIntoableSink` which is expected to respond within the
       * given `responseTimeout` and output responses with the given `parallelism`.
       */
-    def into[C](remotelyIntoableSink: Sink[(B, Respondee[C]), Any],
+    def into[C](remotelyIntoableSink: RemotelyIntoableSink[B, C],
                 responseTimeout: FiniteDuration,
                 parallelism: Int)(implicit ec: ExecutionContext,
                                   scheduler: Scheduler,
@@ -100,10 +108,9 @@ package object intoable {
     *
     * @return intoable sink to be used with `into` and completion signal (which should not happen)
     */
-  def runIntoableProcess[A, B](intoableProcess: FlowWithContext[Promise[B], A, Promise[B], B, Any],
-                               bufferSize: Int)(
+  def runIntoableProcess[A, B](intoableProcess: IntoableProcess[A, B], bufferSize: Int)(
       implicit mat: Materializer
-  ): (Sink[(A, Promise[B]), Any], Future[Done]) =
+  ): (IntoableSink[A, B], Future[Done]) =
     MergeHub
       .source[(A, Promise[B])](bufferSize)
       .via(intoableProcess)
@@ -119,9 +126,9 @@ package object intoable {
     *         (which should not happen except for using the kill switch)
     */
   def runRemotelyIntoableProcess[A, B](
-      remotelyIntoableProcess: FlowWithContext[Respondee[B], A, Respondee[B], B, Any],
+      remotelyIntoableProcess: RemotelyIntoableProcess[A, B],
       bufferSize: Int
-  )(implicit mat: Materializer): (Sink[(A, Respondee[B]), Any], KillSwitch, Future[Done]) =
+  )(implicit mat: Materializer): (RemotelyIntoableSink[A, B], KillSwitch, Future[Done]) =
     MergeHub
       .source[(A, Respondee[B])](bufferSize)
       .viaMat(KillSwitches.single)(Keep.both)
@@ -133,7 +140,7 @@ package object intoable {
 
   private def intoImpl[A, B, M](
       flowOps: AkkaFlowOps[A, M],
-      intoableSink: Sink[(A, Promise[B]), Any],
+      intoableSink: IntoableSink[A, B],
       parallelism: Int
   )(implicit ec: ExecutionContext, scheduler: Scheduler): flowOps.Repr[B] =
     flowOps
@@ -143,7 +150,7 @@ package object intoable {
 
   private def intoImpl[A, B, M](
       flowOps: AkkaFlowOps[A, M],
-      remotelyIntoableSink: Sink[(A, Respondee[B]), Any],
+      remotelyIntoableSink: RemotelyIntoableSink[A, B],
       responseTimeout: FiniteDuration,
       parallelism: Int
   )(implicit ec: ExecutionContext,

@@ -18,12 +18,11 @@ package io.moia.streamee
 package demo
 
 import akka.NotUsed
-import akka.actor.typed.ActorRef
 import akka.actor.Scheduler
 import akka.stream.Materializer
-import akka.stream.scaladsl.Flow
-import io.moia.streamee.intoable.RespondeeFactory
-import scala.concurrent.ExecutionContext
+import akka.stream.scaladsl.{ Flow, FlowWithContext }
+import io.moia.streamee.intoable.{ FlowOps, IntoableProcess, IntoableSink }
+import scala.concurrent.{ ExecutionContext, Promise }
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -35,52 +34,19 @@ object Length {
 
   final case class Config(retryTimeout: FiniteDuration)
 
-  def apply(
-      config: Config,
-      /*delayedLengthFor: String => Future[SinkRef[(String, Respondee[Int])]]*/
-  )(implicit mat: Materializer,
-    ec: ExecutionContext,
-    scheduler: Scheduler,
-    respondeeFactory: ActorRef[RespondeeFactory.CreateRespondee[Int]])
-    : Flow[String, String, NotUsed] =
-//    Flow[String]
-//      .into(s => delayedLengthFor(s), retryTimeout)
-//      .map(_.toString)
-    Flow[String]
+  def apply(config: Config, intoableLength: IntoableSink[String, Int])(
+      implicit mat: Materializer,
+      ec: ExecutionContext,
+      scheduler: Scheduler
+  ): Flow[String, String, NotUsed] =
+    Flow[String].into(intoableLength, 42).map(_.toString)
 }
 
-///**
-//  * A trivial "intoable" process.
-//  */
-//object DelayedLength {
-//
-//  def apply(): Flow[(String, Respondee[Int]), (Int, Respondee[Int]), NotUsed] =
-//    Flow[(String, Respondee[Int])]
-//      .delay(4.seconds, DelayOverflowStrategy.backpressure)
-//      .map { case (s, p) => (s.length, p) }
-//}
-//
-///**
-//  * IntoableRunners for [[DelayedLength]] managed by Akka Cluster Sharding.
-//  */
-//object DelayedLengthSharding {
-//
-//  final case class Config(askTimeout: FiniteDuration)
-//
-//  val entityKey: EntityTypeKey[IntoableRunner.Command] =
-//    EntityTypeKey[IntoableRunner.Command]("delayed-length-intoable-runner")
-//
-//  def apply(
-//      config: Config,
-//      process: IntoableFlow[String, Int],
-//      sharding: ClusterSharding,
-//      shutdown: CoordinatedShutdown
-//  )(implicit mat: Materializer): String => Future[SinkRef[(String, Respondee[Int])]] = {
-//    sharding.start(
-//      ShardedEntity(_ => IntoableRunner(process, shutdown), entityKey, IntoableRunner.Shutdown)
-//    )
-//
-//    implicit val timeout: Timeout = config.askTimeout
-//    sharding.entityRefFor(entityKey, _).ask(IntoableRunner.GetSinkRef.apply)
-//  }
-//}
+/**
+  * A trivial "intoable" process.
+  */
+object IntoableLength {
+
+  def apply(): IntoableProcess[String, Int] =
+    FlowWithContext[Promise[Int], String].map(_.length)
+}
