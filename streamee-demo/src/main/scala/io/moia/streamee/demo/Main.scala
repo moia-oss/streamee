@@ -80,15 +80,11 @@ object Main extends Logging {
     implicit val respondeeFactory: ActorRef[RespondeeFactory.CreateRespondee[Int]] =
       context.spawnAnonymous(RespondeeFactory[Int]())
 
-    val fourtyTwo = FourtyTwo()
+    val fourtyTwo           = FourtyTwo()
+    val fourtyTwoCorrelated = FourtyTwoCorrelated()
+    val (intoableLength, _) = intoable.runIntoableProcess(IntoableLength(), 1)
+    val length              = Length(config.length, intoableLength)
 
-//    val delayedLengthFor =
-//      DelayedLengthSharding(config.delayedLengthSharding,
-//                            DelayedLength(),
-//                            ClusterSharding(context.system),
-//                            CoordinatedShutdown(context.system.toUntyped))
-    val length = Length(config.length /*, delayedLengthFor*/ )
-
-    Api(config.api, fourtyTwo, length)
+    Api(config.api, fourtyTwo, fourtyTwoCorrelated, length)
   }
 }
