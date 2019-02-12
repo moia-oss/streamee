@@ -49,7 +49,6 @@ object Api extends Logging {
   def apply(
       config: Config,
       fourtyTwo: FourtyTwo.Process,
-      fourtyTwoCorrelated: FourtyTwoCorrelated.Process,
       length: Length.Process
   )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Processor.processorUnavailableHandler
@@ -59,22 +58,16 @@ object Api extends Logging {
     val shutdown = CoordinatedShutdown(untypedSystem)
 
     val fourtyTwoProcessor =
-      Processor.perRequest(fourtyTwo, processorTimeout, "per-request", shutdown)
-
-    val fourtyTwoCorrelatedProcessor =
-      Processor.permanent(
-        fourtyTwoCorrelated,
-        processorTimeout,
-        "permanant",
-        processorBufferSize,
+      Processor(fourtyTwo, processorTimeout, "per-request", 1).registerWithCoordinatedShutdown(
         shutdown
-      )(_.correlationId, _.fold(_.correlationId, _.correlationId))
+      )
 
-    val lengthProcessor = Processor.perRequest(length, processorTimeout, "length", shutdown)
+    val lengthProcessor =
+      Processor(length, processorTimeout, "length", 1).registerWithCoordinatedShutdown(shutdown)
 
     Http()
       .bindAndHandle(
-        route(fourtyTwoProcessor, fourtyTwoCorrelatedProcessor, lengthProcessor),
+        route(fourtyTwoProcessor, lengthProcessor),
         address,
         port
       )
@@ -93,10 +86,6 @@ object Api extends Logging {
 
   def route(
       fourtyTwoProcessor: Processor[FourtyTwo.Request, FourtyTwo.ErrorOr[FourtyTwo.Response]],
-      fourtyTwoCorrelatedProcessor: Processor[
-        FourtyTwoCorrelated.Request,
-        FourtyTwoCorrelated.ErrorOr[FourtyTwoCorrelated.Response]
-      ],
       lengthProcessor: Processor[String, String]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
@@ -122,23 +111,6 @@ object Api extends Logging {
                 complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
 
               case Right(FourtyTwo.Response(answer)) =>
-                complete(StatusCodes.Created -> s"The answer is $answer")
-            }
-        }
-      }
-    } ~
-    path("fourty-two-correlated") {
-      post {
-        entity(as[Request]) {
-          case Request(question) =>
-            onSuccess(fourtyTwoCorrelatedProcessor.process(FourtyTwoCorrelated.Request(question))) {
-              case Left(FourtyTwoCorrelated.Error.EmptyQuestion(_)) =>
-                complete(StatusCodes.BadRequest -> "Empty question not allowed!")
-
-              case Left(_) =>
-                complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
-
-              case Right(FourtyTwoCorrelated.Response(answer, _)) =>
                 complete(StatusCodes.Created -> s"The answer is $answer")
             }
         }

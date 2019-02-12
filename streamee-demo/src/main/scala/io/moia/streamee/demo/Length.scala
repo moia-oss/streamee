@@ -17,12 +17,11 @@
 package io.moia.streamee
 package demo
 
-import akka.NotUsed
 import akka.actor.Scheduler
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Flow, FlowWithContext }
-import io.moia.streamee.intoable.{ FlowOps, IntoableProcess, IntoableSink }
-import scala.concurrent.{ ExecutionContext, Promise }
+import io.moia.streamee
+import io.moia.streamee.intoable.{ FlowWithContextOps, IntoableSink }
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -30,7 +29,7 @@ import scala.concurrent.duration.FiniteDuration
   */
 object Length {
 
-  type Process = Flow[String, String, NotUsed]
+  type Process = streamee.Process[String, String]
 
   final case class Config(retryTimeout: FiniteDuration)
 
@@ -38,8 +37,8 @@ object Length {
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
-  ): Flow[String, String, NotUsed] =
-    Flow[String].into(intoableLength, 42).map(_.toString)
+  ): Process =
+    Process[String, String]().into(intoableLength, 42).map(_.toString)
 }
 
 /**
@@ -47,6 +46,6 @@ object Length {
   */
 object IntoableLength {
 
-  def apply(): IntoableProcess[String, Int] =
-    FlowWithContext[Promise[Int], String].map(_.length)
+  def apply(): Process[String, Int] =
+    Process[String, Int]().map(_.length)
 }
