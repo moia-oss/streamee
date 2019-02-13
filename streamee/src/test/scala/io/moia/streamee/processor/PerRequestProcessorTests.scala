@@ -24,6 +24,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import utest._
 
+@deprecated("", "")
 object PerRequestProcessorTests extends ActorTestSuite {
   import testKit._
 

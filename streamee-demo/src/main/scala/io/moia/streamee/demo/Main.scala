@@ -81,10 +81,9 @@ object Main extends Logging {
       context.spawnAnonymous(RespondeeFactory[Int]())
 
     val fourtyTwo           = FourtyTwo()
-    val fourtyTwoCorrelated = FourtyTwoCorrelated()
-    val (intoableLength, _) = intoable.runIntoableProcess(IntoableLength(), 1)
+    val (intoableLength, _) = intoable.runProcess(IntoableLength(), 1)
     val length              = Length(config.length, intoableLength)
 
-    Api(config.api, fourtyTwo, fourtyTwoCorrelated, length)
+    Api(config.api, fourtyTwo, length)
   }
 }

@@ -22,11 +22,11 @@ import akka.actor.{ CoordinatedShutdown, Scheduler }
 import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
-import akka.stream.scaladsl.Flow
 import akka.stream.{ Materializer, QueueOfferResult }
+import akka.stream.scaladsl.{ Flow, FlowWithContext }
 import org.apache.logging.log4j.scala.Logging
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ ExecutionContext, Future }
 
 /**
   * Factories and more for [[Processor]]s.
@@ -48,9 +48,64 @@ object Processor extends Logging {
     */
   implicit val processorUnavailableHandler: ExceptionHandler =
     ExceptionHandler {
-      case ProcessorUnavailable(name) =>
-        complete(ServiceUnavailable -> s"Processor $name cannot accept offers at this time!")
+      case ProcessorUnavailable(n) => complete(ServiceUnavailable -> s"Processor $n unavailable!")
     }
+
+  /**
+    * Creates a [[Processor]].
+    *
+    * When the `process` method is called, the processor emits the request into the given process.
+    * The returned `Future` is either completed successfully with the response or failed if the
+    * process back pressures or does not create the response in time.
+    *
+    * @param handler domain logic handler from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param bufferSize size of the buffer of the input queue of the permanent processor; must be positive!
+    * @param parallelism maximum number of concurrent handler invocations; must be positive!
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for processing requests and shutting down
+    */
+  def apply[A, B](
+      handler: A => Future[B],
+      timeout: FiniteDuration,
+      name: String,
+      bufferSize: Int,
+      parallelism: Int,
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] = {
+    require(parallelism > 0, s"parallelism must be positive, but was $parallelism!")
+    val process =
+      FlowWithContext.from(
+        Flow[(A, Promise[B])].mapAsync(parallelism) {
+          case (a, p) => handler(a).zip(Future.successful(p))
+        }
+      )
+    new ProcessorImpl[A, B](process, timeout, name, bufferSize)
+  }
+
+  /**
+    * Creates a [[Processor]].
+    *
+    * When the `process` method is called, the processor emits the request into the given process.
+    * The returned `Future` is either completed successfully with the response or failed if the
+    * process back pressures or does not create the response in time.
+    *
+    * @param process domain logic process from request to response
+    * @param timeout maximum duration for the request to be processed; must be positive!
+    * @param name name, used e.g. in [[ProcessorUnavailable]] exceptions
+    * @param bufferSize size of the buffer of the input queue of the permanent processor; must be positive!
+    * @tparam A request type
+    * @tparam B response type
+    * @return [[Processor]] for processing requests and shutting down
+    */
+  def apply[A, B](
+      process: Process[A, B],
+      timeout: FiniteDuration,
+      name: String,
+      bufferSize: Int
+  )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] =
+    new ProcessorImpl[A, B](process, timeout, name, bufferSize)
 
   /**
     * Creates a per-request [[Processor]] and also registers it with coordinated shutdown.
@@ -68,6 +123,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down, already registered with coordinated shutdown
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
@@ -91,6 +147,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
@@ -114,6 +171,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       handler: A => Future[B],
       timeout: FiniteDuration,
@@ -137,6 +195,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       handler: A => Future[B],
       timeout: FiniteDuration,
@@ -163,6 +222,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def permanent[A, B, C](process: Flow[A, B, Any],
                          timeout: FiniteDuration,
                          name: String,
@@ -192,6 +252,7 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
+  @deprecated("Use Processor.apply instead", "4.0.0")
   def permanent[A, B, C](process: Flow[A, B, Any],
                          timeout: FiniteDuration,
                          name: String,

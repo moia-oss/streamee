@@ -17,36 +17,55 @@
 package io.moia.streamee
 package processor
 
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Flow
-import akka.stream.{ DelayOverflowStrategy, OverflowStrategy }
 import akka.testkit.TestDuration
-import scala.concurrent.Future
+import scala.collection.immutable.Seq
+import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.DurationInt
 import utest._
 
-@deprecated("", "")
-object PermanentProcessorTests extends ActorTestSuite {
+object ProcessorTests extends ActorTestSuite {
   import testKit._
 
-  private val plusOne = Flow[Int].map(_ + 1)
+  private val plusOne = Process[Int, Int]().map(_ + 1)
 
   override def tests: Tests =
     Tests {
+      'handlerIllegalParallelism - {
+        intercept[IllegalArgumentException] {
+          Processor((n: Int) => Future.successful(n + 1), 1.second, "processor", 1, 0)
+        }
+      }
+
       'applyIllegalTimeout - {
         intercept[IllegalArgumentException] {
-          Processor.permanent(plusOne, 0.seconds, "processor", 0)(identity, _ - 1)
+          Processor(plusOne, 0.seconds, "processor", 1)
         }
       }
 
       'applyIllegalBufferSize - {
         intercept[IllegalArgumentException] {
-          Processor.permanent(plusOne, 0.seconds, "processor", -1)(identity, _ - 1)
+          Processor(plusOne, 1.second, "processor", 0)
         }
+      }
+
+      'handlerInTime - {
+        val timeout   = 100.milliseconds.dilated
+        val processor = Processor((n: Int) => Future.successful(n + 1), timeout, "processor", 1, 1)
+
+        Future
+          .sequence(List(42, 43, 44, 45).map(processor.process))
+          .map { responses =>
+            assert {
+              responses == List(43, 44, 45, 46)
+            }
+          }
       }
 
       'inTime - {
         val timeout   = 100.milliseconds.dilated
-        val processor = Processor.permanent(plusOne, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Processor(plusOne, timeout, "processor", 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -58,9 +77,11 @@ object PermanentProcessorTests extends ActorTestSuite {
       }
 
       'notInTime - {
-        val timeout   = 100.milliseconds.dilated
-        val process   = plusOne.delay(1.second.dilated, OverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val timeout = 100.milliseconds.dilated
+        val process = plusOne.via(
+          Flow[(Int, Promise[Int])].delay(1.second.dilated, OverflowStrategy.backpressure)
+        )
+        val processor = Processor(process, timeout, "processor", 1)
 
         val pe42 = PromiseExpired(timeout, "from processor processor for request 42")
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
@@ -77,9 +98,14 @@ object PermanentProcessorTests extends ActorTestSuite {
       }
 
       'reorder - {
-        val timeout   = 100.milliseconds.dilated
-        val process   = plusOne.grouped(2).mapConcat { case Seq(n1, n2) => List(n2, n1) }
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val timeout = 100.milliseconds.dilated
+        val process =
+          plusOne
+            .grouped(2)
+            .via(Flow[(Seq[Int], Seq[Promise[Int]])].mapConcat {
+              case (Seq(n1, n2), Seq(p1, p2)) => List((n2, p2), (n1, p1))
+            })
+        val processor = Processor(process, timeout, "processor", 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -93,7 +119,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'filter - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.filter(_ % 2 != 0)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Processor(process, timeout, "processor", 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -117,7 +143,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'resume - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.map(n => if (n % 2 == 0) throw new Exception("boom") else n)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Processor(process, timeout, "processor", 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -139,9 +165,11 @@ object PermanentProcessorTests extends ActorTestSuite {
       }
 
       'processInFlightOnShutdown - {
-        val timeout   = 1000.milliseconds.dilated
-        val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val timeout = 1000.milliseconds.dilated
+        val process = plusOne.via(
+          Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
+        )
+        val processor = Processor(process, timeout, "processor", 1)
 
         val responses = Future.sequence(List(42, 43, 44, 45).map(processor.process))
         for {
@@ -151,9 +179,11 @@ object PermanentProcessorTests extends ActorTestSuite {
       }
 
       'noLongerEnqueueOnShutdown - {
-        val timeout   = 100.milliseconds.dilated
-        val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val timeout = 100.milliseconds.dilated
+        val process = plusOne.via(
+          Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
+        )
+        val processor = Processor(process, timeout, "processor", 1)
 
         processor.shutdown()
         Future

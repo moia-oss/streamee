@@ -17,7 +17,7 @@
 package io.moia.streamee
 package intoable
 
-import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
+import akka.stream.scaladsl.{ Sink, Source }
 import akka.stream.testkit.scaladsl.TestSource
 import scala.concurrent.{ Future, Promise }
 import scala.concurrent.duration.DurationInt
@@ -32,18 +32,24 @@ object IntoableTests extends ActorTestSuite {
   override def tests: Tests =
     Tests {
       'intoable - {
-        val intoableProcess   = FlowWithContext[Promise[Int], Int].map(_ + 1)
-        val (intoableSink, _) = runIntoableProcess(intoableProcess, 1)
+        val (intoableSink, _) = runProcess(Process[Int, Int]().map(_ + 1), 1)
+        val process           = Process[Int, Int]().into(intoableSink, 42)
         val result1 =
           Source(0.to(9))
-            .into(intoableSink, 42)
+            .startContextPropagation(_ => Promise[Int]())
+            .via(process)
+            .endContextPropagation
+            .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
               assert(result == 1.to(10))
             }
         val result2 =
           Source(10.to(19))
-            .via(Flow[Int].into(intoableSink, 42))
+            .startContextPropagation(_ => Promise[Int]())
+            .via(process)
+            .endContextPropagation
+            .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
               assert(result == 11.to(20))
@@ -52,18 +58,25 @@ object IntoableTests extends ActorTestSuite {
       }
 
       'remotelyIntoable - {
-        val intoableProcess      = FlowWithContext[Respondee[Int], Int].map(_ + 1)
-        val (intoableSink, _, _) = runRemotelyIntoableProcess(intoableProcess, 1)
+        val (intoableSink, _, _) =
+          runRemotelyIntoableProcess(RemotelyIntoableProcess[Int, Int]().map(_ + 1), 1)
+        val process = Process[Int, Int]().into(intoableSink, 1.second, 42)
         val result1 =
           Source(0.to(9))
-            .into(intoableSink, 1.second, 42)
+            .startContextPropagation(_ => Promise[Int]())
+            .via(process)
+            .endContextPropagation
+            .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
               assert(result == 1.to(10))
             }
         val result2 =
           Source(10.to(19))
-            .via(Flow[Int].into(intoableSink, 1.second, 42))
+            .startContextPropagation(_ => Promise[Int]())
+            .via(process)
+            .endContextPropagation
+            .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
               assert(result == 11.to(20))
@@ -73,11 +86,14 @@ object IntoableTests extends ActorTestSuite {
 
       'remotelyIntoableSwitch - {
         val (intoableSink, switch, _) =
-          runRemotelyIntoableProcess(FlowWithContext[Respondee[Int], Int], 1)
+          runRemotelyIntoableProcess(RemotelyIntoableProcess[Int, Int](), 1)
+        val process = Process[Int, Int]().into(intoableSink, 1.second, 42)
         val publisher =
           TestSource
             .probe[Int]
-            .into(intoableSink, 1.second, 42)
+            .startContextPropagation(_ => Promise[Int]())
+            .via(process)
+            .endContextPropagation
             .to(Sink.ignore)
             .run()
         switch.shutdown()

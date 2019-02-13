@@ -17,21 +17,19 @@
 package io.moia.streamee
 package demo
 
-import akka.NotUsed
 import akka.actor.Scheduler
 import akka.pattern.after
 import akka.stream.FlowShape
-import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Unzip }
+import akka.stream.scaladsl.{ Flow, FlowWithContext, GraphDSL, Merge }
+import io.moia.streamee
 import org.apache.logging.log4j.scala.Logging
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.DurationInt
 import scala.util.{ Failure, Random, Success }
 
 object FourtyTwo extends Logging {
 
-  type Process = Flow[Request, ErrorOr[Response], NotUsed]
-
-  type Stage[A, B] = Flow[ErrorOr[A], ErrorOr[B], NotUsed]
+  type Process = streamee.Process[FourtyTwo.Request, ErrorOr[FourtyTwo.Response]]
 
   type ErrorOr[A] = Either[Error, A]
 
@@ -51,7 +49,7 @@ object FourtyTwo extends Logging {
     * Simple domain logic process for demo purposes. Always answers with "42" ;-)
     */
   def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
-    Flow[Request]
+    Process[Request, ErrorOr[Response]]()
     // Lift into ErrorOr to make all stages look alike
       .map(Right[Error, Request])
       // Via fist stage
@@ -79,8 +77,9 @@ object FourtyTwo extends Logging {
   final case class ValidateQuestionIn(question: String)
   final case class ValidateQuestionOut(question: String)
 
-  def validateQuestion: Stage[ValidateQuestionIn, ValidateQuestionOut] =
-    Flow[ErrorOr[ValidateQuestionIn]]
+  def validateQuestion
+    : ProcessStage[ErrorOr[ValidateQuestionIn], ErrorOr[ValidateQuestionOut], ErrorOr[Response]] =
+    Process[ErrorOr[ValidateQuestionIn], ErrorOr[Response]]()
       .map(_.flatMap {
         case ValidateQuestionIn(question) =>
           if (question.isEmpty)
@@ -94,10 +93,12 @@ object FourtyTwo extends Logging {
   final case class LookupAnswersIn(question: String)
   final case class LookupAnswersOut(answer: String)
 
-  def lookupAnswersStage(implicit ec: ExecutionContext,
-                         scheduler: Scheduler): Stage[LookupAnswersIn, LookupAnswersOut] =
-    Flow[ErrorOr[LookupAnswersIn]]
-      .mapAsyncUnordered(2) {
+  def lookupAnswersStage(
+      implicit ec: ExecutionContext,
+      scheduler: Scheduler
+  ): ProcessStage[ErrorOr[LookupAnswersIn], ErrorOr[LookupAnswersOut], ErrorOr[Response]] =
+    Process[ErrorOr[LookupAnswersIn], ErrorOr[Response]]()
+      .mapAsync(2) {
         case Left(error) =>
           Future.successful(Left(error))
         case Right(LookupAnswersIn(question)) =>
@@ -115,45 +116,61 @@ object FourtyTwo extends Logging {
   final case class FourtyTwoIn(answer: String)
   final case class FourtyTwoOut(fourtyTwo: String)
 
-  def fourtyTwo: Stage[FourtyTwoIn, FourtyTwoOut] =
-    Flow.fromGraph(GraphDSL.create() { implicit builder =>
-      import GraphDSL.Implicits._
+  def fourtyTwo: ProcessStage[ErrorOr[FourtyTwoIn], ErrorOr[FourtyTwoOut], ErrorOr[Response]] =
+    FlowWithContext.from(
+      Flow.fromGraph(GraphDSL.create() { implicit builder =>
+        import GraphDSL.Implicits._
 
-      val fromErrorOr =
-        builder.add(
-          Flow[ErrorOr[FourtyTwoIn]]
-            .map {
-              case Left(error)                => (Some(error), None)
-              case Right(FourtyTwoIn(answer)) => (None, Some(answer))
-            }
+        val fromErrorOr =
+          builder.add(
+            Process[ErrorOr[FourtyTwoIn], ErrorOr[Response]]()
+              .map {
+                case Left(error)                => (Some(error), None)
+                case Right(FourtyTwoIn(answer)) => (None, Some(answer))
+              }
+          )
+        val unzip =
+          builder.add(UnzipWithContext[Option[Error], Option[String], Promise[ErrorOr[Response]]]())
+        val failFast =
+          builder.add(Process[Option[Error], ErrorOr[Response]]().collect {
+            case e @ Some(_) => (e, Option.empty[String])
+          })
+        val collectSuccess =
+          builder.add(Process[Option[String], ErrorOr[Response]]().collect {
+            case Some(s) => s
+          })
+        val fourtyTwo =
+          builder.add(Process[String, ErrorOr[Response]]().map { _ =>
+            if (Random.nextInt(7) == 0) throw new Exception("Random exception again!") else "42"
+          })
+        val lift =
+          builder.add(
+            Process[String, ErrorOr[Response]]().map(s => (Option.empty[Error], Some(s)))
+          )
+        val merge = builder.add(
+          Merge[((Option[Error], Option[String]), Promise[ErrorOr[Response]])](
+            2,
+            eagerComplete = true
+          )
         )
-      val unzip = builder.add(Unzip[Option[Error], Option[String]])
-      val failFast =
-        builder.add(Flow[Option[Error]].collect {
-          case e @ Some(_) => (e, Option.empty[String])
-        })
-      val collectSuccess = builder.add(Flow[Option[String]].collect { case Some(s) => s })
-      val fourtyTwo =
-        builder.add(Flow[String].map { _ =>
-          if (Random.nextInt(7) == 0) throw new Exception("Random exception again!") else "42"
-        })
-      val lift  = builder.add(Flow[String].map(s => (Option.empty[Error], Some(s))))
-      val merge = builder.add(Merge[(Option[Error], Option[String])](2, eagerComplete = true))
-      val toErrorOr =
-        builder.add(Flow[(Option[Error], Option[String])].collect {
-          case (Some(error), None) => Left(error)
-          case (None, Some(s))     => Right(FourtyTwoOut(s))
-        })
+        val toErrorOr =
+          builder.add(
+            Process[(Option[Error], Option[String]), ErrorOr[Response]]().collect {
+              case (Some(error), None) => Left(error)
+              case (None, Some(s))     => Right(FourtyTwoOut(s))
+            }
+          )
 
-      // format: off
-      fromErrorOr ~> unzip.in
-                     unzip.out0 ~> failFast                    ~>         merge.in(0)
-                     unzip.out1 ~> collectSuccess ~> fourtyTwo ~> lift ~> merge.in(1)
-                                                                          merge.out   ~> toErrorOr
-      // format: on
+        // format: off
+        fromErrorOr ~> unzip.in
+                       unzip.out0 ~> failFast                    ~>         merge.in(0)
+                       unzip.out1 ~> collectSuccess ~> fourtyTwo ~> lift ~> merge.in(1)
+                                                                            merge.out   ~> toErrorOr
+        // format: on
 
-      FlowShape(fromErrorOr.in, toErrorOr.out)
-    })
+        FlowShape(fromErrorOr.in, toErrorOr.out)
+      })
+    )
 
   // Helpers
 
