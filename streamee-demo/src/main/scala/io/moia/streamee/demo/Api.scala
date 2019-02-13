@@ -17,7 +17,7 @@
 package io.moia.streamee
 package demo
 
-import akka.Done
+import akka.{ Done, NotUsed }
 import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
@@ -65,9 +65,17 @@ object Api extends Logging {
     val lengthProcessor =
       Processor(length, processorTimeout, "length", 1).registerWithCoordinatedShutdown(shutdown)
 
+    val errorProcessor =
+      Processor(
+        Process[NotUsed, NotUsed]().map(_ => throw new Exception("ERROR")),
+        processorTimeout,
+        "error",
+        1
+      )
+
     Http()
       .bindAndHandle(
-        route(fourtyTwoProcessor, lengthProcessor),
+        route(fourtyTwoProcessor, lengthProcessor, errorProcessor),
         address,
         port
       )
@@ -86,7 +94,8 @@ object Api extends Logging {
 
   def route(
       fourtyTwoProcessor: Processor[FourtyTwo.Request, FourtyTwo.ErrorOr[FourtyTwo.Response]],
-      lengthProcessor: Processor[String, String]
+      lengthProcessor: Processor[String, String],
+      errorProcessor: Processor[NotUsed, NotUsed]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -120,6 +129,13 @@ object Api extends Logging {
       get {
         complete {
           lengthProcessor.process("o" * 42)
+        }
+      }
+    } ~
+    path("error") {
+      get {
+        complete {
+          errorProcessor.process(NotUsed)
         }
       }
     }

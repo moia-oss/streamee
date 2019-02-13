@@ -22,7 +22,7 @@ import akka.actor.Scheduler
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import akka.stream.scaladsl.{ Flow, Keep, Sink, Source }
 import akka.stream.{ Materializer, OverflowStrategy }
-import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
+import io.moia.streamee.processor.Processor.{ ProcessorError, ProcessorUnavailable }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
@@ -51,7 +51,7 @@ private final class PerRequestProcessor[A, B](
       .flatMap {
         case Enqueued => response.future
         case Dropped  => Future.failed(ProcessorUnavailable(name))
-        case other    => Future.failed(UnexpectedQueueOfferResult(other))
+        case other    => Future.failed(ProcessorError(other))
       }
   }
 

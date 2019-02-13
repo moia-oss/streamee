@@ -40,7 +40,10 @@ object Processor extends Logging {
   final case class ProcessorUnavailable(name: String)
       extends Exception(s"Processor $name cannot accept requests at this time!")
 
-  final case class UnexpectedQueueOfferResult(result: QueueOfferResult)
+  /**
+    * Signals an unexpected result of calling [[Processor.process]].
+    */
+  final case class ProcessorError(result: QueueOfferResult)
       extends Exception(s"QueueOfferResult $result was not expected!")
 
   /**

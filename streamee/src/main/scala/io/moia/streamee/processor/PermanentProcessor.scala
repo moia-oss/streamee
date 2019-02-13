@@ -39,7 +39,7 @@ import akka.stream.{
   Supervision
 }
 import akka.{ Done, NotUsed }
-import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
+import io.moia.streamee.processor.Processor.{ ProcessorError, ProcessorUnavailable }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -160,7 +160,7 @@ private final class PermanentProcessor[A, B, C](
     queue.offer((request, response)).flatMap {
       case Enqueued => response.future
       case Dropped  => Future.failed(ProcessorUnavailable(name))
-      case other    => Future.failed(UnexpectedQueueOfferResult(other))
+      case other    => Future.failed(ProcessorError(other))
     }
   }
 
