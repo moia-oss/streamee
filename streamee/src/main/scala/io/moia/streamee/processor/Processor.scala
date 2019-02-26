@@ -126,7 +126,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down, already registered with coordinated shutdown
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
@@ -150,7 +149,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       process: Flow[A, B, Any],
       timeout: FiniteDuration,
@@ -174,7 +172,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       handler: A => Future[B],
       timeout: FiniteDuration,
@@ -198,7 +195,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def perRequest[A, B](
       handler: A => Future[B],
       timeout: FiniteDuration,
@@ -225,7 +221,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def permanent[A, B, C](process: Flow[A, B, Any],
                          timeout: FiniteDuration,
                          name: String,
@@ -255,7 +250,6 @@ object Processor extends Logging {
     * @tparam B response type
     * @return [[Processor]] for offering requests and shutting down
     */
-  @deprecated("Use Processor.apply instead", "4.0.0")
   def permanent[A, B, C](process: Flow[A, B, Any],
                          timeout: FiniteDuration,
                          name: String,
