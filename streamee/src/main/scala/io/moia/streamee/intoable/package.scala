@@ -20,17 +20,7 @@ import akka.actor.Scheduler
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.stream.{ FlowShape, KillSwitch, KillSwitches, Materializer }
-import akka.stream.scaladsl.{
-  Flow,
-  FlowWithContext,
-  GraphDSL,
-  Keep,
-  MergeHub,
-  Sink,
-  Unzip,
-  Zip,
-  FlowOps => AkkaFlowOps
-}
+import akka.stream.scaladsl.{ Flow, FlowWithContext, GraphDSL, Keep, MergeHub, Sink, Unzip, Zip }
 import akka.util.Timeout
 import akka.Done
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -201,38 +191,4 @@ package object intoable {
         case ((s, r), d) => (s, r, d)
       }
       .run()
-
-  private def intoImpl[A, B, M](
-      flowOps: AkkaFlowOps[A, M],
-      intoableSink: IntoableSink[A, B],
-      parallelism: Int
-  )(implicit ec: ExecutionContext, scheduler: Scheduler): flowOps.Repr[B] =
-    flowOps
-      .map(a => (a, Promise[B]()))
-      .alsoTo(intoableSink)
-      .mapAsync(parallelism)(_._2.future)
-
-  private def intoImpl[A, B, M](
-      flowOps: AkkaFlowOps[A, M],
-      remotelyIntoableSink: RemotelyIntoableSink[A, B],
-      responseTimeout: FiniteDuration,
-      parallelism: Int
-  )(implicit ec: ExecutionContext,
-    scheduler: Scheduler,
-    respondeeFactory: RespondeeFactory[B]): flowOps.Repr[B] =
-    flowOps
-      .mapAsync(parallelism) { a =>
-        implicit val askTimeout: Timeout = responseTimeout // let's use the same timeout
-        val b                            = Promise[B]()
-        def createRespondee(replyTo: ActorRef[RespondeeFactory.RespondeeCreated[B]]) =
-          RespondeeFactory.CreateRespondee[B](b, responseTimeout, replyTo, s"a = $a")
-        val respondee = (respondeeFactory ? createRespondee).map(_.respondee)
-        Future.successful((a, b)).zip(respondee)
-      }
-      .alsoTo(
-        Flow[((A, Promise[B]), Respondee[B])]
-          .map { case ((a, _), r) => (a, r) }
-          .to(remotelyIntoableSink)
-      )
-      .mapAsync(parallelism) { case ((_, b), _) => b.future }
 }
