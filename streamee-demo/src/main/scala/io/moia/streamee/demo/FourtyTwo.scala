@@ -117,7 +117,7 @@ object FourtyTwo extends Logging {
   final case class FourtyTwoOut(fourtyTwo: String)
 
   def fourtyTwo: ProcessStage[ErrorOr[FourtyTwoIn], ErrorOr[FourtyTwoOut], ErrorOr[Response]] =
-    FlowWithContext.from(
+    FlowWithContext.fromTuples(
       Flow.fromGraph(GraphDSL.create() { implicit builder =>
         import GraphDSL.Implicits._
 

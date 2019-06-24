@@ -36,7 +36,7 @@ import scala.util.{ Failure, Success }
   */
 object Api extends Logging {
 
-  final case class Config(address: String,
+  final case class Config(hostname: String,
                           port: Int,
                           terminationDeadline: FiniteDuration,
                           processorTimeout: FiniteDuration,
@@ -76,12 +76,12 @@ object Api extends Logging {
     Http()
       .bindAndHandle(
         route(fourtyTwoProcessor, lengthProcessor, errorProcessor),
-        address,
+        hostname,
         port
       )
       .onComplete {
         case Failure(cause) =>
-          logger.error(s"Shutting down, because cannot bind to $address:$port!", cause)
+          logger.error(s"Shutting down, because cannot bind to $hostname:$port!", cause)
           CoordinatedShutdown(untypedSystem).run(BindFailure)
 
         case Success(binding) =>

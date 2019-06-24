@@ -29,5 +29,5 @@ object Process {
     * @tparam Res response type
     */
   def apply[Req, Res](): ProcessStage[Req, Req, Res] =
-    FlowWithContext[Promise[Res], Req]
+    FlowWithContext[Req, Promise[Res]]
 }

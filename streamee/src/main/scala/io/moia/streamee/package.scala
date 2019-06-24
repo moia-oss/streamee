@@ -37,5 +37,5 @@ package object streamee {
     * @tparam Out output type
     * @tparam Res overall process response type
     */
-  type ProcessStage[-In, Out, Res] = FlowWithContext[Promise[Res], In, Promise[Res], Out, Any]
+  type ProcessStage[-In, Out, Res] = FlowWithContext[In, Promise[Res], Out, Promise[Res], Any]
 }

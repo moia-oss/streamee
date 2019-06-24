@@ -23,8 +23,6 @@ import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
-import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.management.scaladsl.AkkaManagement
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
 import io.moia.streamee.intoable.RespondeeFactory
@@ -51,9 +49,6 @@ object Main extends Logging {
 
     val config = loadConfigOrThrow[Config]("streamee-demo") // Must be first!
     val system = ActorSystem(Main(config), "streamee-demo")
-
-    AkkaManagement(system.toUntyped).start()
-    ClusterBootstrap(system.toUntyped).start()
   }
 
   def apply(config: Config): Behavior[SelfUp] =

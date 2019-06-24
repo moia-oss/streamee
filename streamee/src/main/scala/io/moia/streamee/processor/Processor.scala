@@ -79,7 +79,7 @@ object Processor extends Logging {
   )(implicit ec: ExecutionContext, mat: Materializer, scheduler: Scheduler): Processor[A, B] = {
     require(parallelism > 0, s"parallelism must be positive, but was $parallelism!")
     val process =
-      FlowWithContext.from(
+      FlowWithContext.fromTuples(
         Flow[(A, Promise[B])].mapAsync(parallelism) {
           case (a, p) => handler(a).zip(Future.successful(p))
         }

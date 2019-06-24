@@ -61,7 +61,7 @@ package object intoable {
     * @tparam Res overall process response type
     */
   type RemotelyIntoableProcessStage[-In, Out, Res] =
-    FlowWithContext[Respondee[Res], In, Respondee[Res], Out, Any]
+    FlowWithContext[In, Respondee[Res], Out, Respondee[Res], Any]
 
   type Respondee[Res] = ActorRef[Respondee.Response[Res]]
 
@@ -70,8 +70,8 @@ package object intoable {
   /**
     * Extension methods for `FlowWithContext`s.
     */
-  implicit final class FlowWithContextOps[CtxIn, In, CtxOut, Out](
-      val flowWithContext: FlowWithContext[CtxIn, In, CtxOut, Out, Any]
+  implicit final class FlowWithContextOps[In, CtxIn, Out, CtxOut](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
   ) extends AnyVal {
 
     /**
@@ -81,7 +81,7 @@ package object intoable {
         intoableSink: IntoableSink[Out, Out2],
         parallelism: Int
     )(implicit ec: ExecutionContext,
-      scheduler: Scheduler): FlowWithContext[CtxIn, In, CtxOut, Out2, Any] =
+      scheduler: Scheduler): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
       flowWithContext.via(
         Flow.fromGraph(
           GraphDSL.create() { implicit builder =>
@@ -115,7 +115,7 @@ package object intoable {
         parallelism: Int
     )(implicit ec: ExecutionContext,
       scheduler: Scheduler,
-      respondeeFactory: RespondeeFactory[Out2]): FlowWithContext[CtxIn, In, CtxOut, Out2, Any] =
+      respondeeFactory: RespondeeFactory[Out2]): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
       flowWithContext.via(
         Flow.fromGraph(
           GraphDSL.create() {

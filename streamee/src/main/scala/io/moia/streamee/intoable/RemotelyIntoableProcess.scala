@@ -28,6 +28,6 @@ object RemotelyIntoableProcess {
     * @tparam Res response type
     */
   def apply[Req, Res](): RemotelyIntoableProcessStage[Req, Req, Res] =
-    FlowWithContext[Respondee[Res], Req]
+    FlowWithContext[Req, Respondee[Res]]
 
 }

@@ -36,9 +36,9 @@ object IntoableTests extends ActorTestSuite {
         val process           = Process[Int, Int]().into(intoableSink, 42)
         val result1 =
           Source(0.to(9))
-            .startContextPropagation(_ => Promise[Int]())
+            .asSourceWithContext(_ => Promise[Int]())
             .via(process)
-            .endContextPropagation
+            .asSource
             .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
@@ -46,9 +46,9 @@ object IntoableTests extends ActorTestSuite {
             }
         val result2 =
           Source(10.to(19))
-            .startContextPropagation(_ => Promise[Int]())
+            .asSourceWithContext(_ => Promise[Int]())
             .via(process)
-            .endContextPropagation
+            .asSource
             .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
@@ -63,9 +63,9 @@ object IntoableTests extends ActorTestSuite {
         val process = Process[Int, Int]().into(intoableSink, 1.second, 42)
         val result1 =
           Source(0.to(9))
-            .startContextPropagation(_ => Promise[Int]())
+            .asSourceWithContext(_ => Promise[Int]())
             .via(process)
-            .endContextPropagation
+            .asSource
             .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
@@ -73,9 +73,9 @@ object IntoableTests extends ActorTestSuite {
             }
         val result2 =
           Source(10.to(19))
-            .startContextPropagation(_ => Promise[Int]())
+            .asSourceWithContext(_ => Promise[Int]())
             .via(process)
-            .endContextPropagation
+            .asSource
             .map(_._1)
             .runWith(Sink.seq)
             .map { result =>
@@ -91,9 +91,9 @@ object IntoableTests extends ActorTestSuite {
         val publisher =
           TestSource
             .probe[Int]
-            .startContextPropagation(_ => Promise[Int]())
+            .asSourceWithContext(_ => Promise[Int]())
             .via(process)
-            .endContextPropagation
+            .asSource
             .to(Sink.ignore)
             .run()
         switch.shutdown()
