@@ -28,31 +28,31 @@ import utest._
 object ProcessorTests extends ActorTestSuite {
   import testKit._
 
-  private val plusOne = Process[Int, Int]().map(_ + 1)
+  private val plusOne = IntoableProcessor[Int, Int]().map(_ + 1)
 
   override def tests: Tests =
     Tests {
       'handlerIllegalParallelism - {
         intercept[IllegalArgumentException] {
-          Processor((n: Int) => Future.successful(n + 1), 1.second, "processor", 1, 0)
+          Handler((n: Int) => Future.successful(n + 1), 1.second, "processor", 1, 0)
         }
       }
 
       'applyIllegalTimeout - {
         intercept[IllegalArgumentException] {
-          Processor(plusOne, 0.seconds, "processor", 1)
+          Handler(plusOne, 0.seconds, "processor", 1)
         }
       }
 
       'applyIllegalBufferSize - {
         intercept[IllegalArgumentException] {
-          Processor(plusOne, 1.second, "processor", 0)
+          Handler(plusOne, 1.second, "processor", 0)
         }
       }
 
       'handlerInTime - {
         val timeout   = 100.milliseconds.dilated
-        val processor = Processor((n: Int) => Future.successful(n + 1), timeout, "processor", 1, 1)
+        val processor = Handler((n: Int) => Future.successful(n + 1), timeout, "processor", 1, 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -65,7 +65,7 @@ object ProcessorTests extends ActorTestSuite {
 
       'inTime - {
         val timeout   = 100.milliseconds.dilated
-        val processor = Processor(plusOne, timeout, "processor", 1)
+        val processor = Handler(plusOne, timeout, "processor", 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -81,7 +81,7 @@ object ProcessorTests extends ActorTestSuite {
         val process = plusOne.via(
           Flow[(Int, Promise[Int])].delay(1.second.dilated, OverflowStrategy.backpressure)
         )
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         val pe42 = PromiseExpired(timeout, "from processor processor for request 42")
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
@@ -105,7 +105,7 @@ object ProcessorTests extends ActorTestSuite {
             .via(Flow[(Seq[Int], Seq[Promise[Int]])].mapConcat {
               case (Seq(n1, n2), Seq(p1, p2)) => List((n2, p2), (n1, p1))
             })
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -119,7 +119,7 @@ object ProcessorTests extends ActorTestSuite {
       'filter - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.filter(_ % 2 != 0)
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -143,7 +143,7 @@ object ProcessorTests extends ActorTestSuite {
       'resume - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.map(n => if (n % 2 == 0) throw new Exception("boom") else n)
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -169,7 +169,7 @@ object ProcessorTests extends ActorTestSuite {
         val process = plusOne.via(
           Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
         )
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         val responses = Future.sequence(List(42, 43, 44, 45).map(processor.process))
         for {
@@ -183,7 +183,7 @@ object ProcessorTests extends ActorTestSuite {
         val process = plusOne.via(
           Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
         )
-        val processor = Processor(process, timeout, "processor", 1)
+        val processor = Handler(process, timeout, "processor", 1)
 
         processor.shutdown()
         Future

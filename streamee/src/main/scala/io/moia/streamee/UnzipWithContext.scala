@@ -16,14 +16,13 @@
 
 package io.moia.streamee
 
-import akka.stream.scaladsl.{ Broadcast, GraphDSL, Unzip, Zip }
 import akka.stream.{ FanOutShape2, Graph }
+import akka.stream.scaladsl.{ Broadcast, GraphDSL, Unzip, Zip }
 
 /**
   * Like standard `Unzip` but propagating a context object.
   */
 object UnzipWithContext {
-  // Why not [Ctx, In1, In2]? See https://github.com/akka/akka/issues/26345
   def apply[In1, In2, Ctx](): Graph[FanOutShape2[((In1, In2), Ctx), (In1, Ctx), (In2, Ctx)], Any] =
     GraphDSL.create() { implicit builder =>
       import GraphDSL.Implicits._

@@ -32,8 +32,8 @@ object IntoableTests extends ActorTestSuite {
   override def tests: Tests =
     Tests {
       'intoable - {
-        val (intoableSink, _) = runProcess(Process[Int, Int]().map(_ + 1), 1)
-        val process           = Process[Int, Int]().into(intoableSink, 42)
+        val (intoableSink, _) = runProcess(IntoableProcessor[Int, Int]().map(_ + 1), 1)
+        val process           = IntoableProcessor[Int, Int]().into(intoableSink, 42)
         val result1 =
           Source(0.to(9))
             .asSourceWithContext(_ => Promise[Int]())
@@ -60,7 +60,7 @@ object IntoableTests extends ActorTestSuite {
       'remotelyIntoable - {
         val (intoableSink, _, _) =
           runRemotelyIntoableProcess(RemotelyIntoableProcess[Int, Int]().map(_ + 1), 1)
-        val process = Process[Int, Int]().into(intoableSink, 1.second, 42)
+        val process = IntoableProcessor[Int, Int]().into(intoableSink, 1.second, 42)
         val result1 =
           Source(0.to(9))
             .asSourceWithContext(_ => Promise[Int]())
@@ -87,7 +87,7 @@ object IntoableTests extends ActorTestSuite {
       'remotelyIntoableSwitch - {
         val (intoableSink, switch, _) =
           runRemotelyIntoableProcess(RemotelyIntoableProcess[Int, Int](), 1)
-        val process = Process[Int, Int]().into(intoableSink, 1.second, 42)
+        val process = IntoableProcessor[Int, Int]().into(intoableSink, 1.second, 42)
         val publisher =
           TestSource
             .probe[Int]

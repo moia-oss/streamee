@@ -33,19 +33,19 @@ object PermanentProcessorTests extends ActorTestSuite {
     Tests {
       'applyIllegalTimeout - {
         intercept[IllegalArgumentException] {
-          Processor.permanent(plusOne, 0.seconds, "processor", 0)(identity, _ - 1)
+          Handler.permanent(plusOne, 0.seconds, "processor", 0)(identity, _ - 1)
         }
       }
 
       'applyIllegalBufferSize - {
         intercept[IllegalArgumentException] {
-          Processor.permanent(plusOne, 0.seconds, "processor", -1)(identity, _ - 1)
+          Handler.permanent(plusOne, 0.seconds, "processor", -1)(identity, _ - 1)
         }
       }
 
       'inTime - {
         val timeout   = 100.milliseconds.dilated
-        val processor = Processor.permanent(plusOne, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(plusOne, timeout, "processor", 0)(identity, _ - 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -59,7 +59,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'notInTime - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.delay(1.second.dilated, OverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         val pe42 = PromiseExpired(timeout, "from processor processor for request 42")
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
@@ -78,7 +78,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'reorder - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.grouped(2).mapConcat { case Seq(n1, n2) => List(n2, n1) }
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         Future
           .sequence(List(42, 43, 44, 45).map(processor.process))
@@ -92,7 +92,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'filter - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.filter(_ % 2 != 0)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -116,7 +116,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'resume - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.map(n => if (n % 2 == 0) throw new Exception("boom") else n)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
         val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
@@ -140,7 +140,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'processInFlightOnShutdown - {
         val timeout   = 1000.milliseconds.dilated
         val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         val responses = Future.sequence(List(42, 43, 44, 45).map(processor.process))
         for {
@@ -152,7 +152,7 @@ object PermanentProcessorTests extends ActorTestSuite {
       'noLongerEnqueueOnShutdown - {
         val timeout   = 100.milliseconds.dilated
         val process   = plusOne.delay(100.milliseconds.dilated, DelayOverflowStrategy.backpressure)
-        val processor = Processor.permanent(process, timeout, "processor", 0)(identity, _ - 1)
+        val processor = Handler.permanent(process, timeout, "processor", 0)(identity, _ - 1)
 
         processor.shutdown()
         Future

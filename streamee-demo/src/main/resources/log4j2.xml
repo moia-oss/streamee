@@ -16,12 +16,9 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="io.moia.streamee" level="${sys:loglevel.streamee:-debug}"
+        <Logger name="io.moia.streamee" level="${sys:loglevel.streamee:-info}"
                 additivity="false">
             <AppenderRef ref="stdout"/>
-        </Logger>
-        <Logger name="akka.actor.typed.Behavior" level="${sys:loglevel.streamee:-info}" additivity="false">
-            <AppenderRef ref="stdout-behavior"/>
         </Logger>
 
         <Root level="${sys:loglevel.root:-warn}">
