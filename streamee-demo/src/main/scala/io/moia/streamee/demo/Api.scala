@@ -33,8 +33,6 @@ object Api extends Logging {
 
   final case class Config(hostname: String, port: Int, terminationDeadline: FiniteDuration)
 
-  private final case class Request(question: String)
-
   private final object BindFailure extends Reason
 
   def apply(
@@ -81,7 +79,7 @@ object Api extends Logging {
       post {
         entity(as[ShuffleWord]) { shuffleWord =>
           onSuccess(wordShufflerHandler.handle(shuffleWord)) {
-            case WordShuffled(word) => complete(word)
+            case WordShuffled(original, result) => complete(s"$original -> $result")
           }
         }
       }

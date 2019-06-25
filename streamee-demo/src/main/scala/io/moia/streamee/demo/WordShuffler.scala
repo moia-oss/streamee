@@ -25,7 +25,7 @@ import scala.util.Random
 object WordShuffler {
 
   final case class ShuffleWord(word: String)
-  final case class WordShuffled(word: String)
+  final case class WordShuffled(original: String, result: String)
 
   final case class Config(delay: FiniteDuration)
 
@@ -44,11 +44,11 @@ object WordShuffler {
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
 
-  def shuffle: Process[String, String, WordShuffled] =
-    Process().map(shuffleWord)
+  def shuffle: Process[String, (String, String), WordShuffled] =
+    Process().pushIn.map(shuffleWord).popIn
 
-  def stringToWordShuffled: Process[String, WordShuffled, WordShuffled] =
-    Process().map(WordShuffled)
+  def stringToWordShuffled: Process[(String, String), WordShuffled, WordShuffled] =
+    Process().map { case (original, result) => WordShuffled(original, result) }
 
   def shuffleWord(word: String): String = {
     @tailrec def loop(word: String, acc: String = ""): String =
