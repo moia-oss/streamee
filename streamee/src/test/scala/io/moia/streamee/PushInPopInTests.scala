@@ -16,25 +16,23 @@
 
 package io.moia.streamee
 
+import org.scalatest.{ AsyncWordSpec, Matchers }
 import scala.concurrent.duration.DurationInt
-import utest._
 
-object ExpiringPromiseTests extends ActorTestSuite {
-  import testKit._
+final class PushInPopInTests extends AsyncWordSpec with ActorTestSuite with Matchers {
 
-  override def tests: Tests =
-    Tests {
-      'expire - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout, "hint")
-        promise.future.failed.map(e => assert(e == PromiseExpired(timeout, "hint")))
-      }
-
-      'expireNot - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
-        promise.trySuccess("success")
-        promise.future.map(s => assert(s == "success"))
-      }
+  "Calling pushIn and popIn" should {
+    "propagate the input element to the output" in {
+      import untypedSystem.dispatcher
+      val process = Process[String, (String, Int)]().map(_.toUpperCase).pushIn.map(_.length).popIn
+      val handler = Process.runToHandler(process, 1.second, 1)
+      handler
+        .handle("abc")
+        .map {
+          case (s, n) =>
+            s shouldBe "ABC"
+            n shouldBe 4
+        }
     }
+  }
 }

@@ -10,7 +10,7 @@ lazy val `streamee-root` =
     .settings(
       Compile / unmanagedSourceDirectories := Seq.empty,
       Test / unmanagedSourceDirectories := Seq.empty,
-      publishArtifact := false
+      publishArtifact := false,
     )
 
 lazy val `streamee` =
@@ -28,7 +28,7 @@ lazy val `streamee` =
         library.akkaStreamTestkit     % Test,
         library.log4jCore             % Test,
         library.scalaCheck            % Test,
-        library.utest                 % Test
+        library.scalaTest             % Test,
       )
     )
 
@@ -47,7 +47,7 @@ lazy val `streamee-demo` =
         library.log4jApiScala,
         library.log4jCore,
         library.log4jSlf4j,
-        library.pureConfig
+        library.pureConfig,
       ),
       publishArtifact := false
     )
@@ -69,7 +69,7 @@ lazy val library =
       val log4jApiScala  = "11.0"
       val pureConfig     = "0.11.1"
       val scalaCheck     = "1.14.0"
-      val utest          = "0.6.6"
+      val scalaTest      = "3.0.8"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"        %% "akka-actor-testkit-typed"    % Version.akka
     val akkaClusterShardingTyped = "com.typesafe.akka"        %% "akka-cluster-sharding-typed" % Version.akka
@@ -87,7 +87,7 @@ lazy val library =
     val log4jSlf4j               = "org.apache.logging.log4j" %  "log4j-slf4j-impl"            % Version.log4j
     val pureConfig               = "com.github.pureconfig"    %% "pureconfig"                  % Version.pureConfig
     val scalaCheck               = "org.scalacheck"           %% "scalacheck"                  % Version.scalaCheck
-    val utest                    = "com.lihaoyi"              %% "utest"                       % Version.utest
+    val scalaTest                = "org.scalatest"            %% "scalatest"                   % Version.scalaTest
   }
 
 // *****************************************************************************
@@ -118,12 +118,11 @@ lazy val commonSettings =
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
-    testFrameworks += new TestFramework("utest.runner.Framework")
   )
 
 lazy val scalafmtSettings =
   Seq(
-    scalafmtOnCompile := true
+    scalafmtOnCompile := true,
   )
 
 lazy val sonatypeSettings = {
@@ -132,7 +131,7 @@ lazy val sonatypeSettings = {
     publishTo := sonatypePublishTo.value,
     sonatypeProfileName := organization.value,
     publishMavenStyle := true,
-    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io"))
+    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io")),
   )
 }
 

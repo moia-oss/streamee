@@ -79,9 +79,32 @@ package object streamee {
   }
 
   /**
-    * Extension methods for `FlowWithContext`. Necessary because not yet offered by Akka!
+    * Extension methods for `FlowWithContext`.
     */
   implicit final class FlowWithContextExt[In, CtxIn, Out, CtxOut](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
+  ) extends AnyVal {
+
+    def pushIn: FlowWithContext[In, CtxIn, Out, (Out, CtxOut), Any] =
+      flowWithContext.via(Flow.apply.map { case (out, ctxOut) => (out, (out, ctxOut)) })
+  }
+
+  /**
+    * Extension methods for `FlowWithContext` with paired output context (see
+    * [[FlowWithContextExt.pushIn]]).
+    */
+  implicit final class FlowWithContextExt2[In, CtxIn, Out, CtxOut](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, (In, CtxOut), Any]
+  ) extends AnyVal {
+
+    def popIn: FlowWithContext[In, CtxIn, (In, Out), CtxOut, Any] =
+      flowWithContext.via(Flow.apply.map { case (out, (in, ctxOut)) => ((in, out), ctxOut) })
+  }
+
+  /**
+    * Missing standard operators from `FlowOps` not yet defined on `FlowWithContext` (by Akka).
+    */
+  implicit final class FlowWithContextExtAkka[In, CtxIn, Out, CtxOut](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
   ) extends AnyVal {
 
