@@ -16,22 +16,30 @@
 
 package io.moia.streamee.demo
 
-import akka.stream.{ Attributes, DelayOverflowStrategy }
-import io.moia.streamee.{ FlowWithContextExt2, Process }
+import akka.actor.Scheduler
+import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
+import akka.stream.scaladsl.{ Sink, Source }
+import io.moia.streamee.{ FlowWithContextExt2, Process, Respondee, SourceExt }
 import scala.collection.immutable.Seq
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.ExecutionContext
 
 object TextShuffler {
 
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
 
-  final case class Config(delay: FiniteDuration)
+  final case class Config(delay: FiniteDuration, wordShufflerTimeout: FiniteDuration)
 
-  def apply(config: Config): Process[ShuffleText, TextShuffled, TextShuffled] =
+  def apply(
+      config: Config,
+      wordShufflerSink: Sink[(WordShuffler.ShuffleWord, Respondee[WordShuffler.WordShuffled]), Any]
+  )(implicit mat: Materializer,
+    ec: ExecutionContext,
+    scheduler: Scheduler): Process[ShuffleText, TextShuffled, TextShuffled] =
     delay(config.delay)
       .via(keepOriginalAndSplit)
-      .via(shuffleWords)
+      .via(shuffleWords2(wordShufflerSink, config.wordShufflerTimeout))
       .via(concat)
 
   def delay(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
@@ -42,13 +50,30 @@ object TextShuffler {
   def keepOriginalAndSplit: Process[ShuffleText, (String, Seq[String]), TextShuffled] =
     Process[ShuffleText, TextShuffled]() // Here the type annotation is mandatory!
       .map(_.text)
-      .pushIn
+      .push // push the original text
       .map(_.split(" ").toList)
-      .popIn // Current limitation: input must be popped from context before terminating the stage in order to allow for a `Process` return type!
+      .pop // pop the original text
 
   def shuffleWords: Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
     Process()
       .map { case (originalText, words) => (originalText, words.map(WordShuffler.shuffleWord)) }
+
+  def shuffleWords2(
+      wordShufflerSink: Sink[(WordShuffler.ShuffleWord, Respondee[WordShuffler.WordShuffled]), Any],
+      wordShufflerTimeout: FiniteDuration
+  )(implicit mat: Materializer,
+    ec: ExecutionContext,
+    scheduler: Scheduler): Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
+    Process[(String, Seq[String]), TextShuffled]()
+      .push(_._1, _._2) // push the original text
+      .mapAsync(1) { words =>
+        Source(words)
+          .map(WordShuffler.ShuffleWord)
+          .into(wordShufflerSink, wordShufflerTimeout)
+          .runWith(Sink.seq)
+      }
+      .map(_.map(_.word))
+      .pop // pop the original text
 
   def concat: Process[(String, Seq[String]), TextShuffled, TextShuffled] =
     Process()

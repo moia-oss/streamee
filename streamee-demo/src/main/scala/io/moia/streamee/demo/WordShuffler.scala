@@ -16,39 +16,29 @@
 
 package io.moia.streamee.demo
 
-import akka.stream.{ Attributes, DelayOverflowStrategy }
 import io.moia.streamee.Process
 import scala.annotation.tailrec
-import scala.concurrent.duration.FiniteDuration
 import scala.util.Random
 
 object WordShuffler {
 
   final case class ShuffleWord(word: String)
-  final case class WordShuffled(original: String, result: String)
+  final case class WordShuffled(word: String)
 
-  final case class Config(delay: FiniteDuration)
-
-  def apply(config: Config): Process[ShuffleWord, WordShuffled, WordShuffled] =
+  def apply(): Process[ShuffleWord, WordShuffled, WordShuffled] =
     Process[ShuffleWord, WordShuffled]()
       .via(shuffleWordToString)
-      .via(delay(config.delay))
       .via(shuffle)
       .via(stringToWordShuffled)
 
   def shuffleWordToString: Process[ShuffleWord, String, WordShuffled] =
     Process[ShuffleWord, WordShuffled]().map(_.word)
 
-  def delay(of: FiniteDuration): Process[String, String, WordShuffled] =
-    Process[String, WordShuffled]() // Type annotation only needed by IDEA!
-      .delay(of, DelayOverflowStrategy.backpressure)
-      .withAttributes(Attributes.inputBuffer(1, 1))
+  def shuffle: Process[String, String, WordShuffled] =
+    Process[String, WordShuffled]().map(shuffleWord)
 
-  def shuffle: Process[String, (String, String), WordShuffled] =
-    Process().pushIn.map(shuffleWord).popIn
-
-  def stringToWordShuffled: Process[(String, String), WordShuffled, WordShuffled] =
-    Process().map { case (original, result) => WordShuffled(original, result) }
+  def stringToWordShuffled: Process[String, WordShuffled, WordShuffled] =
+    Process().map(WordShuffled)
 
   def shuffleWord(word: String): String = {
     @tailrec def loop(word: String, acc: String = ""): String =

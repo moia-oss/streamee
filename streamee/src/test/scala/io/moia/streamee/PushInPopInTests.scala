@@ -24,7 +24,7 @@ final class PushInPopInTests extends AsyncWordSpec with ActorTestSuite with Matc
   "Calling pushIn and popIn" should {
     "propagate the input element to the output" in {
       import untypedSystem.dispatcher
-      val process = Process[String, (String, Int)]().map(_.toUpperCase).pushIn.map(_.length).popIn
+      val process = Process[String, (String, Int)]().map(_.toUpperCase).push.map(_.length).pop
       val handler = Process.runToHandler(process, 1.second, 1)
       handler
         .handle("abc")

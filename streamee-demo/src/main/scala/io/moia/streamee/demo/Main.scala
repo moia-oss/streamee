@@ -29,6 +29,7 @@ import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow
 import scala.concurrent.ExecutionContext
+import io.moia.streamee.Process
 
 object Main extends Logging {
 
@@ -64,7 +65,9 @@ object Main extends Logging {
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    val textShuffler = TextShuffler(config.textShuffler)
+    val (wordShufflerSink, _, _) = Process.runToIntoableSink(WordShuffler())
+
+    val textShuffler = TextShuffler(config.textShuffler, wordShufflerSink)
 
     Api(config.api, textShuffler)
   }
