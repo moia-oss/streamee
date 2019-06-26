@@ -40,7 +40,7 @@ object WordShuffler {
     Process[ShuffleWord, WordShuffled]().map(_.word)
 
   def delay(of: FiniteDuration): Process[String, String, WordShuffled] =
-    Process()
+    Process[String, WordShuffled]() // Type annotation only needed by IDEA!
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
 

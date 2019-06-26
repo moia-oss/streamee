@@ -32,7 +32,7 @@ import scala.concurrent.ExecutionContext
 
 object Main extends Logging {
 
-  final case class Config(api: Api.Config, wordShuffler: WordShuffler.Config)
+  final case class Config(api: Api.Config, textShuffler: TextShuffler.Config)
 
   final object TopLevelActorTerminated extends Reason
 
@@ -64,8 +64,8 @@ object Main extends Logging {
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    val wordShuffler = WordShuffler(config.wordShuffler)
+    val textShuffler = TextShuffler(config.textShuffler)
 
-    Api(config.api, wordShuffler)
+    Api(config.api, textShuffler)
   }
 }

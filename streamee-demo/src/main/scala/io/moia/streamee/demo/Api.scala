@@ -34,17 +34,17 @@ object Api extends Logging {
   final case class Config(hostname: String,
                           port: Int,
                           terminationDeadline: FiniteDuration,
-                          wordShufflerHandler: WordShufflerHandlerConfig)
+                          textShufflerHandler: TextShufflerHandlerConfig)
 
-  final case class WordShufflerHandlerConfig(timeout: FiniteDuration, bufferSize: Int)
+  final case class TextShufflerHandlerConfig(timeout: FiniteDuration, bufferSize: Int)
 
   private final object BindFailure extends Reason
 
   def apply(
       config: Config,
-      wordShuffler: Process[WordShuffler.ShuffleWord,
-                            WordShuffler.WordShuffled,
-                            WordShuffler.WordShuffled]
+      textShuffler: Process[TextShuffler.ShuffleText,
+                            TextShuffler.TextShuffled,
+                            TextShuffler.TextShuffled]
   )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Handler.processUnavailableHandler
     import config._
@@ -52,13 +52,13 @@ object Api extends Logging {
 
     val shutdown = CoordinatedShutdown(untypedSystem)
 
-    val wordShufflerHandler = {
-      import config.wordShufflerHandler._
-      Process.runToHandler(wordShuffler, timeout, bufferSize, "word-shuffler")
+    val textShufflerHandler = {
+      import config.textShufflerHandler._
+      Process.runToHandler(textShuffler, timeout, bufferSize, "text-shuffler")
     }
 
     Http()
-      .bindAndHandle(route(wordShufflerHandler), hostname, port)
+      .bindAndHandle(route(textShufflerHandler), hostname, port)
       .onComplete {
         case Failure(cause) =>
           logger.error(s"Shutting down, because cannot bind to $hostname:$port!", cause)
@@ -73,7 +73,7 @@ object Api extends Logging {
   }
 
   def route(
-      wordShufflerHandler: Handler[WordShuffler.ShuffleWord, WordShuffler.WordShuffled]
+      textShufflerHandler: Handler[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -87,11 +87,11 @@ object Api extends Logging {
       }
     } ~
     path("shuffle") {
-      import WordShuffler._
+      import TextShuffler._
       post {
-        entity(as[ShuffleWord]) { shuffleWord =>
-          onSuccess(wordShufflerHandler.handle(shuffleWord)) {
-            case WordShuffled(original, result) => complete(s"$original -> $result")
+        entity(as[ShuffleText]) { shuffleText =>
+          onSuccess(textShufflerHandler.handle(shuffleText)) {
+            case TextShuffled(original, result) => complete(s"$original -> $result")
           }
         }
       }

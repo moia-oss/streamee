@@ -93,12 +93,12 @@ package object streamee {
     * Extension methods for `FlowWithContext` with paired output context (see
     * [[FlowWithContextExt.pushIn]]).
     */
-  implicit final class FlowWithContextExt2[In, CtxIn, Out, CtxOut](
-      val flowWithContext: FlowWithContext[In, CtxIn, Out, (In, CtxOut), Any]
+  implicit final class FlowWithContextExt2[In, CtxIn, Out, CtxOut, In0](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, (In0, CtxOut), Any]
   ) extends AnyVal {
 
-    def popIn: FlowWithContext[In, CtxIn, (In, Out), CtxOut, Any] =
-      flowWithContext.via(Flow.apply.map { case (out, (in, ctxOut)) => ((in, out), ctxOut) })
+    def popIn: FlowWithContext[In, CtxIn, (In0, Out), CtxOut, Any] =
+      flowWithContext.via(Flow.apply.map { case (out, (in0, ctxOut)) => ((in0, out), ctxOut) })
   }
 
   /**
