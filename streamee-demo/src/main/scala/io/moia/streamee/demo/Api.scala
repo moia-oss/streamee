@@ -31,19 +31,31 @@ import scala.util.{ Failure, Success }
 
 object Api extends Logging {
 
-  final case class Config(hostname: String, port: Int, terminationDeadline: FiniteDuration)
+  final case class Config(hostname: String,
+                          port: Int,
+                          terminationDeadline: FiniteDuration,
+                          wordShufflerHandler: WordShufflerHandlerConfig)
+
+  final case class WordShufflerHandlerConfig(timeout: FiniteDuration, bufferSize: Int)
 
   private final object BindFailure extends Reason
 
   def apply(
       config: Config,
-      wordShufflerHandler: Handler[WordShuffler.ShuffleWord, WordShuffler.WordShuffled]
+      wordShuffler: Process[WordShuffler.ShuffleWord,
+                            WordShuffler.WordShuffled,
+                            WordShuffler.WordShuffled]
   )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import Handler.processUnavailableHandler
     import config._
     import untypedSystem.dispatcher
 
     val shutdown = CoordinatedShutdown(untypedSystem)
+
+    val wordShufflerHandler = {
+      import config.wordShufflerHandler._
+      Process.runToHandler(wordShuffler, timeout, bufferSize, "word-shuffler")
+    }
 
     Http()
       .bindAndHandle(route(wordShufflerHandler), hostname, port)
