@@ -47,7 +47,7 @@ object Process extends Logging {
     * @param process    top-level domain logic process from request to response
     * @param timeout    maximum duration for the running process to respond; must be positive!
     * @param bufferSize size of the buffer of the input queue; must be positive!
-    * @param name       name, used e.g. in [[Handler.ProcessUnavailable]] exceptions; defaults to "WITHOUT NAME"
+    * @param name       name, used e.g. in [[Handler.ProcessUnavailable]] exceptions
     * @tparam Req request type
     * @tparam Res response type
     * @return [[Handler]] for processing requests and shutting down
@@ -56,7 +56,7 @@ object Process extends Logging {
       process: Process[Req, Res, Res],
       timeout: FiniteDuration,
       bufferSize: Int,
-      name: String = "WITHOUT NAME"
+      name: String
   )(implicit mat: Materializer, ec: ExecutionContext, scheduler: Scheduler): Handler[Req, Res] = {
     require(timeout > Duration.Zero, s"timeout must be positive, but was $timeout!")
     require(bufferSize > 0, s"bufferSize must be positive, but was $bufferSize!")
