@@ -76,7 +76,7 @@ object Process extends Logging {
 
   /**
     * Run a `MergeHub.source` for pairs of request and [[Respondee]] via the given `process` to a
-    * `Sink` responding to the [[Respondee]] and return an [[IntoableSink]], a `KillSwitch` and a
+    * `Sink` responding to the [[Respondee]] and return an [[ProcessSink]], a `KillSwitch` and a
     * completion signal. Notice that using the returned kill switch might result in dropping
     * (losing) `bufferSize` number of requsts!
     *
@@ -84,11 +84,11 @@ object Process extends Logging {
     * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
     * @tparam Req request type
     * @tparam Res response type
-    * @return [[IntoableSink]] to be used with `into`, kill switch and completion signal (which should not happen except for using the kill switch)
+    * @return [[ProcessSink]] to be used with `into`, kill switch and completion signal (which should not happen except for using the kill switch)
     */
   def runToIntoableSink[Req, Res](process: Process[Req, Res, Res], bufferSize: Int = 1)(
       implicit mat: Materializer
-  ): (IntoableSink[Req, Res], UniqueKillSwitch, Future[Done]) = {
+  ): (ProcessSink[Req, Res], UniqueKillSwitch, Future[Done]) = {
     require(bufferSize > 0, s"bufferSize must be positive, but was $bufferSize!")
 
     MergeHub

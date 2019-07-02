@@ -26,20 +26,22 @@ import scala.concurrent.duration.FiniteDuration
 
 package object streamee {
 
-  type Respondee[A] = ActorRef[Respondee.Response[A]]
-
   /**
     * A domain logic process or process stage from an input to an output which transparently
     * propagates a [[Respondee]] for the top-level response. For a top-level process Out == Res. Can
     * be used locally or remotely.
-    *
-    * @tparam In input type
-    * @tparam Out output type
-    * @tparam Res response type
     */
   type Process[-In, Out, Res] = FlowWithContext[In, Respondee[Res], Out, Respondee[Res], Any]
 
-  type IntoableSink[Req, Res] = Sink[(Req, Respondee[Res]), Any]
+  /**
+    * Convenient shortcut for `Sink[(Req, Respondee[Res]), Any]`.
+    */
+  type ProcessSink[Req, Res] = Sink[(Req, Respondee[Res]), Any]
+
+  /**
+    * Convenient shortcut for `ActorRef[Respondee.Response[A]]`.
+    */
+  type Respondee[A] = ActorRef[Respondee.Response[A]]
 
   // Needs to be more flexible than for Processes, because of pushing and popping which turns a
   // Process into more common FlowWithContext!
@@ -91,11 +93,11 @@ package object streamee {
     /**
       * Emit into the given "intoable" `Sink` and continue with its response.
       *
-      * @param sink    "intoable" sink from [[Process.runToIntoableSink]]
+      * @param processSink    "intoable" sink from [[Process.runToIntoableSink]]
       * @param timeout maximum duration for the sink to respond
       */
     def into[Out2](
-        sink: Sink[(Out, Respondee[Out2]), Any],
+        processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration
     )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[Out2, Any] =
       Source
@@ -111,7 +113,7 @@ package object streamee {
             .alsoTo {
               Flow[(Out, Promise[Out2], Respondee[Out2])]
                 .map { case (out, _, respondee2) => (out, respondee2) }
-                .to(sink)
+                .to(processSink)
             }
             .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
         }
@@ -127,10 +129,10 @@ package object streamee {
     /**
       * Emit into the given "intoable" `Sink` and continue with its response.
       *
-      * @param sink    "intoable" sink from [[Process.runToIntoableSink]]
+      * @param processSink    "intoable" sink from [[Process.runToIntoableSink]]
       * @param timeout maximum duration for the sink to respond
       */
-    def into[Out2](sink: Sink[(Out, Respondee[Out2]), Any], timeout: FiniteDuration)(
+    def into[Out2](processSink: ProcessSink[Out, Out2], timeout: FiniteDuration)(
         implicit ec: ExecutionContext,
         scheduler: Scheduler
     ): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
@@ -148,7 +150,7 @@ package object streamee {
               .via(Flow.apply.alsoTo {
                 Flow[((Out, Promise[Out2], Respondee[Out2]), CtxOut)]
                   .map { case ((out, _, respondee2), _) => (out, respondee2) }
-                  .to(sink)
+                  .to(processSink)
               })
               .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
               .asFlow
