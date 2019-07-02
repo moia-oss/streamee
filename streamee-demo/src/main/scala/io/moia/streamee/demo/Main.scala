@@ -24,16 +24,20 @@ import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, UntypedActorSyst
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
+import io.moia.streamee.Processor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow
 import scala.concurrent.ExecutionContext
-import io.moia.streamee.Process
+import scala.concurrent.duration.FiniteDuration
 
 object Main extends Logging {
 
-  final case class Config(api: Api.Config, textShuffler: TextShuffler.Config)
+  final case class Config(api: Api.Config,
+                          textShufflerProcessorTimeout: FiniteDuration,
+                          wordShufflerProcessorTimeout: FiniteDuration,
+                          textShuffler: TextShuffler.Config)
 
   final object TopLevelActorTerminated extends Reason
 
@@ -60,15 +64,23 @@ object Main extends Logging {
     }
 
   private def initialize(config: Config)(implicit context: ActorContext[_]) = {
+    import config._
+
     implicit val mat: Materializer            = ActorMaterializer()(context.system)
     implicit val ec: ExecutionContext         = context.executionContext
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    val (wordShufflerSink, _, _) = Process.runToIntoableSink(WordShuffler())
+    val wordShufflerProcessor =
+      Processor.runToIntoableSink(WordShuffler(), wordShufflerProcessorTimeout, "word-shuffler")
 
-    val textShuffler = TextShuffler(config.textShuffler, wordShufflerSink)
+    val textShufflerProcessor =
+      Processor.runToProcessor(
+        TextShuffler(config.textShuffler, wordShufflerProcessor),
+        textShufflerProcessorTimeout,
+        "text-shuffler"
+      )
 
-    Api(config.api, textShuffler)
+    Api(config.api, textShufflerProcessor)
   }
 }

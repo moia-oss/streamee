@@ -25,7 +25,7 @@ import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
 import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
-import io.moia.streamee.Processor.ProcessUnavailable
+import io.moia.streamee.Processor.ProcessorUnavailable
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -33,38 +33,24 @@ import scala.util.{ Failure, Success }
 
 object Api extends Logging {
 
-  final case class Config(hostname: String,
-                          port: Int,
-                          terminationDeadline: FiniteDuration,
-                          textShufflerProcessor: TextShufflerProcessorConfig)
-
-  final case class TextShufflerProcessorConfig(timeout: FiniteDuration, bufferSize: Int)
+  final case class Config(hostname: String, port: Int, terminationDeadline: FiniteDuration)
 
   private final object BindFailure extends Reason
 
-  def apply(config: Config,
-            textShuffler: Process[TextShuffler.ShuffleText,
-                                  TextShuffler.TextShuffled,
-                                  TextShuffler.TextShuffled])(
-      implicit untypedSystem: UntypedSystem,
-      mat: Materializer,
-      scheduler: Scheduler
-  ): Unit = {
+  def apply(
+      config: Config,
+      textShufflerProcessor: Processor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
+  )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import config._
     import untypedSystem.dispatcher
 
     implicit val processUnavailableHandler: ExceptionHandler =
       ExceptionHandler {
-        case ProcessUnavailable(name) =>
+        case ProcessorUnavailable(name) =>
           complete(ServiceUnavailable -> s"Processor $name unavailable!")
       }
 
     val shutdown = CoordinatedShutdown(untypedSystem)
-
-    val textShufflerProcessor = {
-      import config.textShufflerProcessor._
-      Process.runToProcessor(textShuffler, timeout, bufferSize, "text-shuffler")
-    }
 
     Http()
       .bindAndHandle(route(textShufflerProcessor), hostname, port)
