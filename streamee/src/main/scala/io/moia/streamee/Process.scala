@@ -38,26 +38,26 @@ object Process extends Logging {
 
   /**
     * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a
-    * `Sink` responding to the [[Respondee]] and return a [[Handler]].
+    * `Sink` responding to the [[Respondee]] and return a [[Processor]].
     *
-    * When [[Handler.handle]] is called, the given request is emitted into the process given here.
+    * When [[Processor.accept]] is called, the given request is emitted into the process given here.
     * The returned `Future` is either completed successfully with the response or failed if the
     * process back-pressures or does not create the response in time.
     *
     * @param process    top-level domain logic process from request to response
     * @param timeout    maximum duration for the running process to respond; must be positive!
     * @param bufferSize size of the buffer of the input queue; must be positive!
-    * @param name       name, used e.g. in [[Handler.ProcessUnavailable]] exceptions
+    * @param name       name, used e.g. in [[Processor.ProcessUnavailable]] exceptions
     * @tparam Req request type
     * @tparam Res response type
-    * @return [[Handler]] for processing requests and shutting down
+    * @return [[Processor]] for processing requests and shutting down
     */
-  def runToHandler[Req, Res](
+  def runToProcessor[Req, Res](
       process: Process[Req, Res, Res],
       timeout: FiniteDuration,
       bufferSize: Int,
       name: String
-  )(implicit mat: Materializer, ec: ExecutionContext, scheduler: Scheduler): Handler[Req, Res] = {
+  )(implicit mat: Materializer, ec: ExecutionContext, scheduler: Scheduler): Processor[Req, Res] = {
     require(timeout > Duration.Zero, s"timeout must be positive, but was $timeout!")
     require(bufferSize > 0, s"bufferSize must be positive, but was $bufferSize!")
 
@@ -71,7 +71,7 @@ object Process extends Logging {
         .withAttributes(ActorAttributes.supervisionStrategy(resume(name)))
         .run()
 
-    new Handler[Req, Res](queue, done, timeout, name)
+    new Processor[Req, Res](queue, done, timeout, name)
   }
 
   /**

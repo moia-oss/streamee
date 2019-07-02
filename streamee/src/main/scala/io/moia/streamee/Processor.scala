@@ -21,15 +21,15 @@ import akka.Done
 import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import akka.stream.scaladsl.SourceQueueWithComplete
-import io.moia.streamee.Handler.{ HandlerError, ProcessUnavailable }
+import io.moia.streamee.Processor.{ ProcessUnavailable, ProcessorError }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.FiniteDuration
 
 /**
-  * Utilities for [[Handler]]s.
+  * Utilities for [[Processor]]s.
   */
-object Handler extends Logging {
+object Processor extends Logging {
 
   /**
     * Signals that a request cannot be handled at this time.
@@ -42,21 +42,21 @@ object Handler extends Logging {
       )
 
   /**
-    * Signals an unexpected result of calling [[Handler.handle]].
+    * Signals an unexpected result of calling [[Processor.accept]].
     *
     * @param cause the underlying erroneous `QueueOfferResult`, e.g. `Failure` or `QueueClosed`
     */
-  final case class HandlerError(cause: QueueOfferResult)
+  final case class ProcessorError(cause: QueueOfferResult)
       extends Exception(s"QueueOfferResult $cause was not expected!")
 }
 
 /**
-  * Result of [[Process.runToHandler]] used to handle requests or shutdown.
+  * Result of [[Process.runToProcessor]] used to handle requests or shutdown.
   *
   * @tparam Req request type
   * @tparam Res response type
   */
-final class Handler[Req, Res] private[streamee] (
+final class Processor[Req, Res] private[streamee] (
     queue: SourceQueueWithComplete[(Req, Respondee[Res])],
     done: Future[Done],
     timeout: FiniteDuration,
@@ -64,12 +64,12 @@ final class Handler[Req, Res] private[streamee] (
 )(implicit mat: Materializer, ec: ExecutionContext) {
 
   /**
-    * Eventually handle a request.
+    * Accept a request for processing.
     *
-    * @param request request to be handled
+    * @param request request to be processed
     * @return `Future` for the response
     */
-  def handle(request: Req): Future[Res] = {
+  def accept(request: Req): Future[Res] = {
     val response = Promise[Res]()
     val respondee =
       mat
@@ -79,12 +79,12 @@ final class Handler[Req, Res] private[streamee] (
     queue.offer((request, respondee)).flatMap {
       case Enqueued => response.future
       case Dropped  => Future.failed(ProcessUnavailable(name))
-      case other    => Future.failed(HandlerError(other))
+      case other    => Future.failed(ProcessorError(other))
     }
   }
 
   /**
-    * Shut down the running process of this [[Handler]]. Already accepted requests are still
+    * Shut down the running process of this [[Processor]]. Already accepted requests are still
     * handled, but new ones are dropped. The returened `Future` is completed once all requests
     * have been handled.
     *

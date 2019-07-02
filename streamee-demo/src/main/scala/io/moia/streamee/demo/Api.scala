@@ -25,7 +25,7 @@ import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
 import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
-import io.moia.streamee.Handler.ProcessUnavailable
+import io.moia.streamee.Processor.ProcessUnavailable
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -36,9 +36,9 @@ object Api extends Logging {
   final case class Config(hostname: String,
                           port: Int,
                           terminationDeadline: FiniteDuration,
-                          textShufflerHandler: TextShufflerHandlerConfig)
+                          textShufflerProcessor: TextShufflerProcessorConfig)
 
-  final case class TextShufflerHandlerConfig(timeout: FiniteDuration, bufferSize: Int)
+  final case class TextShufflerProcessorConfig(timeout: FiniteDuration, bufferSize: Int)
 
   private final object BindFailure extends Reason
 
@@ -61,13 +61,13 @@ object Api extends Logging {
 
     val shutdown = CoordinatedShutdown(untypedSystem)
 
-    val textShufflerHandler = {
-      import config.textShufflerHandler._
-      Process.runToHandler(textShuffler, timeout, bufferSize, "text-shuffler")
+    val textShufflerProcessor = {
+      import config.textShufflerProcessor._
+      Process.runToProcessor(textShuffler, timeout, bufferSize, "text-shuffler")
     }
 
     Http()
-      .bindAndHandle(route(textShufflerHandler), hostname, port)
+      .bindAndHandle(route(textShufflerProcessor), hostname, port)
       .onComplete {
         case Failure(cause) =>
           logger.error(
@@ -87,7 +87,7 @@ object Api extends Logging {
   }
 
   def route(
-      textShufflerHandler: Handler[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
+      textShufflerProcessor: Processor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -104,7 +104,7 @@ object Api extends Logging {
       import TextShuffler._
       post {
         entity(as[ShuffleText]) { shuffleText =>
-          onSuccess(textShufflerHandler.handle(shuffleText)) {
+          onSuccess(textShufflerProcessor.accept(shuffleText)) {
             case TextShuffled(original, result) =>
               complete(s"$original -> $result")
           }
