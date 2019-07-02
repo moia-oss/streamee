@@ -21,9 +21,11 @@ import akka.Done
 import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
+import akka.http.scaladsl.server.{ ExceptionHandler, Route }
+import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
+import io.moia.streamee.Handler.ProcessUnavailable
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -40,15 +42,22 @@ object Api extends Logging {
 
   private final object BindFailure extends Reason
 
-  def apply(
-      config: Config,
-      textShuffler: Process[TextShuffler.ShuffleText,
-                            TextShuffler.TextShuffled,
-                            TextShuffler.TextShuffled]
-  )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
-    import Handler.processUnavailableHandler
+  def apply(config: Config,
+            textShuffler: Process[TextShuffler.ShuffleText,
+                                  TextShuffler.TextShuffled,
+                                  TextShuffler.TextShuffled])(
+      implicit untypedSystem: UntypedSystem,
+      mat: Materializer,
+      scheduler: Scheduler
+  ): Unit = {
     import config._
     import untypedSystem.dispatcher
+
+    implicit val processUnavailableHandler: ExceptionHandler =
+      ExceptionHandler {
+        case ProcessUnavailable(name) =>
+          complete(ServiceUnavailable -> s"Processor $name unavailable!")
+      }
 
     val shutdown = CoordinatedShutdown(untypedSystem)
 
@@ -61,11 +70,16 @@ object Api extends Logging {
       .bindAndHandle(route(textShufflerHandler), hostname, port)
       .onComplete {
         case Failure(cause) =>
-          logger.error(s"Shutting down, because cannot bind to $hostname:$port!", cause)
+          logger.error(
+            s"Shutting down, because cannot bind to $hostname:$port!",
+            cause
+          )
           shutdown.run(BindFailure)
 
         case Success(binding) =>
-          logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
+          logger.info(
+            s"Listening for HTTP connections on ${binding.localAddress}"
+          )
           shutdown.addTask(PhaseServiceUnbind, "api.unbind") { () =>
             binding.terminate(terminationDeadline).map(_ => Done)
           }
@@ -91,7 +105,8 @@ object Api extends Logging {
       post {
         entity(as[ShuffleText]) { shuffleText =>
           onSuccess(textShufflerHandler.handle(shuffleText)) {
-            case TextShuffled(original, result) => complete(s"$original -> $result")
+            case TextShuffled(original, result) =>
+              complete(s"$original -> $result")
           }
         }
       }

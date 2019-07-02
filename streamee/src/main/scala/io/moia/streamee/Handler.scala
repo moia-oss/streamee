@@ -16,9 +16,6 @@
 
 package io.moia.streamee
 
-import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
-import akka.http.scaladsl.server.Directives.complete
-import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.{ ActorMaterializer, Materializer, QueueOfferResult }
 import akka.Done
 import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
@@ -40,7 +37,9 @@ object Handler extends Logging {
     * @param name name of the processor
     */
   final case class ProcessUnavailable(name: String)
-      extends Exception(s"Running process $name cannot accept requests at this time!")
+      extends Exception(
+        s"Running process $name cannot accept requests at this time!"
+      )
 
   /**
     * Signals an unexpected result of calling [[Handler.handle]].
@@ -49,15 +48,6 @@ object Handler extends Logging {
     */
   final case class HandlerError(cause: QueueOfferResult)
       extends Exception(s"QueueOfferResult $cause was not expected!")
-
-  /**
-    * Maps [[ProcessUnavailable]] exceptions to HTTP status code 503 "Service Unavailable".
-    */
-  implicit val processUnavailableHandler: ExceptionHandler =
-    ExceptionHandler {
-      case ProcessUnavailable(name) =>
-        complete(ServiceUnavailable -> s"Processor $name unavailable!")
-    }
 }
 
 /**
