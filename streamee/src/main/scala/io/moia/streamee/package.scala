@@ -20,7 +20,7 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 import akka.stream.{ DelayOverflowStrategy, SinkRef }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.Promise
 
 package object streamee {
@@ -56,9 +56,13 @@ package object streamee {
       * Emit into the given [[ProcessSink]] and continue with its response.
       *
       * @param processSink [[ProcessSink]] to emit into
+      * @param timeout maximum duration for the running process to respond; must be positive!
+      * @tparam Out2 response type of the given [[ProcessSink]]
       */
     def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): Source[Out2, Any] =
+                   timeout: FiniteDuration): Source[Out2, Any] = {
+      require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+
       Source
         .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
           val maxIntoParallelism =
@@ -76,6 +80,7 @@ package object streamee {
             }
             .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
         }
+    }
   }
 
   /**
@@ -89,14 +94,17 @@ package object streamee {
       * Emit into the given [[ProcessSink]] and continue with its response.
       *
       * @param processSink [[ProcessSink]] to emit into
+      * @param timeout maximum duration for the running process to respond; must be positive!
+      * @tparam Out2 response type of the given [[ProcessSink]]
       */
     def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
+                   timeout: FiniteDuration): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] = {
+      require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+
       FlowWithContext.fromTuples(
         Flow
           .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-            val maxIntoParallelism =
-              mat.system.settings.config.getInt("streamee.max-into-parallelism")
+            val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
             flowWithContext
               .map { out =>
                 val promisedOut2 = Promise[Out2]()
@@ -108,16 +116,27 @@ package object streamee {
                   .map { case ((out, _, respondee2), _) => (out, respondee2) }
                   .to(processSink)
               })
-              .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
+              .mapAsync(parallelism) { case (_, promisedOut2, _) => promisedOut2.future }
               .asFlow
           }
       )
+    }
 
-    // TODO Doc comments!
+    /**
+      * Push the emitted element transformed by the given function `f` to the propagated context and
+      * also transform the emitted element by the given function `g`.
+      *
+      * @param f transform the emitted element before pushing to the context
+      * @param g transform the emitted element
+      * @tparam A target type of the transformation of the element pushed to the context
+      * @tparam B target type of the transformation of the element
+      */
     def push[A, B](f: Out => A, g: Out => B): FlowWithContext[In, CtxIn, B, (A, CtxOut), Any] =
       flowWithContext.via(Flow.apply.map { case (out, ctxOut) => (g(out), (f(out), ctxOut)) })
 
-    // TODO Doc comments!
+    /**
+      * Push the emitted element to the propagated context.
+      */
     def push: FlowWithContext[In, CtxIn, Out, (Out, CtxOut), Any] =
       push(identity, identity)
   }
@@ -130,7 +149,10 @@ package object streamee {
       val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Any]
   ) extends AnyVal {
 
-    // TODO Doc comments!
+    /**
+      * Pop a formerly pushed and potentially transformed element from the propagated context and
+      * pair it up with the emitted element.
+      */
     def pop: FlowWithContext[In, CtxIn, (A, Out), CtxOut, Any] =
       flowWithContext.via(Flow.apply.map { case (out, (a, ctxOut)) => ((a, out), ctxOut) })
   }

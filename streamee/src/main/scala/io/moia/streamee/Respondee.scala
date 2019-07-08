@@ -20,7 +20,7 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.stream.{ ActorMaterializer, Materializer }
 import scala.concurrent.Promise
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 
 /**
@@ -41,11 +41,13 @@ object Respondee {
     * Factory for `Respondee` behaviors.
     *
     * @param response `Promise` to be completed
-    * @param timeout maximum duration for successful completion
+    * @param timeout maximum duration for successful completion; must be positive!
     * @tparam A response type
     * @return `Respondee` behavior
     */
-  def apply[A](response: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] =
+  def apply[A](response: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] = {
+    require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+
     Behaviors
       .withTimers[Command] { timers =>
         timers.startSingleTimer("timeout", Timeout, timeout)
@@ -61,6 +63,7 @@ object Respondee {
         }
       }
       .narrow
+  }
 
   /**
     * Create a [[Respondee]] along with its `Promise`.

@@ -40,7 +40,7 @@ object WordShuffler {
   def stringToWordShuffled: Process[String, WordShuffled, WordShuffled] =
     Process().map(WordShuffled)
 
-  def shuffleWord(word: String): String = {
+  private def shuffleWord(word: String) = {
     @tailrec def loop(word: String, acc: String = ""): String =
       if (word.isEmpty)
         acc

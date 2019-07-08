@@ -40,7 +40,7 @@ object TextShuffler {
     import config._
     delayRequest(delay)
       .via(keepOriginalAndSplit)
-      .via(shuffleWords2(wordShufflerSink, wordShufflerProcessorTimeout))
+      .via(shuffleWords(wordShufflerSink, wordShufflerProcessorTimeout))
       .via(concat)
   }
 
@@ -56,11 +56,7 @@ object TextShuffler {
       .map(_.split(" ").toList)
       .pop // pop the original text
 
-  def shuffleWords: Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
-    Process()
-      .map { case (originalText, words) => (originalText, words.map(WordShuffler.shuffleWord)) }
-
-  def shuffleWords2(
+  def shuffleWords(
       wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
       wordShufflerProcessorTimeout: FiniteDuration
   )(
