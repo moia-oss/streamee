@@ -49,7 +49,7 @@ final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res]
     extends Logging {
   require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
 
-  private val (_sink, switch, done) =
+  private val (_sink, switch, _done) =
     MergeHub
       .source[(Req, Respondee[Res])](bufferSize)
       .viaMat(KillSwitches.single)(Keep.both)
@@ -73,15 +73,22 @@ final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res]
     StreamRefs.sinkRef().to(_sink).run()
 
   /**
-    * Shutdown this processor. Already accepted requests are completed, but no new ones are accepted.
+    * Shutdown this processor. Already accepted requests are completed, but no new ones are
+    * accepted. To watch shutdown completion use [[whenDone]].
+    */
+  def shutdown(): Unit = {
+    logger.warn(s"Shutdown for processor $name requested!")
+    switch.shutdown()
+  }
+
+  /**
+    * The returned `Future` is completed when the running process is completed, e.g. via
+    * [[shutdown]] or unexpected failure.
     *
     * @return signal for completion
     */
-  def shutdown(): Future[Done] = {
-    logger.warn(s"Shutdown for processor $name requested!")
-    switch.shutdown()
-    done
-  }
+  def whenDone: Future[Done] =
+    _done
 
   private def resume(cause: Throwable) = {
     logger.error(s"Processor $name failed and resumes", cause)

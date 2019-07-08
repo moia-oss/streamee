@@ -17,27 +17,44 @@
 package io.moia.streamee.demo
 
 import akka.actor.Scheduler
+import akka.actor.typed.scaladsl.AskPattern.Askable
+import akka.actor.typed.ActorRef
 import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
-import akka.stream.scaladsl.{ Sink, Source }
-import io.moia.streamee.{ FlowWithContextExt2, Process, ProcessSink, SourceExt }
+import akka.stream.scaladsl.{ RestartSink, Sink, Source }
+import io.moia.streamee.{ FlowWithContextExt2, Process, ProcessSink, ProcessSinkRef, SourceExt }
+import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.ExecutionContext
 
 object TextShuffler {
 
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
 
-  final case class Config(delay: FiniteDuration, wordShufflerProcessorTimeout: FiniteDuration)
+  final case class Config(delay: FiniteDuration,
+                          wordShufflerProcessorTimeout: FiniteDuration,
+                          wordShufflerAskTimeout: FiniteDuration)
 
-  def apply(config: Config,
-            wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled])(
+  def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
   ): Process[ShuffleText, TextShuffled, TextShuffled] = {
     import config._
+
+    def wordShufflerSinkRef(): Future[ProcessSinkRef[ShuffleWord, WordShuffled]] =
+      wordShufflerRunner
+        .ask { replyTo: ActorRef[ProcessSinkRef[ShuffleWord, WordShuffled]] =>
+          WordShufflerRunner.GetProcessSinkRef(replyTo)
+        }(wordShufflerAskTimeout, scheduler)
+        .recoverWith { case _ => wordShufflerSinkRef() }
+
+    val wordShufflerSink =
+      RestartSink.withBackoff(wordShufflerAskTimeout, wordShufflerAskTimeout, 0) { () =>
+        Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
+      }
+
     delayRequest(delay)
       .via(keepOriginalAndSplit)
       .via(shuffleWords(wordShufflerSink, wordShufflerProcessorTimeout))

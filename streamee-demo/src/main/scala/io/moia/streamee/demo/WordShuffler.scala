@@ -16,9 +16,13 @@
 
 package io.moia.streamee.demo
 
-import io.moia.streamee.Process
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.scaladsl.Behaviors
+import akka.stream.Materializer
+import io.moia.streamee.{ IntoableProcessor, Process, ProcessSinkRef }
+import org.apache.logging.log4j.scala.Logging
 import scala.annotation.tailrec
-import scala.util.Random
+import scala.util.{ Failure, Random, Success }
 
 object WordShuffler {
 
@@ -57,4 +61,42 @@ object WordShuffler {
       word.head + loop(word.tail.init) + word.last
     }
   }
+}
+
+object WordShufflerRunner extends Logging {
+  import WordShuffler._
+
+  sealed trait Command
+  final case class GetProcessSinkRef(replyTo: ActorRef[ProcessSinkRef[ShuffleWord, WordShuffled]])
+      extends Command
+  final case object Shutdown     extends Command
+  private final case object Stop extends Command
+
+  def apply()(implicit mat: Materializer): Behavior[Command] =
+    Behaviors.setup { context =>
+      import context.executionContext
+
+      val self                  = context.self
+      val wordShufflerProcessor = IntoableProcessor(WordShuffler(), "word-shuffler")
+
+      wordShufflerProcessor.whenDone.onComplete { reason =>
+        logger.warn(s"Process completed: $reason")
+        self ! Stop
+      }
+
+      Behaviors.receiveMessagePartial {
+        case GetProcessSinkRef(replyTo) =>
+          wordShufflerProcessor
+            .sinkRef()
+            .onComplete {
+              case Success(sinkRef) => replyTo ! sinkRef
+              case Failure(cause)   => logger.error("Cannot create ProcessSinkRef!", cause)
+            }
+          Behaviors.same
+
+        case Shutdown =>
+          wordShufflerProcessor.shutdown()
+          Behaviors.receiveMessagePartial { case Stop => Behaviors.stopped }
+      }
+    }
 }

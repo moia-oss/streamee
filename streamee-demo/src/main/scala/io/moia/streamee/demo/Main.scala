@@ -21,10 +21,17 @@ import akka.actor.CoordinatedShutdown.Reason
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, UntypedActorSystemOps }
-import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
+import akka.cluster.typed.{
+  Cluster,
+  ClusterSingleton,
+  SelfUp,
+  SingletonActor,
+  Subscribe,
+  Unsubscribe
+}
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import io.moia.streamee.{ FrontProcessor, IntoableProcessor }
+import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
@@ -70,10 +77,14 @@ object Main extends Logging {
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    val wordShufflerProcessor = IntoableProcessor(WordShuffler(), "word-shuffler")
+    val wordShufflerRunner =
+      ClusterSingleton(context.system).init(
+        SingletonActor(WordShufflerRunner(), "word-shuffler")
+          .withStopMessage(WordShufflerRunner.Shutdown)
+      )
 
     val textShufflerProcessor =
-      FrontProcessor(TextShuffler(config.textShuffler, wordShufflerProcessor.sink),
+      FrontProcessor(TextShuffler(config.textShuffler, wordShufflerRunner),
                      textShufflerProcessorTimeout,
                      "text-shuffler")
 
