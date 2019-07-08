@@ -17,9 +17,11 @@
 package io.moia
 
 import akka.actor.typed.ActorRef
-import akka.stream.scaladsl.{ Flow, FlowWithContext, Source }
-import akka.stream.DelayOverflowStrategy
+import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
+import akka.stream.{ DelayOverflowStrategy, SinkRef }
+import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.Promise
 
 package object streamee {
 
@@ -35,88 +37,45 @@ package object streamee {
     */
   type Respondee[A] = ActorRef[Respondee.Response[A]]
 
-  // Needs to be more flexible than for Processes, because of pushing and popping which turns a
-  // Process into more common FlowWithContext!
-
-  //  /**
-//    * Extension methods for [[Process]]es.
-//    */
-//  implicit final class ProcessOps[In, Out, Res](val process: Process[In, Out, Res]) extends AnyVal {
-//
-//    /**
-//      * Emit into the given "intoable" `Sink` and continue with its response.
-//      *
-//      * @param sink    "intoable" sink from [[Process.runToIntoableSink]]
-//      * @param timeout maximum duration for the sink to respond
-//      */
-//    def into[Out2](
-//        sink: Sink[(Out, Respondee[Out2]), Any],
-//        timeout: FiniteDuration
-//    )(implicit ec: ExecutionContext, scheduler: Scheduler): Process[In, Out2, Res] =
-//      FlowWithContext.fromTuples(
-//        Flow
-//          .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-//            val maxIntoParallelism =
-//              mat.system.settings.config.getInt("streamee.max-into-parallelism")
-//            process
-//              .map { out =>
-//                val promisedOut2 = Promise[Out2]()
-//                val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
-//                (out, promisedOut2, respondee2)
-//              }
-//              .via(Flow.apply.alsoTo {
-//                Flow[((Out, Promise[Out2], Respondee[Out2]), Respondee[Res])]
-//                  .map { case ((out, _, respondee2), _) => (out, respondee2) }
-//                  .to(sink)
-//              })
-//              .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
-//              .asFlow
-//          }
-//      )
-//  }
-
-  // TODO Maybe useful for plain Sources for subprocesses?
+  /**
+    * Convenient shortcut for `Sink[(Req, Respondee[Res]), Any]`.
+    */
+  type ProcessSink[Req, Res] = Sink[(Req, Respondee[Res]), Any]
 
   /**
-    * Extension methods for `Source`s.
+    * Convenient shortcut for `SinkRef[(Req, Respondee[Res])]`.
+    */
+  type ProcessSinkRef[Req, Res] = SinkRef[(Req, Respondee[Res])]
+
+  /**
+    * Extension methods for `Source`.
     */
   implicit final class SourceExt[In, Out](val source: Source[Out, Any]) extends AnyVal {
 
-//    def into[Out2](
-//        processSink: ProcessSink[Out, Out2],
-//        timeout: FiniteDuration
-//    )(implicit ec: ExecutionContext, scheduler: Scheduler): Source[Out2, Any] =
-//      Source
-//        .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-//          val maxIntoParallelism =
-//            mat.system.settings.config.getInt("streamee.max-into-parallelism")
-//          source
-//            .map { out =>
-//              val promisedOut2 = Promise[Out2]()
-//              val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
-//              (out, promisedOut2, respondee2)
-//            }
-//            .alsoTo {
-//              Flow[(Out, Promise[Out2], Respondee[Out2])]
-//                .map { case (out, _, respondee2) => (out, respondee2) }
-//                .to(processSink)
-//            }
-//            .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
-//        }
-
     /**
-      * Emit into the given [[Processor]] and continue with its response.
+      * Emit into the given [[ProcessSink]] and continue with its response.
       *
-      * @param processor [[Processor]] to emit into
+      * @param processSink [[ProcessSink]] to emit into
       */
-    def into[Out2](processor: Processor[Out, Out2]): Source[Out2, Any] =
+    def into[Out2](processSink: ProcessSink[Out, Out2],
+                   timeout: FiniteDuration): Source[Out2, Any] =
       Source
         .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
           val maxIntoParallelism =
             mat.system.settings.config.getInt("streamee.max-into-parallelism")
-          source.mapAsync(maxIntoParallelism)(processor.accept)
+          source
+            .map { out =>
+              val promisedOut2 = Promise[Out2]()
+              val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
+              (out, promisedOut2, respondee2)
+            }
+            .alsoTo {
+              Flow[(Out, Promise[Out2], Respondee[Out2])]
+                .map { case (out, _, respondee2) => (out, respondee2) }
+                .to(processSink)
+            }
+            .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
         }
-
   }
 
   /**
@@ -126,44 +85,30 @@ package object streamee {
       val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
   ) extends AnyVal {
 
-//    def into[Out2](processSink: ProcessSink[Out, Out2], timeout: FiniteDuration)(
-//        implicit ec: ExecutionContext,
-//        scheduler: Scheduler
-//    ): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
-//      FlowWithContext.fromTuples(
-//        Flow
-//          .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-//            val maxIntoParallelism =
-//              mat.system.settings.config.getInt("streamee.max-into-parallelism")
-//            flowWithContext
-//              .map { out =>
-//                val promisedOut2 = Promise[Out2]()
-//                val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
-//                (out, promisedOut2, respondee2)
-//              }
-//              .via(Flow.apply.alsoTo {
-//                Flow[((Out, Promise[Out2], Respondee[Out2]), CtxOut)]
-//                  .map { case ((out, _, respondee2), _) => (out, respondee2) }
-//                  .to(processSink)
-//              })
-//              .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
-//              .asFlow
-//          }
-//      )
-
     /**
-      * Emit into the given [[Processor]] and continue with its response.
+      * Emit into the given [[ProcessSink]] and continue with its response.
       *
-      * @param processor [[Processor]] to emit into
+      * @param processSink [[ProcessSink]] to emit into
       */
-    def into[Out2](processor: Processor[Out, Out2]): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
+    def into[Out2](processSink: ProcessSink[Out, Out2],
+                   timeout: FiniteDuration): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] =
       FlowWithContext.fromTuples(
         Flow
           .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
             val maxIntoParallelism =
               mat.system.settings.config.getInt("streamee.max-into-parallelism")
             flowWithContext
-              .mapAsync(maxIntoParallelism)(processor.accept)
+              .map { out =>
+                val promisedOut2 = Promise[Out2]()
+                val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
+                (out, promisedOut2, respondee2)
+              }
+              .via(Flow.apply.alsoTo {
+                Flow[((Out, Promise[Out2], Respondee[Out2]), CtxOut)]
+                  .map { case ((out, _, respondee2), _) => (out, respondee2) }
+                  .to(processSink)
+              })
+              .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
               .asFlow
           }
       )

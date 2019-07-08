@@ -18,8 +18,10 @@ package io.moia.streamee
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
+import akka.stream.{ ActorMaterializer, Materializer }
 import scala.concurrent.Promise
 import scala.concurrent.duration.FiniteDuration
+import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 
 /**
   * Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
@@ -38,25 +40,42 @@ object Respondee {
   /**
     * Factory for `Respondee` behaviors.
     *
-    * @param promisedResponse `Promise` to be completed
+    * @param response `Promise` to be completed
     * @param timeout maximum duration for successful completion
     * @tparam A response type
     * @return `Respondee` behavior
     */
-  def apply[A](promisedResponse: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] =
+  def apply[A](response: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] =
     Behaviors
       .withTimers[Command] { timers =>
         timers.startSingleTimer("timeout", Timeout, timeout)
 
         Behaviors.receiveMessage {
           case Timeout =>
-            promisedResponse.failure(TimeoutException(timeout))
+            response.failure(TimeoutException(timeout))
             Behaviors.stopped
 
-          case Response(response: A @unchecked) =>
-            promisedResponse.success(response)
+          case Response(r: A @unchecked) =>
+            response.success(r)
             Behaviors.stopped
         }
       }
       .narrow
+
+  /**
+    * Create a [[Respondee]] along with its `Promise`.
+    *
+    * @param timeout maximum duration for successful completion
+    * @tparam A response type
+    * @return [[Respondee]] and its `Promise`
+    */
+  def spawn[A](timeout: FiniteDuration)(implicit mat: Materializer): (Respondee[A], Promise[A]) = {
+    val response = Promise[A]()
+    val respondee =
+      mat
+        .asInstanceOf[ActorMaterializer]
+        .system
+        .spawnAnonymous(Respondee[A](response, timeout))
+    (respondee, response)
+  }
 }

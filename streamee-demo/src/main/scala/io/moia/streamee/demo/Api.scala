@@ -25,7 +25,6 @@ import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
 import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
-import io.moia.streamee.Processor.ProcessorUnavailable
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -39,14 +38,14 @@ object Api extends Logging {
 
   def apply(
       config: Config,
-      textShufflerProcessor: Processor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
+      textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
   )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import config._
     import untypedSystem.dispatcher
 
     implicit val processUnavailableHandler: ExceptionHandler =
       ExceptionHandler {
-        case ProcessorUnavailable(name) =>
+        case FrontProcessor.ProcessorUnavailable(name) =>
           complete(ServiceUnavailable -> s"Processor $name unavailable!")
       }
 
@@ -73,7 +72,7 @@ object Api extends Logging {
   }
 
   def route(
-      textShufflerProcessor: Processor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
+      textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
   )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._

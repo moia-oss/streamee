@@ -24,7 +24,7 @@ import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, UntypedActorSyst
 import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import io.moia.streamee.Processor
+import io.moia.streamee.{ FrontProcessor, IntoableProcessor }
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
@@ -36,7 +36,6 @@ object Main extends Logging {
 
   final case class Config(api: Api.Config,
                           textShufflerProcessorTimeout: FiniteDuration,
-                          wordShufflerProcessorTimeout: FiniteDuration,
                           textShuffler: TextShuffler.Config)
 
   final object TopLevelActorTerminated extends Reason
@@ -71,15 +70,12 @@ object Main extends Logging {
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    val wordShufflerProcessor =
-      Processor.runToIntoableSink(WordShuffler(), wordShufflerProcessorTimeout, "word-shuffler")
+    val wordShufflerProcessor = IntoableProcessor(WordShuffler(), "word-shuffler")
 
     val textShufflerProcessor =
-      Processor.runToProcessor(
-        TextShuffler(config.textShuffler, wordShufflerProcessor),
-        textShufflerProcessorTimeout,
-        "text-shuffler"
-      )
+      FrontProcessor(TextShuffler(config.textShuffler, wordShufflerProcessor.sink),
+                     textShufflerProcessorTimeout,
+                     "text-shuffler")
 
     Api(config.api, textShufflerProcessor)
   }

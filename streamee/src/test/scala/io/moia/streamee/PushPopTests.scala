@@ -25,7 +25,7 @@ final class PushPopTests extends AsyncWordSpec with ActorTestSuite with Matchers
     "propagate the input element to the output" in {
       import untypedSystem.dispatcher
       val process   = Process[String, (String, Int)]().map(_.toUpperCase).push.map(_.length).pop
-      val processor = Process.runToProcessor(process, 1.second, 1, "processor")
+      val processor = FrontProcessor(process, 1.second, "processor")
       processor
         .accept("abc")
         .map {

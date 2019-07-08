@@ -19,7 +19,7 @@ package io.moia.streamee.demo
 import akka.actor.Scheduler
 import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
 import akka.stream.scaladsl.{ Sink, Source }
-import io.moia.streamee.{ FlowWithContextExt2, Process, Processor, SourceExt }
+import io.moia.streamee.{ FlowWithContextExt2, Process, ProcessSink, SourceExt }
 import scala.collection.immutable.Seq
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext
@@ -29,20 +29,22 @@ object TextShuffler {
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
 
-  final case class Config(delay: FiniteDuration, wordShufflerTimeout: FiniteDuration)
+  final case class Config(delay: FiniteDuration, wordShufflerProcessorTimeout: FiniteDuration)
 
   def apply(config: Config,
-            wordShufflerProcessor: Processor[WordShuffler.ShuffleWord, WordShuffler.WordShuffled])(
+            wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled])(
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
-  ): Process[ShuffleText, TextShuffled, TextShuffled] =
-    delay(config.delay)
+  ): Process[ShuffleText, TextShuffled, TextShuffled] = {
+    import config._
+    delayRequest(delay)
       .via(keepOriginalAndSplit)
-      .via(shuffleWords2(wordShufflerProcessor))
+      .via(shuffleWords2(wordShufflerSink, wordShufflerProcessorTimeout))
       .via(concat)
+  }
 
-  def delay(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
+  def delayRequest(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
     Process[ShuffleText, TextShuffled]() // Type annotation only needed by IDEA!
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
@@ -59,7 +61,8 @@ object TextShuffler {
       .map { case (originalText, words) => (originalText, words.map(WordShuffler.shuffleWord)) }
 
   def shuffleWords2(
-      wordShufflerProcessor: Processor[WordShuffler.ShuffleWord, WordShuffler.WordShuffled]
+      wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
+      wordShufflerProcessorTimeout: FiniteDuration
   )(
       implicit mat: Materializer
   ): Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
@@ -68,7 +71,7 @@ object TextShuffler {
       .mapAsync(1) { words =>
         Source(words)
           .map(WordShuffler.ShuffleWord)
-          .into(wordShufflerProcessor)
+          .into(wordShufflerSink, wordShufflerProcessorTimeout)
           .runWith(Sink.seq)
       }
       .map(_.map(_.word))
