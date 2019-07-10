@@ -32,7 +32,7 @@ import scala.util.{ Failure, Success }
 
 object Api extends Logging {
 
-  final case class Config(hostname: String, port: Int, terminationDeadline: FiniteDuration)
+  final case class Config(interface: String, port: Int, terminationDeadline: FiniteDuration)
 
   private final object BindFailure extends Reason
 
@@ -52,11 +52,11 @@ object Api extends Logging {
     val shutdown = CoordinatedShutdown(untypedSystem)
 
     Http()
-      .bindAndHandle(route(textShufflerProcessor), hostname, port)
+      .bindAndHandle(route(textShufflerProcessor), interface, port)
       .onComplete {
         case Failure(cause) =>
           logger.error(
-            s"Shutting down, because cannot bind to $hostname:$port!",
+            s"Shutting down, because cannot bind to $interface:$port!",
             cause
           )
           shutdown.run(BindFailure)

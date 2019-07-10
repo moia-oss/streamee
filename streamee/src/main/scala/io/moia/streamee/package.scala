@@ -65,8 +65,7 @@ package object streamee {
 
       Source
         .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-          val maxIntoParallelism =
-            mat.system.settings.config.getInt("streamee.max-into-parallelism")
+          val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
           source
             .map { out =>
               val promisedOut2 = Promise[Out2]()
@@ -78,7 +77,7 @@ package object streamee {
                 .map { case (out, _, respondee2) => (out, respondee2) }
                 .to(processSink)
             }
-            .mapAsync(maxIntoParallelism) { case (_, promisedOut2, _) => promisedOut2.future }
+            .mapAsync(parallelism) { case (_, promisedOut2, _) => promisedOut2.future }
         }
     }
   }
@@ -145,7 +144,7 @@ package object streamee {
     * Extension methods for `FlowWithContext` with paired output context (see
     * [[FlowWithContextExt.push]]).
     */
-  implicit final class FlowWithContextExt2[In, CtxIn, Out, CtxOut, A](
+  implicit final class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, A](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Any]
   ) extends AnyVal {
 
@@ -160,7 +159,7 @@ package object streamee {
   /**
     * Missing standard operators from `FlowOps` not yet defined on `FlowWithContext` (by Akka).
     */
-  implicit final class FlowWithContextExtAkka[In, CtxIn, Out, CtxOut](
+  implicit final class FlowWithContextOpsAkka[In, CtxIn, Out, CtxOut](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
   ) extends AnyVal {
 

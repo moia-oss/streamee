@@ -61,13 +61,15 @@ final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res]
       .run()
 
   /**
-    * Sink to be used with the `into` stream extension method.
+    * Sink to be used with the `into` stream extension method locally.
     */
   def sink: ProcessSink[Req, Res] =
     _sink
 
   /**
-    * Create a `SinkRef` to be used with the `into` stream extension method.
+    * Create a `SinkRef` to be used with the `into` stream extension method remotely, i.e. when this
+    * processor is running on one member node of an Akka cluster and on another member node `into`
+    * is used.
     */
   def sinkRef()(implicit mat: Materializer): Future[SinkRef[(Req, Respondee[Res])]] =
     StreamRefs.sinkRef().to(_sink).run()

@@ -21,7 +21,13 @@ import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.ActorRef
 import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
 import akka.stream.scaladsl.{ RestartSink, Sink, Source }
-import io.moia.streamee.{ FlowWithContextExt2, Process, ProcessSink, ProcessSinkRef, SourceExt }
+import io.moia.streamee.{
+  FlowWithPairedContextOps,
+  Process,
+  ProcessSink,
+  ProcessSinkRef,
+  SourceExt
+}
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
 import scala.concurrent.{ Await, ExecutionContext, Future }
