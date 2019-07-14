@@ -16,22 +16,30 @@
 
 package io.moia.streamee
 
+import akka.stream.scaladsl.{ Sink, Source }
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.Promise
 
-final class PushPopTests extends AsyncWordSpec with ActorTestSuite with Matchers {
+final class PushPopTests extends AsyncWordSpec with ActorSuite with Matchers {
 
   "Calling pushIn and popIn" should {
     "propagate the input element to the output" in {
+      import testKit._
       import untypedSystem.dispatcher
+
       val process   = Process[String, (String, Int)]().map(_.toUpperCase).push.map(_.length).pop
-      val processor = FrontProcessor(process, 1.second, "processor")
-      processor
-        .accept("abc")
+      val response  = Promise[(String, Int)]()
+      val respondee = spawn(Respondee[(String, Int)](response, 1.second))
+
+      Source
+        .single(("abc", respondee))
+        .via(process)
+        .runWith(Sink.head)
         .map {
-          case (s, n) =>
+          case ((s, n), _) =>
             s shouldBe "ABC"
-            n shouldBe 4
+            n shouldBe 3
         }
     }
   }

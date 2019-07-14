@@ -21,9 +21,9 @@ import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import org.scalatest.{ BeforeAndAfterAll, TestSuite }
+import org.scalatest.{ BeforeAndAfterAll, Suite }
 
-trait ActorTestSuite extends TestSuite with BeforeAndAfterAll {
+trait ActorSuite extends Suite with BeforeAndAfterAll {
 
   protected val testKit: ActorTestKit =
     ActorTestKit()
