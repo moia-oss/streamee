@@ -52,7 +52,7 @@ package object streamee {
   implicit final class SourceExt[In, Out](val source: Source[Out, Any]) extends AnyVal {
 
     /**
-      * Emit into the given [[ProcessSink]] and continue with its response.
+      * Ingest into the given [[ProcessSink]] and emit its response.
       *
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
@@ -88,7 +88,7 @@ package object streamee {
   ) extends AnyVal {
 
     /**
-      * Emit into the given [[ProcessSink]] and continue with its response.
+      * Ingest into the given [[ProcessSink]] and emit its response.
       *
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
