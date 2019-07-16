@@ -40,10 +40,9 @@ object Respondee {
   /**
     * Factory for `Respondee` behaviors.
     *
-    * @param response `Promise` to be completed
-    * @param timeout maximum duration for successful completion; must be positive!
+    * @param response promised response
+    * @param timeout maximum duration for successful completion of the promised response; must be positive!
     * @tparam A response type
-    * @return `Respondee` behavior
     */
   def apply[A](response: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] = {
     require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
@@ -66,11 +65,10 @@ object Respondee {
   }
 
   /**
-    * Create a [[Respondee]] along with its `Promise`.
+    * Create a [[Respondee]] along with its promised response.
     *
-    * @param timeout maximum duration for successful completion
+    * @param timeout maximum duration for successful completion of the promised response
     * @tparam A response type
-    * @return [[Respondee]] and its `Promise`
     */
   def spawn[A](timeout: FiniteDuration)(implicit mat: Materializer): (Respondee[A], Promise[A]) = {
     val response = Promise[A]()

@@ -16,17 +16,13 @@
 
 package io.moia.streamee
 
-import akka.stream.scaladsl.FlowWithContext
-import org.apache.logging.log4j.scala.Logging
+import org.scalacheck.Gen
+import scala.concurrent.duration.{ Duration, FiniteDuration, NANOSECONDS }
 
-object Process extends Logging {
+object TestData {
 
-  /**
-    * Factory for a [[Process]]. Convenient shortcut for `FlowWithContext[Req, Respondee[Res]]`.
-    *
-    * @tparam Req request type
-    * @tparam Res response type
-    */
-  def apply[Req, Res](): Process[Req, Req, Res] =
-    FlowWithContext[Req, Respondee[Res]]
+  val nonPosDuration: Gen[FiniteDuration] =
+    Gen
+      .choose(-Long.MaxValue, 0L) // Must be -Long.MaxValue instead of Long.MinValue, see `Duration` for details!
+      .map(Duration(_, NANOSECONDS))
 }

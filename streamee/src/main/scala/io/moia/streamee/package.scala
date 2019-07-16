@@ -17,7 +17,6 @@
 package io.moia
 
 import akka.actor.typed.ActorRef
-import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 import akka.stream.{ DelayOverflowStrategy, SinkRef }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
@@ -68,16 +67,15 @@ package object streamee {
           val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
           source
             .map { out =>
-              val promisedOut2 = Promise[Out2]()
-              val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
-              (out, promisedOut2, respondee2)
+              val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
+              (out, respondee2, out2)
             }
             .alsoTo {
-              Flow[(Out, Promise[Out2], Respondee[Out2])]
-                .map { case (out, _, respondee2) => (out, respondee2) }
+              Flow[(Out, Respondee[Out2], Promise[Out2])]
+                .map { case (out, respondee2, _) => (out, respondee2) }
                 .to(processSink)
             }
-            .mapAsync(parallelism) { case (_, promisedOut2, _) => promisedOut2.future }
+            .mapAsync(parallelism) { case (_, _, out2) => out2.future }
         }
     }
   }
@@ -106,16 +104,15 @@ package object streamee {
             val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
             flowWithContext
               .map { out =>
-                val promisedOut2 = Promise[Out2]()
-                val respondee2   = mat.system.spawnAnonymous(Respondee(promisedOut2, timeout))
-                (out, promisedOut2, respondee2)
+                val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
+                (out, respondee2, out2)
               }
               .via(Flow.apply.alsoTo {
-                Flow[((Out, Promise[Out2], Respondee[Out2]), CtxOut)]
-                  .map { case ((out, _, respondee2), _) => (out, respondee2) }
+                Flow[((Out, Respondee[Out2], Promise[Out2]), CtxOut)]
+                  .map { case ((out, respondee2, _), _) => (out, respondee2) }
                   .to(processSink)
               })
-              .mapAsync(parallelism) { case (_, promisedOut2, _) => promisedOut2.future }
+              .mapAsync(parallelism) { case (_, _, out2) => out2.future }
               .asFlow
           }
       )
