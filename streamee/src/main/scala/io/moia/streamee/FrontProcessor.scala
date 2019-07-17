@@ -21,6 +21,7 @@ import akka.stream.{
   Materializer,
   OverflowStrategy,
   QueueOfferResult,
+  StreamDetachedException,
   Supervision
 }
 import akka.stream.scaladsl.{ Keep, Sink, Source }
@@ -98,20 +99,23 @@ final class FrontProcessor[Req, Res] private (
       .run()
 
   /**
-    * Emit the given request into the process. The returned `Future` is either completed
+    * Ingest the given request into the process. The returned `Future` is either completed
     * successfully with the response or failed with [[ProcessorUnavailable]], if the process
-    * back-pressures or does not create the response in time.
+    * back-pressures or with [[TimeoutException]], if the response is not produced in time.
     *
     * @param request request to be accepted
     * @return `Future` for the response
     */
   def accept(request: Req): Future[Res] = {
     val (respondee, response) = Respondee.spawn[Res](timeout)
-    queue.offer((request, respondee)).flatMap {
-      case Enqueued => response.future
-      case Dropped  => Future.failed(ProcessorUnavailable(name))
-      case other    => Future.failed(ProcessorError(other))
-    }
+    queue
+      .offer((request, respondee))
+      .recover { case _: StreamDetachedException => Dropped } // after shutdown we want to fail with `ProcessorUnavailable`
+      .flatMap {
+        case Enqueued => response.future // might result in a `TimeoutException`
+        case Dropped  => Future.failed(ProcessorUnavailable(name))
+        case other    => Future.failed(ProcessorError(other))
+      }
   }
 
   /**

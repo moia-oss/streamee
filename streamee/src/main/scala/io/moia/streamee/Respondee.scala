@@ -25,17 +25,13 @@ import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 
 /**
   * Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
-  * or with a [[Respondee.TimeoutException]]. Similar to an expiring `Promise`, but location
-  * transparent.
+  * or with a [[TimeoutException]]. Similar to an expiring `Promise`, but location transparent.
   */
 object Respondee {
 
   sealed trait Command
   final case class Response[A] private (response: A) extends Command
   private final case object Timeout                  extends Command
-
-  final case class TimeoutException(timeout: FiniteDuration)
-      extends Exception(s"No response within $timeout!")
 
   /**
     * Factory for `Respondee` behaviors.

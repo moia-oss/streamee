@@ -47,6 +47,13 @@ package object streamee {
   type ProcessSinkRef[Req, Res] = SinkRef[(Req, Respondee[Res])]
 
   /**
+    * No response within the given timeout
+    * @param timeout maximum duration for the response
+    */
+  final case class TimeoutException(timeout: FiniteDuration)
+      extends Exception(s"No response within $timeout!")
+
+  /**
     * Extension methods for `Source`.
     */
   implicit final class SourceExt[In, Out](val source: Source[Out, Any]) extends AnyVal {

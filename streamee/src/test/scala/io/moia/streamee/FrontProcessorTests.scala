@@ -16,175 +16,76 @@
 
 package io.moia.streamee
 
+import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
+import scala.concurrent.duration.DurationInt
 
-final class FrontProcessorTests extends AsyncWordSpec with Matchers {}
-//object ProcessorTests extends ActorTestSuite {
-//  import testKit._
-//
-//  private val plusOne = IntoableProcessor[Int, Int]().map(_ + 1)
-//
-//  override def tests: Tests =
-//    Tests {
-//      'handlerIllegalParallelism - {
-//        intercept[IllegalArgumentException] {
-//          Handler((n: Int) => Future.successful(n + 1), 1.second, "processor", 1, 0)
-//        }
-//      }
-//
-//      'applyIllegalTimeout - {
-//        intercept[IllegalArgumentException] {
-//          Handler(plusOne, 0.seconds, "processor", 1)
-//        }
-//      }
-//
-//      'applyIllegalBufferSize - {
-//        intercept[IllegalArgumentException] {
-//          Handler(plusOne, 1.second, "processor", 0)
-//        }
-//      }
-//
-//      'handlerInTime - {
-//        val timeout   = 100.milliseconds.dilated
-//        val processor = Handler((n: Int) => Future.successful(n + 1), timeout, "processor", 1, 1)
-//
-//        Future
-//          .sequence(List(42, 43, 44, 45).map(processor.process))
-//          .map { responses =>
-//            assert {
-//              responses == List(43, 44, 45, 46)
-//            }
-//          }
-//      }
-//
-//      'inTime - {
-//        val timeout   = 100.milliseconds.dilated
-//        val processor = Handler(plusOne, timeout, "processor", 1)
-//
-//        Future
-//          .sequence(List(42, 43, 44, 45).map(processor.process))
-//          .map { responses =>
-//            assert {
-//              responses == List(43, 44, 45, 46)
-//            }
-//          }
-//      }
-//
-//      'notInTime - {
-//        val timeout = 100.milliseconds.dilated
-//        val process = plusOne.via(
-//          Flow[(Int, Promise[Int])].delay(1.second.dilated, OverflowStrategy.backpressure)
-//        )
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        val pe42 = PromiseExpired(timeout, "from processor processor for request 42")
-//        val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
-//        val pe44 = PromiseExpired(timeout, "from processor processor for request 44")
-//        val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
-//
-//        Future
-//          .sequence(List(42, 43, 44, 45).map(processor.process).map(_.failed))
-//          .map { responses =>
-//            assert {
-//              responses == List(pe42, pe43, pe44, pe45)
-//            }
-//          }
-//      }
-//
-//      'reorder - {
-//        val timeout = 100.milliseconds.dilated
-//        val process =
-//          plusOne
-//            .grouped(2)
-//            .via(Flow[(Seq[Int], Seq[Promise[Int]])].mapConcat {
-//              case (Seq(n1, n2), Seq(p1, p2)) => List((n2, p2), (n1, p1))
-//            })
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        Future
-//          .sequence(List(42, 43, 44, 45).map(processor.process))
-//          .map { responses =>
-//            assert {
-//              responses == List(43, 44, 45, 46)
-//            }
-//          }
-//      }
-//
-//      'filter - {
-//        val timeout   = 100.milliseconds.dilated
-//        val process   = plusOne.filter(_ % 2 != 0)
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
-//        val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
-//
-//        Future
-//          .sequence(
-//            List(
-//              processor.process(42),
-//              processor.process(43).failed,
-//              processor.process(44),
-//              processor.process(45).failed
-//            )
-//          )
-//          .map { responses =>
-//            assert {
-//              responses == List(43, pe43, 45, pe45)
-//            }
-//          }
-//      }
-//
-//      'resume - {
-//        val timeout   = 100.milliseconds.dilated
-//        val process   = plusOne.map(n => if (n % 2 == 0) throw new Exception("boom") else n)
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        val pe43 = PromiseExpired(timeout, "from processor processor for request 43")
-//        val pe45 = PromiseExpired(timeout, "from processor processor for request 45")
-//
-//        Future
-//          .sequence {
-//            List(
-//              processor.process(42),
-//              processor.process(43).failed,
-//              processor.process(44),
-//              processor.process(45).failed
-//            )
-//          }
-//          .map { responses =>
-//            assert {
-//              responses == List(43, pe43, 45, pe45)
-//            }
-//          }
-//      }
-//
-//      'processInFlightOnShutdown - {
-//        val timeout = 1000.milliseconds.dilated
-//        val process = plusOne.via(
-//          Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
-//        )
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        val responses = Future.sequence(List(42, 43, 44, 45).map(processor.process))
-//        for {
-//          _  <- processor.shutdown()
-//          rs <- responses
-//        } yield assert(rs == List(43, 44, 45, 46))
-//      }
-//
-//      'noLongerEnqueueOnShutdown - {
-//        val timeout = 100.milliseconds.dilated
-//        val process = plusOne.via(
-//          Flow[(Int, Promise[Int])].delay(100.milliseconds.dilated, OverflowStrategy.backpressure)
-//        )
-//        val processor = Handler(process, timeout, "processor", 1)
-//
-//        processor.shutdown()
-//        Future
-//          .sequence(List(42, 43, 44, 45).map(processor.process).map(_.failed))
-//          .map { responses =>
-//            assert(responses.map(_ => "failure") == List.fill(4)("failure"))
-//          }
-//      }
-//    }
-//}
+final class FrontProcessorTests
+    extends AsyncWordSpec
+    with AkkaSuite
+    with Matchers
+    with ScalaCheckDrivenPropertyChecks {
+
+  "Creating a FrontProcessor" should {
+    "throw an IllegalArgumentException for timeout <= 0" in {
+      forAll(TestData.nonPosDuration) { timeout =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          FrontProcessor(Process[Int, Int](), timeout, "name")
+        }
+      }
+    }
+
+    "throw an IllegalArgumentException for bufferSize <= 0" in {
+      forAll(Gen.choose(Int.MinValue, 0)) { bufferSize =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          FrontProcessor(Process[Int, Int](), 1.second, "name", bufferSize)
+        }
+      }
+    }
+  }
+
+  "Calling accept" should {
+    "eventually succeed" in {
+      val process   = Process[String, Int]().map(_.length)
+      val processor = FrontProcessor(process, 1.second, "name")
+      processor.accept("abc").map(_ shouldBe 3)
+    }
+
+    "fail after the given timeout" in {
+      val timeout   = 100.milliseconds
+      val process   = Process[String, String]().delay(1.second)
+      val processor = FrontProcessor(process, timeout, "name")
+      processor.accept("abc").failed.map(_ shouldBe TimeoutException(timeout))
+    }
+
+    "resume on failure" in {
+      val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
+      val processor = FrontProcessor(process, 1.second, "name")
+      processor.accept((4, 0)).failed.map(_.getClass shouldBe classOf[ArithmeticException])
+      processor.accept((4, 2)).map(_ shouldBe 2)
+    }
+
+    "process already accepted requests on shutdown" in {
+      val process   = Process[String, String]().delay(100.milliseconds)
+      val processor = FrontProcessor(process, 1.second, "name")
+      val response1 = processor.accept("abc")
+      processor.shutdown()
+      val response2 = processor.accept("def")
+      response1.zip(response2.failed).map {
+        case (s, e) =>
+          s shouldBe "abc"
+          e shouldBe FrontProcessor.ProcessorUnavailable("name")
+      }
+    }
+  }
+
+  "Calling shutdown" should {
+    "complete whenDone" in {
+      val processor = FrontProcessor(Process[Int, Int](), 1.second, "name")
+      val done      = processor.whenDone
+      processor.shutdown()
+      done.map(_ => succeed)
+    }
+  }
+}
