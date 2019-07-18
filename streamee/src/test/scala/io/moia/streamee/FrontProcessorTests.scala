@@ -56,7 +56,7 @@ final class FrontProcessorTests
       val timeout   = 100.milliseconds
       val process   = Process[String, String]().delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
-      processor.accept("abc").failed.map(_ shouldBe TimeoutException(timeout))
+      processor.accept("abc").failed.map(_ shouldBe ResponseTimeoutException(timeout))
     }
 
     "resume on failure" in {

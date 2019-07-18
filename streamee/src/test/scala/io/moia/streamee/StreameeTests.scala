@@ -45,7 +45,7 @@ final class StreameeTests
         .into(Sink.ignore, timeout)
         .runWith(Sink.head)
         .failed
-        .map { case TimeoutException(t) => t shouldBe timeout }
+        .map { case ResponseTimeoutException(t) => t shouldBe timeout }
     }
 
     "ingest into the process sink and emit its response" in {
@@ -78,7 +78,7 @@ final class StreameeTests
         .via(Process[String, String]().into(Sink.ignore, timeout))
         .runWith(Sink.head)
         .failed
-        .map { case TimeoutException(t) => t shouldBe timeout }
+        .map { case ResponseTimeoutException(t) => t shouldBe timeout }
     }
 
     "ingest into the process sink and emit its response" in {

@@ -17,10 +17,10 @@
 package io.moia
 
 import akka.actor.typed.ActorRef
-import akka.stream.{ DelayOverflowStrategy, SinkRef }
+import akka.stream.{ DelayOverflowStrategy, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
-import scala.concurrent.Promise
+import scala.concurrent.{ Future, Promise }
 
 package object streamee {
 
@@ -47,16 +47,17 @@ package object streamee {
   type ProcessSinkRef[Req, Res] = SinkRef[(Req, Respondee[Res])]
 
   /**
-    * No response within the given timeout
+    * Signals no response within the given timeout.
+    *
     * @param timeout maximum duration for the response
     */
-  final case class TimeoutException(timeout: FiniteDuration)
+  final case class ResponseTimeoutException(timeout: FiniteDuration)
       extends Exception(s"No response within $timeout!")
 
   /**
     * Extension methods for `Source`.
     */
-  implicit final class SourceExt[In, Out](val source: Source[Out, Any]) extends AnyVal {
+  implicit final class SourceExt[Out, M](val source: Source[Out, M]) extends AnyVal {
 
     /**
       * Ingest into the given [[ProcessSink]] and emit its response.
@@ -66,7 +67,7 @@ package object streamee {
       * @tparam Out2 response type of the given [[ProcessSink]]
       */
     def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): Source[Out2, Any] = {
+                   timeout: FiniteDuration): Source[Out2, Future[M]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
 
       Source
@@ -90,8 +91,8 @@ package object streamee {
   /**
     * Extension methods for `FlowWithContext`.
     */
-  implicit final class FlowWithContextExt[In, CtxIn, Out, CtxOut](
-      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
+  implicit final class FlowWithContextExt[In, CtxIn, Out, CtxOut, M](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, M]
   ) extends AnyVal {
 
     /**
@@ -102,7 +103,7 @@ package object streamee {
       * @tparam Out2 response type of the given [[ProcessSink]]
       */
     def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): FlowWithContext[In, CtxIn, Out2, CtxOut, Any] = {
+                   timeout: FiniteDuration): FlowWithContext[In, CtxIn, Out2, CtxOut, Future[M]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
 
       FlowWithContext.fromTuples(
@@ -170,7 +171,13 @@ package object streamee {
     def delay(
         of: FiniteDuration,
         strategy: DelayOverflowStrategy = DelayOverflowStrategy.dropTail
-    ): FlowWithContext[In, CtxIn, Out, CtxOut, Any] =
+    ): flowWithContext.Repr[Out, CtxOut] =
       flowWithContext.via(Flow.apply.delay(of, strategy))
+
+    def throttle(elements: Int,
+                 per: FiniteDuration,
+                 maximumBurst: Int,
+                 mode: ThrottleMode): flowWithContext.Repr[Out, CtxOut] =
+      flowWithContext.via(Flow.apply.throttle(elements, per, maximumBurst, mode))
   }
 }

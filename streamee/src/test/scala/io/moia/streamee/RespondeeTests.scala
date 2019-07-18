@@ -26,7 +26,7 @@ final class RespondeeTests extends AsyncWordSpec with AkkaSuite with Matchers {
     "fail its promise with a TimeoutException if not receiving a Response in time" in {
       val timeout       = 100.milliseconds
       val (_, response) = Respondee.spawn[Int](timeout)
-      response.future.failed.map { case TimeoutException(t) => t shouldBe timeout }
+      response.future.failed.map { case ResponseTimeoutException(t) => t shouldBe timeout }
     }
 
     "successfully complete its promise with the received Response" in {

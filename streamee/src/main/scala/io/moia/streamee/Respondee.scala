@@ -25,7 +25,7 @@ import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 
 /**
   * Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
-  * or with a [[TimeoutException]]. Similar to an expiring `Promise`, but location transparent.
+  * or with a [[ResponseTimeoutException]]. Similar to an expiring `Promise`, but location transparent.
   */
 object Respondee {
 
@@ -49,7 +49,7 @@ object Respondee {
 
         Behaviors.receiveMessage {
           case Timeout =>
-            response.failure(TimeoutException(timeout))
+            response.failure(ResponseTimeoutException(timeout))
             Behaviors.stopped
 
           case Response(r: A @unchecked) =>

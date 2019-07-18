@@ -86,7 +86,7 @@ object TextShuffler {
       implicit mat: Materializer
   ): Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
     Process[(String, Seq[String]), TextShuffled]()
-      .push(_._1, _._2) // push the original text
+      .push(_._1, _._2) // push the original text, because it gets lost (shuffled) when ingesting into the `wordShufflerSink`
       .mapAsync(1) { words =>
         Source(words)
           .map(WordShuffler.ShuffleWord)
@@ -94,7 +94,7 @@ object TextShuffler {
           .runWith(Sink.seq)
       }
       .map(_.map(_.word))
-      .pop // pop the original text
+      .pop // pop the original text, because we need it togehter with the shuffled for the purpose of displaying
 
   def concat: Process[(String, Seq[String]), TextShuffled, TextShuffled] =
     Process()
