@@ -49,21 +49,31 @@ final class FrontProcessorTests
     "eventually succeed" in {
       val process   = Process[String, Int]().map(_.length)
       val processor = FrontProcessor(process, 1.second, "name")
-      processor.accept("abc").map(_ shouldBe 3)
+      processor
+        .accept("abc")
+        .map(_ shouldBe 3)
     }
 
     "fail after the given timeout" in {
       val timeout   = 100.milliseconds
       val process   = Process[String, String]().delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
-      processor.accept("abc").failed.map(_ shouldBe ResponseTimeoutException(timeout))
+      processor
+        .accept("abc")
+        .failed
+        .map(_ shouldBe ResponseTimeoutException(timeout))
     }
 
     "resume on failure" in {
       val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
       val processor = FrontProcessor(process, 1.second, "name")
-      processor.accept((4, 0)).failed.map(_.getClass shouldBe classOf[ArithmeticException])
-      processor.accept((4, 2)).map(_ shouldBe 2)
+      processor
+        .accept((4, 0))
+        .failed
+        .map(_.getClass shouldBe classOf[ArithmeticException])
+      processor
+        .accept((4, 2))
+        .map(_ shouldBe 2)
     }
 
     "process already accepted requests on shutdown" in {

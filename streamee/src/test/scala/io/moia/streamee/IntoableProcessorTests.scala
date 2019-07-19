@@ -40,6 +40,16 @@ final class IntoableProcessorTests
   }
 
   "Calling shutdown" should {
+    "fail after the given timeout" in {
+      val timeout   = 100.milliseconds
+      val process   = Process[String, String]().delay(1.second)
+      val processor = FrontProcessor(process, timeout, "name")
+      processor
+        .accept("abc")
+        .failed
+        .map(_ shouldBe ResponseTimeoutException(timeout))
+    }
+
     "complete whenDone" in {
       val processor = IntoableProcessor(Process[Int, Int](), "name")
       val done      = processor.whenDone
@@ -48,8 +58,40 @@ final class IntoableProcessorTests
     }
   }
 
-  "Using and shutting down an IntoableProcessor locally" should {
-    "at most drop as many requests as the bufferSize" in {
+  "Using an IntoableProcessor locally" should {
+    "eventually emit into the outer stream" in {
+      val process   = Process[String, Int]().map(_.length)
+      val processor = IntoableProcessor(process, "name")
+      Source
+        .single("abc")
+        .into(processor.sink, 1.second)
+        .runWith(Sink.head)
+        .map(_ shouldBe 3)
+    }
+
+    "fail after the given timeout" in {
+      val delay     = 100.milliseconds
+      val process   = Process[String, String]().delay(delay)
+      val processor = IntoableProcessor(process, "name")
+      Source
+        .single("abc")
+        .into(processor.sink, 100.milliseconds)
+        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .runWith(Sink.headOption)
+        .map(_ shouldBe None)
+    }
+
+    "resume on failure" in {
+      val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
+      val processor = IntoableProcessor(process, "name")
+      Source(List((4, 0), (4, 2)))
+        .into(processor.sink, 100.milliseconds)
+        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .runWith(Sink.head)
+        .map(_ shouldBe 2)
+    }
+
+    "at most drop as many requests as the bufferSize on shutdown" in {
       val process   = Process[Int, Int]().throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
