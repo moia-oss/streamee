@@ -10,7 +10,7 @@ lazy val `streamee-root` =
     .settings(
       Compile / unmanagedSourceDirectories := Seq.empty,
       Test / unmanagedSourceDirectories := Seq.empty,
-      publishArtifact := false
+      publishArtifact := false,
     )
 
 lazy val `streamee` =
@@ -28,30 +28,26 @@ lazy val `streamee` =
         library.akkaStreamTestkit     % Test,
         library.log4jCore             % Test,
         library.scalaCheck            % Test,
-        library.utest                 % Test
+        library.scalaTest             % Test,
       )
     )
 
 lazy val `streamee-demo` =
   project
-    .enablePlugins(AutomateHeaderPlugin, DockerPlugin, JavaAppPackaging)
+    .enablePlugins(AutomateHeaderPlugin)
     .dependsOn(`streamee`)
     .settings(settings)
     .settings(
-      Compile / packageDoc / publishArtifact := false,
-      Compile / packageSrc / publishArtifact := false,
       libraryDependencies ++= Seq(
         library.akkaClusterShardingTyped,
         library.akkaHttpCirce,
-        library.akkaManagementClusterBootstrap,
-        library.akkaManagementClusterHttp,
         library.akkaSlf4j,
         library.circeGeneric,
         library.disruptor,
         library.log4jApiScala,
         library.log4jCore,
         library.log4jSlf4j,
-        library.pureConfig
+        library.pureConfig,
       ),
       publishArtifact := false
     )
@@ -63,38 +59,35 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.21"
+      val akka           = "2.5.23"
       val akkaHttp       = "10.1.8"
-      val akkaHttpJson   = "1.25.2"
+      val akkaHttpJson   = "1.27.0"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "1.0.0"
       val circe          = "0.11.1"
       val disruptor      = "3.4.2"
-      val log4j          = "2.11.2"
+      val log4j          = "2.12.0"
       val log4jApiScala  = "11.0"
-      val pureConfig     = "0.10.2"
+      val pureConfig     = "0.11.1"
       val scalaCheck     = "1.14.0"
-      val utest          = "0.6.6"
+      val scalaTest      = "3.0.8"
     }
-    val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
-    val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
-    val akkaHttp                       = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
-    val akkaHttpCirce                  = "de.heikoseeberger"             %% "akka-http-circe"                   % Version.akkaHttpJson
-    val akkaHttpTestkit                = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
-    val akkaManagementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
-    val akkaManagementClusterHttp      = "com.lightbend.akka.management" %% "akka-management-cluster-http"      % Version.akkaManagement
-    val akkaSlf4j                      = "com.typesafe.akka"             %% "akka-slf4j"                        % Version.akka
-    val akkaStreamTestkit              = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
-    val akkaStreamTyped                = "com.typesafe.akka"             %% "akka-stream-typed"                 % Version.akka
-    val circeGeneric                   = "io.circe"                      %% "circe-generic"                     % Version.circe
-    val disruptor                      = "com.lmax"                      %  "disruptor"                         % Version.disruptor
-    val log4jApi                       = "org.apache.logging.log4j"      %  "log4j-api"                         % Version.log4j
-    val log4jApiScala                  = "org.apache.logging.log4j"      %% "log4j-api-scala"                   % Version.log4jApiScala
-    val log4jCore                      = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
-    val log4jSlf4j                     = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
-    val pureConfig                     = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
-    val scalaCheck                     = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
-    val utest                          = "com.lihaoyi"                   %% "utest"                             % Version.utest
+    val akkaActorTestkitTyped    = "com.typesafe.akka"        %% "akka-actor-testkit-typed"    % Version.akka
+    val akkaClusterShardingTyped = "com.typesafe.akka"        %% "akka-cluster-sharding-typed" % Version.akka
+    val akkaHttp                 = "com.typesafe.akka"        %% "akka-http"                   % Version.akkaHttp
+    val akkaHttpCirce            = "de.heikoseeberger"        %% "akka-http-circe"             % Version.akkaHttpJson
+    val akkaHttpTestkit          = "com.typesafe.akka"        %% "akka-http-testkit"           % Version.akkaHttp
+    val akkaSlf4j                = "com.typesafe.akka"        %% "akka-slf4j"                  % Version.akka
+    val akkaStreamTestkit        = "com.typesafe.akka"        %% "akka-stream-testkit"         % Version.akka
+    val akkaStreamTyped          = "com.typesafe.akka"        %% "akka-stream-typed"           % Version.akka
+    val circeGeneric             = "io.circe"                 %% "circe-generic"               % Version.circe
+    val disruptor                = "com.lmax"                 %  "disruptor"                   % Version.disruptor
+    val log4jApi                 = "org.apache.logging.log4j" %  "log4j-api"                   % Version.log4j
+    val log4jApiScala            = "org.apache.logging.log4j" %% "log4j-api-scala"             % Version.log4jApiScala
+    val log4jCore                = "org.apache.logging.log4j" %  "log4j-core"                  % Version.log4j
+    val log4jSlf4j               = "org.apache.logging.log4j" %  "log4j-slf4j-impl"            % Version.log4j
+    val pureConfig               = "com.github.pureconfig"    %% "pureconfig"                  % Version.pureConfig
+    val scalaCheck               = "org.scalacheck"           %% "scalacheck"                  % Version.scalaCheck
+    val scalaTest                = "org.scalatest"            %% "scalatest"                   % Version.scalaTest
   }
 
 // *****************************************************************************
@@ -104,7 +97,6 @@ lazy val library =
 lazy val settings =
   commonSettings ++
   scalafmtSettings ++
-  dockerSettings ++
   sonatypeSettings ++
   commandAliases
 
@@ -126,21 +118,11 @@ lazy val commonSettings =
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
-    testFrameworks += new TestFramework("utest.runner.Framework")
   )
 
 lazy val scalafmtSettings =
   Seq(
-    scalafmtOnCompile := true
-  )
-
-lazy val dockerSettings =
-  Seq(
-    Docker / daemonUser := "root",
-    Docker / maintainer := organizationName.value,
-    Docker / version := "latest",
-    dockerBaseImage := "openjdk:10.0.2-slim",
-    dockerExposedPorts := Seq(80, 8558)
+    scalafmtOnCompile := true,
   )
 
 lazy val sonatypeSettings = {
@@ -149,37 +131,24 @@ lazy val sonatypeSettings = {
     publishTo := sonatypePublishTo.value,
     sonatypeProfileName := organization.value,
     publishMavenStyle := true,
-    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io"))
+    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io")),
   )
 }
 
-
 lazy val commandAliases =
-  addCommandAlias(
-    "r0",
-    """|reStart
-       |---
-       |-Dstreamee-demo.api.port=8080
-       |-Dakka.remote.artery.canonical.hostname=127.0.0.1
-       |-Dakka.remote.artery.canonical.port=25520
-       |-Dakka.management.http.hostname=127.0.0.1
-       |-Dakka.management.http.port=8558
-       |-Dakka.management.cluster.bootstrap.contact-point-discovery.required-contact-point-nr=1
-       |-Dakka.discovery.method=config
-       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.host=127.0.0.1
-       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.port=8558""".stripMargin
-  ) ++
   addCommandAlias(
     "r1",
     """|reStart
        |---
-       |-Dstreamee-demo.api.port=8081
+       |-Dstreamee-demo.api.port=8080
        |-Dakka.remote.artery.canonical.hostname=127.0.0.1
-       |-Dakka.remote.artery.canonical.port=25521
-       |-Dakka.management.http.hostname=127.0.0.1
-       |-Dakka.management.http.port=8559
-       |-Dakka.management.cluster.bootstrap.contact-point-discovery.required-contact-point-nr=1
-       |-Dakka.discovery.method=config
-       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.host=127.0.0.1
-       |-Dakka.discovery.config.services.streamee-demo.endpoints.0.port=8558""".stripMargin
+       |-Dakka.cluster.seed-nodes.0=akka://streamee-demo@127.0.0.1:25520""".stripMargin
+  ) ++
+  addCommandAlias(
+    "r2",
+    """|reStart
+       |---
+       |-Dstreamee-demo.api.port=8080
+       |-Dakka.remote.artery.canonical.hostname=127.0.0.2
+       |-Dakka.cluster.seed-nodes.0=akka://streamee-demo@127.0.0.1:25520""".stripMargin
   )

@@ -17,17 +17,16 @@
 package io.moia.streamee
 
 import akka.stream.scaladsl.FlowWithContext
-import scala.concurrent.Promise
+import org.apache.logging.log4j.scala.Logging
 
-object Process {
+object Process extends Logging {
 
   /**
-    * Factory for an identity [[ProcessStage]] which can be used as an entry point for creating
-    * processes.
+    * Factory for a [[Process]]. Convenient shortcut for `FlowWithContext[Req, Respondee[Res]]`.
     *
     * @tparam Req request type
     * @tparam Res response type
     */
-  def apply[Req, Res](): ProcessStage[Req, Req, Res] =
-    FlowWithContext[Promise[Res], Req]
+  def apply[Req, Res](): Process[Req, Req, Res] =
+    FlowWithContext[Req, Respondee[Res]]
 }

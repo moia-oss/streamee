@@ -14,46 +14,44 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
-package demo
+package io.moia.streamee.demo
 
 import akka.actor.{ Scheduler, ActorSystem => UntypedSystem }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.cluster.typed.{ Cluster, SelfUp, Subscribe, Unsubscribe }
-import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.management.scaladsl.AkkaManagement
+import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, UntypedActorSystemOps }
+import akka.cluster.typed.{
+  Cluster,
+  ClusterSingleton,
+  SelfUp,
+  SingletonActor,
+  Subscribe,
+  Unsubscribe
+}
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import io.moia.streamee.intoable.RespondeeFactory
+import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
 import pureconfig.loadConfigOrThrow
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 
-/**
-  * Runner for this demo. Creates actor system, API, etc.
-  */
 object Main extends Logging {
 
-  final case class Config(
-      api: Api.Config,
-      length: Length.Config /* ,delayedLengthSharding: DelayedLengthSharding.Config*/
-  )
+  final case class Config(api: Api.Config,
+                          textShufflerProcessorTimeout: FiniteDuration,
+                          textShuffler: TextShuffler.Config)
 
   final object TopLevelActorTerminated extends Reason
 
   def main(args: Array[String]): Unit = {
     sys.props += "log4j2.contextSelector" -> classOf[AsyncLoggerContextSelector].getName // Always use async logging!
-
     val config = loadConfigOrThrow[Config]("streamee-demo") // Must be first!
-    val system = ActorSystem(Main(config), "streamee-demo")
-
-    AkkaManagement(system.toUntyped).start()
-    ClusterBootstrap(system.toUntyped).start()
+    val system = UntypedSystem("streamee-demo")             // Always start with an untyped system!
+    system.spawn(Main(config), "main")
   }
 
   def apply(config: Config): Behavior[SelfUp] =
@@ -72,18 +70,24 @@ object Main extends Logging {
     }
 
   private def initialize(config: Config)(implicit context: ActorContext[_]) = {
+    import config._
+
     implicit val mat: Materializer            = ActorMaterializer()(context.system)
     implicit val ec: ExecutionContext         = context.executionContext
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val untypedSystem: UntypedSystem = context.system.toUntyped
 
-    implicit val respondeeFactory: ActorRef[RespondeeFactory.CreateRespondee[Int]] =
-      context.spawnAnonymous(RespondeeFactory[Int]())
+    val wordShufflerRunner =
+      ClusterSingleton(context.system).init(
+        SingletonActor(WordShufflerRunner(), "word-shuffler")
+          .withStopMessage(WordShufflerRunner.Shutdown)
+      )
 
-    val fourtyTwo           = FourtyTwo()
-    val (intoableLength, _) = intoable.runProcess(IntoableLength(), 1)
-    val length              = Length(config.length, intoableLength)
+    val textShufflerProcessor =
+      FrontProcessor(TextShuffler(config.textShuffler, wordShufflerRunner),
+                     textShufflerProcessorTimeout,
+                     "text-shuffler")
 
-    Api(config.api, fourtyTwo, length)
+    Api(config.api, textShufflerProcessor)
   }
 }

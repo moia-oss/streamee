@@ -14,20 +14,15 @@
  * limitations under the License.
  */
 
-package io.moia.streamee.intoable
+package io.moia.streamee
 
-import akka.stream.scaladsl.FlowWithContext
+import org.scalacheck.Gen
+import scala.concurrent.duration.{ Duration, FiniteDuration, NANOSECONDS }
 
-object RemotelyIntoableProcess {
+object TestData {
 
-  /**
-    * Factory for an identity [[RemotelyIntoableProcessStage]] which can be used as an entry point
-    * for creating [[RemotelyIntoableProcess]]es.
-    *
-    * @tparam Req request type
-    * @tparam Res response type
-    */
-  def apply[Req, Res](): RemotelyIntoableProcessStage[Req, Req, Res] =
-    FlowWithContext[Respondee[Res], Req]
-
+  val nonPosDuration: Gen[FiniteDuration] =
+    Gen
+      .choose(-Long.MaxValue, 0L) // Must be -Long.MaxValue instead of Long.MinValue, see `Duration` for details!
+      .map(Duration(_, NANOSECONDS))
 }

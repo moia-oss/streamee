@@ -16,25 +16,23 @@
 
 package io.moia.streamee
 
+import org.scalatest.{ AsyncWordSpec, Matchers }
 import scala.concurrent.duration.DurationInt
-import utest._
 
-object ExpiringPromiseTests extends ActorTestSuite {
-  import testKit._
+final class RespondeeTests extends AsyncWordSpec with AkkaSuite with Matchers {
+  import Respondee._
 
-  override def tests: Tests =
-    Tests {
-      'expire - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout, "hint")
-        promise.future.failed.map(e => assert(e == PromiseExpired(timeout, "hint")))
-      }
-
-      'expireNot - {
-        val timeout = 100.milliseconds
-        val promise = ExpiringPromise[String](timeout)
-        promise.trySuccess("success")
-        promise.future.map(s => assert(s == "success"))
-      }
+  "A Respondee" should {
+    "fail its promise with a TimeoutException if not receiving a Response in time" in {
+      val timeout       = 100.milliseconds
+      val (_, response) = Respondee.spawn[Int](timeout)
+      response.future.failed.map { case ResponseTimeoutException(t) => t shouldBe timeout }
     }
+
+    "successfully complete its promise with the received Response" in {
+      val (respondee, response) = Respondee.spawn[Int](1.second)
+      respondee ! Response(42)
+      response.future.map(_ shouldBe 42)
+    }
+  }
 }

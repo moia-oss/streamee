@@ -16,32 +16,25 @@
 
 package io.moia.streamee
 
-import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.actor.{ ActorSystem => UntypedSystem }
-import akka.stream.Materializer
-import akka.stream.typed.scaladsl.ActorMaterializer
-import scala.concurrent.ExecutionContext
-import utest.TestSuite
+import akka.actor.{ ActorSystem, Scheduler }
+import akka.stream.{ ActorMaterializer, Materializer }
+import org.scalatest.{ BeforeAndAfterAll, Suite }
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
 
-trait ActorTestSuite extends TestSuite {
+trait AkkaSuite extends Suite with BeforeAndAfterAll {
 
-  protected val testKit: ActorTestKit =
-    ActorTestKit()
-
-  import testKit._
-
-  protected implicit val untypedSystem: UntypedSystem =
-    system.toUntyped
-
-  protected implicit val ec: ExecutionContext =
-    system.executionContext
+  protected implicit val system: ActorSystem =
+    ActorSystem()
 
   protected implicit val mat: Materializer =
     ActorMaterializer()
 
-  override def utestAfterAll(): Unit = {
-    shutdownTestKit()
-    super.utestAfterAll()
+  protected implicit val scheduler: Scheduler =
+    system.scheduler
+
+  override protected def afterAll(): Unit = {
+    Await.ready(system.terminate(), 42.seconds)
+    super.afterAll()
   }
 }
