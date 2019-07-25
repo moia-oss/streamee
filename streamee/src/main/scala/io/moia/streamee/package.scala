@@ -142,8 +142,8 @@ package object streamee {
   }
 
   /**
-    * Extension methods for `FlowWithContext` with paired output context (see
-    * [[FlowWithContextExt.push]]).
+    * Extension methods for `FlowWithContext` with paired output context; see
+    * [[FlowWithContextExt]].
     */
   implicit final class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, A](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Any]

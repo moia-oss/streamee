@@ -100,8 +100,9 @@ final class FrontProcessor[Req, Res] private (
 
   /**
     * Ingest the given request into the process. The returned `Future` is either completed
-    * successfully with the response or failed with [[ProcessorUnavailable]], if the process
-    * back-pressures or with [[ResponseTimeoutException]], if the response is not produced in time.
+    * successfully with the response or failed with [[FrontProcessor.ProcessorUnavailable]], if the
+    * process back-pressures or with [[ResponseTimeoutException]], if the response is not produced
+    * in time.
     *
     * @param request request to be accepted
     * @return `Future` for the response
