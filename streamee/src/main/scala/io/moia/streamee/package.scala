@@ -17,7 +17,7 @@
 package io.moia
 
 import akka.actor.typed.ActorRef
-import akka.stream.{ DelayOverflowStrategy, SinkRef, ThrottleMode }
+import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ Future, Promise }
@@ -75,16 +75,13 @@ package object streamee {
         .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
           val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
           source
-            .map { out =>
-              val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
-              (out, respondee2, out2)
-            }
+            .map(spawnRespondee[Out, Out2](timeout, mat))
             .alsoTo {
               Flow[(Out, Respondee[Out2], Promise[Out2])]
                 .map { case (out, respondee2, _) => (out, respondee2) }
                 .to(processSink)
             }
-            .mapAsync(parallelism) { case (_, _, out2) => out2.future }
+            .mapAsync(parallelism)(_._3.future)
         }
     }
   }
@@ -113,16 +110,13 @@ package object streamee {
           .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
             val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
             flowWithContext
-              .map { out =>
-                val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
-                (out, respondee2, out2)
-              }
+              .map(spawnRespondee[Out, Out2](timeout, mat))
               .via(Flow.apply.alsoTo {
                 Flow[((Out, Respondee[Out2], Promise[Out2]), CtxOut)]
                   .map { case ((out, respondee2, _), _) => (out, respondee2) }
                   .to(processSink)
               })
-              .mapAsync(parallelism) { case (_, _, out2) => out2.future }
+              .mapAsync(parallelism)(_._3.future)
               .asFlow
           }
       )
@@ -181,5 +175,10 @@ package object streamee {
                  maximumBurst: Int,
                  mode: ThrottleMode): flowWithContext.Repr[Out, CtxOut] =
       flowWithContext.via(Flow.apply.throttle(elements, per, maximumBurst, mode))
+  }
+
+  private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {
+    val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
+    (out, respondee2, out2)
   }
 }
