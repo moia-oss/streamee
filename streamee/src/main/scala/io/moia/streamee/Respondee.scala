@@ -18,10 +18,10 @@ package io.moia.streamee
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import akka.stream.{ ActorMaterializer, Materializer }
+import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
+import akka.stream.Materializer
 import scala.concurrent.Promise
 import scala.concurrent.duration.{ Duration, FiniteDuration }
-import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
 
 /**
   * Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
@@ -39,6 +39,7 @@ object Respondee {
     * @param response promised response
     * @param timeout maximum duration for successful completion of the promised response; must be positive!
     * @tparam A response type
+    * @return [[Respondee]] behavior
     */
   def apply[A](response: Promise[A], timeout: FiniteDuration): Behavior[Response[A]] = {
     require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
@@ -65,13 +66,14 @@ object Respondee {
     *
     * @param timeout maximum duration for successful completion of the promised response
     * @tparam A response type
+    * @return pair of [[Respondee]] and its promised response
     */
-  def spawn[A](timeout: FiniteDuration)(implicit mat: Materializer): (Respondee[A], Promise[A]) = {
+  def spawn[A](
+      timeout: FiniteDuration
+  )(implicit mat: Materializer): (Respondee[A], Promise[A]) = {
     val response = Promise[A]()
     val respondee =
-      mat
-        .asInstanceOf[ActorMaterializer]
-        .system
+      toActorMaterializer(mat).system
         .spawnAnonymous(Respondee[A](response, timeout))
     (respondee, response)
   }

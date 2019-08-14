@@ -22,10 +22,11 @@ import org.apache.logging.log4j.scala.Logging
 object Process extends Logging {
 
   /**
-    * Factory for a [[Process]]. Convenient shortcut for `FlowWithContext[Req, Respondee[Res]]`.
+    * Factory for an empty [[Process]]. Convenient shortcut for `FlowWithContext[Req, Respondee[Res]]`.
     *
     * @tparam Req request type
     * @tparam Res response type
+    * @return empty [[Process]]
     */
   def apply[Req, Res](): Process[Req, Req, Res] =
     FlowWithContext[Req, Respondee[Res]]
