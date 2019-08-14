@@ -16,7 +16,8 @@
 
 package io.moia.streamee
 
-import akka.stream.scaladsl.{ Sink, Source }
+import akka.actor.{ ActorSystem, CoordinatedShutdown }
+import akka.pattern.{ after => akkaAfter }
 import akka.stream.{
   ActorAttributes,
   ActorMaterializer,
@@ -25,10 +26,12 @@ import akka.stream.{
   Supervision,
   ThrottleMode
 }
+import akka.stream.scaladsl.{ Sink, Source }
 import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.Future
 
 final class IntoableProcessorTests
     extends AsyncWordSpec
@@ -41,7 +44,8 @@ final class IntoableProcessorTests
   override protected implicit val mat: Materializer = {
     val settings = ActorMaterializerSettings(system)
     ActorMaterializer(
-      settings.withStreamRefSettings(settings.streamRefSettings.withBufferCapacity(1))
+      settings
+        .withStreamRefSettings(settings.streamRefSettings.withBufferCapacity(1))
     )
   }
 
@@ -92,7 +96,9 @@ final class IntoableProcessorTests
       Source
         .single("abc")
         .into(processor.sink, 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .withAttributes(
+          ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+        )
         .runWith(Sink.headOption)
         .map(_ shouldBe None)
     }
@@ -102,13 +108,20 @@ final class IntoableProcessorTests
       val processor = IntoableProcessor(process, "name")
       Source(List((4, 0), (4, 2)))
         .into(processor.sink, 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .withAttributes(
+          ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+        )
         .runWith(Sink.head)
         .map(_ shouldBe 2)
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process   = Process[Int, Int]().throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
+      val process = Process[Int, Int]().throttle(
+        1,
+        100.milliseconds,
+        0,
+        ThrottleMode.Shaping
+      )
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
         .map { n =>
@@ -116,7 +129,9 @@ final class IntoableProcessorTests
           n
         }
         .into(processor.sink, 1.seconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .withAttributes(
+          ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+        )
         .runWith(Sink.seq)
         .map(_.size should be >= 5) // 7 - 2, 2 from IntoableProcessor (see above)
     }
@@ -147,7 +162,9 @@ final class IntoableProcessorTests
           Source
             .single("abc")
             .into(sinkRef.sink(), 100.milliseconds)
-            .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+            .withAttributes(
+              ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+            )
             .runWith(Sink.headOption)
             .map(_ shouldBe None)
         }
@@ -161,14 +178,21 @@ final class IntoableProcessorTests
         .flatMap { sinkRef =>
           Source(List((4, 0), (4, 2)))
             .into(sinkRef.sink(), 100.milliseconds)
-            .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+            .withAttributes(
+              ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+            )
             .runWith(Sink.head)
             .map(_ shouldBe 2)
         }
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process   = Process[Int, Int]().throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
+      val process = Process[Int, Int]().throttle(
+        1,
+        100.milliseconds,
+        0,
+        ThrottleMode.Shaping
+      )
       val processor = IntoableProcessor(process, "name", 2)
       processor
         .sinkRef()
@@ -179,10 +203,27 @@ final class IntoableProcessorTests
               n
             }
             .into(sinkRef.sink(), 1.seconds)
-            .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+            .withAttributes(
+              ActorAttributes.supervisionStrategy(Supervision.resumingDecider)
+            )
             .runWith(Sink.seq)
             .map(_.size should be >= 4) // 7 - 2 - 1, 2 from IntoableProcessor (see above), 1 from SinkRef buffering
         }
+    }
+  }
+
+  "CoordinatedShutdown" should {
+    "shutdown the processor" in {
+      val testSystem = ActorSystem()
+      val testMat    = ActorMaterializer()(testSystem)
+      val processor  = IntoableProcessor(Process[Int, Int](), "name")(testMat)
+      val late       = Future.failed(new Exception("Shutdown of phase late!"))
+      val doneOrLate =
+        Future.firstCompletedOf(
+          List(processor.whenDone, akkaAfter(5.second, scheduler)(late))
+        )
+      CoordinatedShutdown(testSystem).run(CoordinatedShutdown.UnknownReason)
+      doneOrLate.map(_ => succeed)
     }
   }
 }

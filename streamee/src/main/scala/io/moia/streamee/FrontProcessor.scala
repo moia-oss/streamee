@@ -26,6 +26,7 @@ import akka.stream.{
 }
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.Done
+import akka.actor.CoordinatedShutdown
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future }
@@ -50,53 +51,70 @@ object FrontProcessor {
       extends Exception(s"QueueOfferResult $cause was not expected!")
 
   /**
-    * See [[FrontProcessor]].
+    * Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
+    * the given `process` to a `Sink` responding to the [[Respondee]].
+    *
+    * When [[FrontProcessor.accept]] is called, the given request is emitted into the process. The
+    * returned `Future` is either completed successfully with the response or failed if the process
+    * back-pressures or does not create the response in time.
+    *
+    * @param process top-level domain logic process from request to response
+    * @param timeout maximum duration for the running process to respond; must be positive!
+    * @param name name, used for logging and exceptions
+    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
+    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
+    * @tparam Req request type
+    * @tparam Res response type
+    * @return [[FrontProcessor]]
     */
   def apply[Req, Res](
       process: Process[Req, Res, Res],
       timeout: FiniteDuration,
       name: String,
-      bufferSize: Int = 1
+      bufferSize: Int = 1,
+      phase: String = CoordinatedShutdown.PhaseServiceRequestsDone
   )(implicit mat: Materializer, ec: ExecutionContext): FrontProcessor[Req, Res] =
-    new FrontProcessor(process, timeout, name, bufferSize)
+    new FrontProcessor(process, timeout, name, bufferSize, phase)
 }
 
 /**
-  * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a
-  * `Sink` responding to the [[Respondee]].
-  *
-  * When [[accept]] is called, the given request is emitted into the process. The
-  * returned `Future` is either completed successfully with the response or failed if the process
-  * back-pressures or does not create the response in time.
-  *
-  * @param process    top-level domain logic process from request to response
-  * @param timeout    maximum duration for the running process to respond; must be positive!
-  * @param name       name, used for logging and exceptions
-  * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
-  * @tparam Req request type
-  * @tparam Res response type
+  * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a `Sink`
+  * responding to the [[Respondee]].
   */
 final class FrontProcessor[Req, Res] private (
     process: Process[Req, Res, Res],
     timeout: FiniteDuration,
     name: String,
-    bufferSize: Int = 1
+    bufferSize: Int,
+    phase: String
 )(implicit mat: Materializer, ec: ExecutionContext)
     extends Logging {
   import FrontProcessor._
 
-  require(timeout > Duration.Zero, s"timeout for processor $name must be > 0, but was $timeout!")
-  require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
+  require(
+    timeout > Duration.Zero,
+    s"timeout for processor $name must be > 0, but was $timeout!"
+  )
+  require(
+    bufferSize > 0,
+    s"bufferSize for processor $name must be > 0, but was $bufferSize!"
+  )
 
   private val (queue, _done) =
     Source
       .queue[(Req, Respondee[Res])](bufferSize, OverflowStrategy.dropNew)
       .via(process)
-      .toMat(
-        Sink.foreach { case (response, respondee) => respondee ! Respondee.Response(response) }
-      )(Keep.both)
+      .toMat(Sink.foreach {
+        case (response, respondee) => respondee ! Respondee.Response(response)
+      })(Keep.both)
       .withAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
+
+  coordinatedShutdown(mat)
+    .addTask(phase, s"shutdown-front-processor-$name") { () =>
+      shutdown()
+      whenDone
+    }
 
   /**
     * Ingest the given request into the process. The returned `Future` is either completed
@@ -105,7 +123,7 @@ final class FrontProcessor[Req, Res] private (
     * in time.
     *
     * @param request request to be accepted
-    * @return `Future` for the response
+    * @return eventual response
     */
   def accept(request: Req): Future[Res] = {
     val (respondee, response) = Respondee.spawn[Res](timeout)
@@ -132,7 +150,7 @@ final class FrontProcessor[Req, Res] private (
     * The returned `Future` is completed when the running process is completed, e.g. via
     * [[shutdown]] or unexpected failure.
     *
-    * @return signal for completion
+    * @return completion signal
     */
   def whenDone: Future[Done] =
     _done

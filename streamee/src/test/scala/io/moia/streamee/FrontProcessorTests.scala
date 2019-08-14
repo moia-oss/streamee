@@ -16,10 +16,14 @@
 
 package io.moia.streamee
 
+import akka.actor.{ ActorSystem, CoordinatedShutdown }
+import akka.pattern.{ after => akkaAfter }
+import akka.stream.ActorMaterializer
 import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.Future
 
 final class FrontProcessorTests
     extends AsyncWordSpec
@@ -96,6 +100,25 @@ final class FrontProcessorTests
       val done      = processor.whenDone
       processor.shutdown()
       done.map(_ => succeed)
+    }
+  }
+
+  "CoordinatedShutdown" should {
+    "shutdown the processor" in {
+      val testSystem = ActorSystem()
+      val testMat    = ActorMaterializer()(testSystem)
+      val processor =
+        FrontProcessor(Process[Int, Int](), 1.second, "name")(
+          testMat,
+          testSystem.dispatcher
+        )
+      val late = Future.failed(new Exception("Shutdown of phase late!"))
+      val doneOrLate =
+        Future.firstCompletedOf(
+          List(processor.whenDone, akkaAfter(5.second, scheduler)(late))
+        )
+      CoordinatedShutdown(testSystem).run(CoordinatedShutdown.UnknownReason)
+      doneOrLate.map(_ => succeed)
     }
   }
 }
