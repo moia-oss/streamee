@@ -51,8 +51,8 @@ object FrontProcessor {
       extends Exception(s"QueueOfferResult $cause was not expected!")
 
   /**
-    * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a
-    * `Sink` responding to the [[Respondee]].
+    * Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
+    * the given `process` to a `Sink` responding to the [[Respondee]].
     *
     * When [[FrontProcessor.accept]] is called, the given request is emitted into the process. The
     * returned `Future` is either completed successfully with the response or failed if the process
@@ -65,6 +65,7 @@ object FrontProcessor {
     * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
     * @tparam Req request type
     * @tparam Res response type
+    * @return [[FrontProcessor]]
     */
   def apply[Req, Res](
       process: Process[Req, Res, Res],
@@ -77,20 +78,8 @@ object FrontProcessor {
 }
 
 /**
-  * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a
-  * `Sink` responding to the [[Respondee]].
-  *
-  * When [[accept]] is called, the given request is emitted into the process. The
-  * returned `Future` is either completed successfully with the response or failed if the process
-  * back-pressures or does not create the response in time.
-  *
-  * @param process top-level domain logic process from request to response
-  * @param timeout maximum duration for the running process to respond; must be positive!
-  * @param name name, used for logging and exceptions
-  * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
-  * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
-  * @tparam Req request type
-  * @tparam Res response type
+  * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a `Sink`
+  * responding to the [[Respondee]].
   */
 final class FrontProcessor[Req, Res] private (
     process: Process[Req, Res, Res],
@@ -121,7 +110,7 @@ final class FrontProcessor[Req, Res] private (
       .withAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
-  CoordinatedShutdown(toActorMaterializer(mat).system)
+  coordinatedShutdown(mat)
     .addTask(phase, s"shutdown-front-processor-$name") { () =>
       shutdown()
       whenDone

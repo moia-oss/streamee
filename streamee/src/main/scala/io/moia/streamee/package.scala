@@ -17,6 +17,7 @@
 package io.moia
 
 import akka.actor.typed.ActorRef
+import akka.actor.CoordinatedShutdown
 import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
@@ -201,6 +202,9 @@ package object streamee {
         Flow.apply.throttle(elements, per, maximumBurst, mode)
       )
   }
+
+  private[streamee] def coordinatedShutdown(mat: Materializer) =
+    CoordinatedShutdown(toActorMaterializer(mat).system)
 
   private[streamee] def toActorMaterializer(mat: Materializer) =
     mat.asInstanceOf[ActorMaterializer]

@@ -19,35 +19,49 @@ package io.moia.streamee
 import akka.stream.{ ActorAttributes, KillSwitches, Materializer, SinkRef, Supervision }
 import akka.stream.scaladsl.{ Keep, MergeHub, Sink, StreamRefs }
 import akka.Done
+import akka.actor.CoordinatedShutdown
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.Future
 
 object IntoableProcessor {
 
   /**
-    * See [[IntoableProcessor]].
+    * Create a [[FrontProcessor]]: run the given `process` such that it can be used with the `into`
+    * stream extension operator. Notice that shutting down might result in dropping (losing)
+    * `bufferSize` number of requsts!
+    *
+    * @param process top-level domain logic process from request to response
+    * @param name name, used for logging
+    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
+    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to ""service-stop""; must be defined in configufation!
+    * @tparam Req request type
+    * @tparam Res response type
+    * @return [[IntoableProcessor]]
     */
-  def apply[Req, Res](process: Process[Req, Res, Res], name: String, bufferSize: Int = 1)(
-      implicit mat: Materializer
-  ): IntoableProcessor[Req, Res] =
-    new IntoableProcessor(process, name, bufferSize)
+  def apply[Req, Res](
+      process: Process[Req, Res, Res],
+      name: String,
+      bufferSize: Int = 1,
+      phase: String = CoordinatedShutdown.PhaseServiceStop
+  )(implicit mat: Materializer): IntoableProcessor[Req, Res] =
+    new IntoableProcessor(process, name, bufferSize, phase)
 }
 
 /**
   * Run the given `process` such that it can be used with the `into` stream extension operator.
   * Notice that shutting down might result in dropping (losing) `bufferSize` number of requsts!
-  *
-  * @param process top-level domain logic process from request to response
-  * @param name       name, used for logging
-  * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
-  * @tparam Req request type
-  * @tparam Res response type
   */
-final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res],
-                                                 name: String,
-                                                 bufferSize: Int = 1)(implicit mat: Materializer)
+final class IntoableProcessor[Req, Res] private (
+    process: Process[Req, Res, Res],
+    name: String,
+    bufferSize: Int = 1,
+    phase: String
+)(implicit mat: Materializer)
     extends Logging {
-  require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
+  require(
+    bufferSize > 0,
+    s"bufferSize for processor $name must be > 0, but was $bufferSize!"
+  )
 
   private val (_sink, switch, _done) =
     MergeHub
@@ -60,6 +74,12 @@ final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res]
       .withAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
+  coordinatedShutdown(mat)
+    .addTask(phase, s"shutdown-intoable-processor-$name") { () =>
+      shutdown()
+      whenDone
+    }
+
   /**
     * Sink to be used with the `into` stream extension method locally.
     */
@@ -71,7 +91,9 @@ final class IntoableProcessor[Req, Res] private (process: Process[Req, Res, Res]
     * processor is running on one member node of an Akka cluster and on another member node `into`
     * is used.
     */
-  def sinkRef()(implicit mat: Materializer): Future[SinkRef[(Req, Respondee[Res])]] =
+  def sinkRef()(
+      implicit mat: Materializer
+  ): Future[SinkRef[(Req, Respondee[Res])]] =
     StreamRefs.sinkRef().to(_sink).run()
 
   /**
