@@ -61,7 +61,7 @@ object FrontProcessor {
     * @param process top-level domain logic process from request to response
     * @param timeout maximum duration for the running process to respond; must be positive!
     * @param name name, used for logging and exceptions
-    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
+    * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
     * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
     * @tparam Req request type
     * @tparam Res response type
