@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package intoable
 
 import akka.actor.typed.{ ActorRef, Behavior }

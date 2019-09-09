@@ -30,7 +30,7 @@
 // * limitations under the License.
 // */
 //
-//package io.moia.streamee
+//package io.moia.streamee4
 //package demo
 //
 //import akka.Done
@@ -41,7 +41,7 @@
 //import akka.http.scaladsl.model.StatusCodes.OK
 //import akka.http.scaladsl.server.Route
 //import akka.stream.Materializer
-//import io.moia.streamee.processor.Processor
+//import io.moia.streamee4.processor.Processor
 //import org.apache.logging.log4j.scala.Logging
 //import scala.concurrent.ExecutionContext
 //import scala.concurrent.duration.FiniteDuration

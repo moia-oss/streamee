@@ -30,7 +30,7 @@
 // * limitations under the License.
 // */
 //
-//package io.moia.streamee
+//package io.moia.streamee4
 //package demo
 //
 //import akka.NotUsed
@@ -40,7 +40,7 @@
 //import akka.stream.scaladsl.Flow
 //import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef }
 //import akka.util.Timeout
-//import io.moia.streamee.intoable.{
+//import io.moia.streamee4.intoable.{
 //  FlowExt,
 //  IntoableFlow,
 //  IntoableRunner,

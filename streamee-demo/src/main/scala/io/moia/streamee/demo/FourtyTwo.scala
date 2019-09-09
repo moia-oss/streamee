@@ -30,7 +30,7 @@
 // * limitations under the License.
 // */
 //
-//package io.moia.streamee
+//package io.moia.streamee4
 //package demo
 //
 //import akka.NotUsed
