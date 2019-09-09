@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package demo
 
 import akka.actor.Scheduler
 import akka.stream.Materializer
-import io.moia.streamee
-import io.moia.streamee.intoable.{ FlowWithContextOps, IntoableSink }
+import io.moia.streamee4
+import io.moia.streamee4.intoable.{ FlowWithContextOps, IntoableSink }
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
@@ -29,7 +29,7 @@ import scala.concurrent.duration.FiniteDuration
   */
 object Length {
 
-  type Process = streamee.Process[String, String]
+  type Process = streamee4.Process[String, String]
 
   final case class Config(retryTimeout: FiniteDuration)
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee.intoable
+package io.moia.streamee4.intoable
 
 import akka.stream.scaladsl.FlowWithContext
 

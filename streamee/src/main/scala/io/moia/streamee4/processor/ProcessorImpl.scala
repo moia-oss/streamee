@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package processor
 
 import akka.stream.{ ActorAttributes, Materializer, OverflowStrategy }
@@ -22,8 +22,8 @@ import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import akka.Done
 import akka.actor.Scheduler
-import io.moia.streamee.processor.PermanentProcessor.resume
-import io.moia.streamee.processor.Processor.{ ProcessorError, ProcessorUnavailable }
+import io.moia.streamee4.processor.PermanentProcessor.resume
+import io.moia.streamee4.processor.Processor.{ ProcessorError, ProcessorUnavailable }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 

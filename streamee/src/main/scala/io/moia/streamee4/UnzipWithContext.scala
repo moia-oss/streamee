@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 
 import akka.stream.scaladsl.{ Broadcast, GraphDSL, Unzip, Zip }
 import akka.stream.{ FanOutShape2, Graph }

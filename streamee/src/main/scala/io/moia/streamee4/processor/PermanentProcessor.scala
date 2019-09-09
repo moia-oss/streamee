@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package processor
 
 import akka.actor.Scheduler
@@ -39,7 +39,7 @@ import akka.stream.{
   Supervision
 }
 import akka.{ Done, NotUsed }
-import io.moia.streamee.processor.Processor.{ ProcessorError, ProcessorUnavailable }
+import io.moia.streamee4.processor.Processor.{ ProcessorError, ProcessorUnavailable }
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }

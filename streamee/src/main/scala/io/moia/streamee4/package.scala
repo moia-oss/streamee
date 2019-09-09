@@ -19,7 +19,7 @@ package io.moia
 import akka.stream.scaladsl.FlowWithContext
 import scala.concurrent.Promise
 
-package object streamee {
+package object streamee4 {
 
   /**
     * A domain logic process from request to response which transparently propagates a promise for

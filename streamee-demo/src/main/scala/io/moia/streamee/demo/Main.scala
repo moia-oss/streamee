@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package demo
 
 import akka.actor.{ Scheduler, ActorSystem => UntypedSystem }
@@ -27,7 +27,7 @@ import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import io.moia.streamee.intoable.RespondeeFactory
+import io.moia.streamee4.intoable.RespondeeFactory
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader

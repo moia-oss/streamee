@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
+package io.moia.streamee4
 package demo
 
 import akka.actor.Scheduler
 import akka.pattern.after
 import akka.stream.FlowShape
 import akka.stream.scaladsl.{ Flow, FlowWithContext, GraphDSL, Merge }
-import io.moia.streamee
+import io.moia.streamee4
 import org.apache.logging.log4j.scala.Logging
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.DurationInt
@@ -29,7 +29,7 @@ import scala.util.{ Failure, Random, Success }
 
 object FourtyTwo extends Logging {
 
-  type Process = streamee.Process[FourtyTwo.Request, ErrorOr[FourtyTwo.Response]]
+  type Process = streamee4.Process[FourtyTwo.Request, ErrorOr[FourtyTwo.Response]]
 
   type ErrorOr[A] = Either[Error, A]
 
