@@ -59,7 +59,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.24"
+      val akka           = "2.5.25"
       val akkaHttp       = "10.1.9"
       val akkaHttpJson   = "1.27.0"
       val akkaLog4j      = "1.6.1"
@@ -102,7 +102,7 @@ lazy val settings =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.8",
+    scalaVersion := "2.12.9",
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),

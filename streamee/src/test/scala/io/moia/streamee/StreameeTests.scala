@@ -139,4 +139,15 @@ final class StreameeTests
         }
     }
   }
+
+  "Calling asFrontProcessor" should {
+    "convert an IntoableSink into a FrontProcessor" in {
+      val process           = Process[String, Int]().map(_.length)
+      val intoableProcessor = IntoableProcessor(process, "name")
+      val frontProcessor    = intoableProcessor.sink.asFrontProcessor(1.second, "name")
+      frontProcessor
+        .offer("abc")
+        .map(_ shouldBe 3)
+    }
+  }
 }

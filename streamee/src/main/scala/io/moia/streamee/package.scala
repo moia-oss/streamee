@@ -21,7 +21,7 @@ import akka.actor.CoordinatedShutdown
 import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
-import scala.concurrent.{ Future, Promise }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 
 package object streamee {
 
@@ -179,6 +179,29 @@ package object streamee {
       flowWithContext.via(Flow.apply.map {
         case (out, (a, ctxOut)) => ((a, out), ctxOut)
       })
+  }
+
+  /**
+    * Extension methods for `ProcessSink`.
+    */
+  implicit final class ProcessSinkOps[Req, Res](val sink: ProcessSink[Req, Res]) extends AnyVal {
+
+    /**
+      * Creates a canonical [[FrontProcessor]] from this [[ProcessSink]].
+      *
+      * @param timeout maximum duration for the running process to respond; must be positive!
+      * @param name name, used for logging and exceptions
+      * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
+      * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
+      * @return [[FrontProcessor]]
+      */
+    def asFrontProcessor(
+        timeout: FiniteDuration,
+        name: String,
+        bufferSize: Int = 1,
+        phase: String = CoordinatedShutdown.PhaseServiceRequestsDone
+    )(implicit mat: Materializer, ec: ExecutionContext): FrontProcessor[Req, Res] =
+      FrontProcessor(Process[Req, Res]().into(sink, timeout), timeout, name, bufferSize, phase)
   }
 
   /**

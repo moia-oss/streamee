@@ -99,7 +99,10 @@ final class FrontProcessorTests
       val processor = FrontProcessor(Process[Int, Int](), 1.second, "name")
       val done      = processor.whenDone
       processor.shutdown()
-      done.map(_ => succeed)
+      for {
+        _ <- done
+        _ <- Future(processor.shutdown()) // Verify that shutdown is idempotent
+      } yield succeed
     }
   }
 
