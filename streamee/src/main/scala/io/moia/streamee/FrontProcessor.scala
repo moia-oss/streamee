@@ -43,7 +43,7 @@ object FrontProcessor {
       extends Exception(s"Processor $name cannot accept requests at this time!")
 
   /**
-    * Signals an unexpected result of calling [[FrontProcessor.accept]].
+    * Signals an unexpected result of calling [[FrontProcessor.offer]].
     *
     * @param cause the underlying erroneous `QueueOfferResult`, e.g. `Failure` or `QueueClosed`
     */
@@ -54,7 +54,7 @@ object FrontProcessor {
     * Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
     * the given `process` to a `Sink` responding to the [[Respondee]].
     *
-    * When [[FrontProcessor.accept]] is called, the given request is emitted into the process. The
+    * When [[FrontProcessor.offer]] is called, the given request is emitted into the process. The
     * returned `Future` is either completed successfully with the response or failed if the process
     * back-pressures or does not create the response in time.
     *
@@ -117,15 +117,14 @@ final class FrontProcessor[Req, Res] private (
     }
 
   /**
-    * Ingest the given request into the process. The returned `Future` is either completed
-    * successfully with the response or failed with [[FrontProcessor.ProcessorUnavailable]], if the
-    * process back-pressures or with [[ResponseTimeoutException]], if the response is not produced
-    * in time.
+    * Offer the given request to the process. The returned `Future` is either completed successfully
+    * with the response or failed with [[FrontProcessor.ProcessorUnavailable]], if the process
+    * back-pressures or with [[ResponseTimeoutException]], if the response is not produced in time.
     *
-    * @param request request to be accepted
+    * @param request request to be offered
     * @return eventual response
     */
-  def accept(request: Req): Future[Res] = {
+  def offer(request: Req): Future[Res] = {
     val (respondee, response) = Respondee.spawn[Res](timeout)
     queue
       .offer((request, respondee))

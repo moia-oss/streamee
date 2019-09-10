@@ -89,7 +89,7 @@ object Api extends Logging {
       import TextShuffler._
       post {
         entity(as[ShuffleText]) { shuffleText =>
-          onSuccess(textShufflerProcessor.accept(shuffleText)) {
+          onSuccess(textShufflerProcessor.offer(shuffleText)) {
             case TextShuffled(original, result) =>
               complete(s"$original -> $result")
           }

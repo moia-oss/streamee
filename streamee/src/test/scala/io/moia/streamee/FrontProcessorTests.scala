@@ -49,12 +49,12 @@ final class FrontProcessorTests
     }
   }
 
-  "Calling accept" should {
+  "Calling offer" should {
     "eventually succeed" in {
       val process   = Process[String, Int]().map(_.length)
       val processor = FrontProcessor(process, 1.second, "name")
       processor
-        .accept("abc")
+        .offer("abc")
         .map(_ shouldBe 3)
     }
 
@@ -63,7 +63,7 @@ final class FrontProcessorTests
       val process   = Process[String, String]().delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
       processor
-        .accept("abc")
+        .offer("abc")
         .failed
         .map(_ shouldBe ResponseTimeoutException(timeout))
     }
@@ -72,20 +72,20 @@ final class FrontProcessorTests
       val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
       val processor = FrontProcessor(process, 1.second, "name")
       processor
-        .accept((4, 0))
+        .offer((4, 0))
         .failed
         .map(_.getClass shouldBe classOf[ArithmeticException])
       processor
-        .accept((4, 2))
+        .offer((4, 2))
         .map(_ shouldBe 2)
     }
 
-    "process already accepted requests on shutdown" in {
+    "process already offered requests on shutdown" in {
       val process   = Process[String, String]().delay(100.milliseconds)
       val processor = FrontProcessor(process, 1.second, "name")
-      val response1 = processor.accept("abc")
+      val response1 = processor.offer("abc")
       processor.shutdown()
-      val response2 = processor.accept("def")
+      val response2 = processor.offer("def")
       response1.zip(response2.failed).map {
         case (s, e) =>
           s shouldBe "abc"

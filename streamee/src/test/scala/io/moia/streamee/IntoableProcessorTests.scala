@@ -65,7 +65,7 @@ final class IntoableProcessorTests
       val process   = Process[String, String]().delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
       processor
-        .accept("abc")
+        .offer("abc")
         .failed
         .map(_ shouldBe ResponseTimeoutException(timeout))
     }
