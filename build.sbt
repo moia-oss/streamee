@@ -5,7 +5,7 @@
 lazy val `streamee-root` =
   project
     .in(file("."))
-    .aggregate(`streamee`, `streamee-demo`)
+    .aggregate(`streamee4`, `streamee-demo`)
     .settings(settings)
     .settings(
       Compile / unmanagedSourceDirectories := Seq.empty,
@@ -13,7 +13,7 @@ lazy val `streamee-root` =
       publishArtifact := false
     )
 
-lazy val `streamee` =
+lazy val `streamee4` =
   project
     .enablePlugins(AutomateHeaderPlugin)
     .settings(settings)
@@ -35,7 +35,7 @@ lazy val `streamee` =
 lazy val `streamee-demo` =
   project
     .enablePlugins(AutomateHeaderPlugin, DockerPlugin, JavaAppPackaging)
-    .dependsOn(`streamee`)
+    .dependsOn(`streamee4`)
     .settings(settings)
     .settings(
       Compile / packageDoc / publishArtifact := false,
