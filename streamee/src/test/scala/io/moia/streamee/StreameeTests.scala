@@ -17,7 +17,7 @@
 package io.moia.streamee
 
 import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
-import akka.stream.scaladsl.{ Sink, Source, SourceWithContext }
+import akka.stream.scaladsl.{ Flow, Sink, Source, SourceWithContext }
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
@@ -56,6 +56,40 @@ final class StreameeTests
       Source
         .single("abc")
         .into(processSink, 1.second)
+        .runWith(Sink.head)
+        .map(_ shouldBe "ABC")
+    }
+  }
+
+  "Calling into on a Flow" should {
+    "throw an IllegalArgumentException for timeout <= 0" in {
+      forAll(TestData.nonPosDuration) { timeout =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          Flow[String].into(Sink.ignore, timeout)
+        }
+      }
+    }
+
+    "result in a TimeoutException if the ProcessSink does not respond in time" in {
+      val timeout = 100.milliseconds
+      val flow    = Flow[String].into(Sink.ignore, timeout)
+      Source
+        .single("abc")
+        .via(flow)
+        .runWith(Sink.head)
+        .failed
+        .map { case ResponseTimeoutException(t) => t shouldBe timeout }
+    }
+
+    "ingest into the process sink and emit its response" in {
+      val processSink =
+        Sink.foreach[(String, Respondee[String])] {
+          case (s, r) => r ! Respondee.Response(s.toUpperCase)
+        }
+      val flow = Flow[String].into(processSink, 1.second)
+      Source
+        .single("abc")
+        .via(flow)
         .runWith(Sink.head)
         .map(_ shouldBe "ABC")
     }
