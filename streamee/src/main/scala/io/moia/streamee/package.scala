@@ -19,7 +19,7 @@ package io.moia
 import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
 import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
-import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source }
+import akka.stream.scaladsl.{ Flow, FlowOps, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
@@ -81,14 +81,37 @@ package object streamee {
         .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
           val parallelism =
             mat.system.settings.config.getInt("streamee.max-into-parallelism")
-          source
-            .map(spawnRespondee[Out, Out2](timeout, mat))
-            .alsoTo {
-              Flow[(Out, Respondee[Out2], Promise[Out2])]
-                .map { case (out, respondee2, _) => (out, respondee2) }
-                .to(processSink)
-            }
-            .mapAsync(parallelism)(_._3.future)
+          intoImpl(source, processSink, timeout, mat, parallelism)
+        }
+    }
+  }
+
+  /**
+    * Extension methods for `Flow`.
+    */
+  implicit final class FlowExt[In, Out, M](val flow: Flow[In, Out, M]) extends AnyVal {
+
+    /**
+      * Ingest into the given [[ProcessSink]] and emit its response or fail with
+      * [[ResponseTimeoutException]], if the response is not produced in time.
+      *
+      * @param processSink [[ProcessSink]] to emit into
+      * @param timeout maximum duration for the running process to respond; must be positive!
+      * @tparam Out2 response type of the given [[ProcessSink]]
+      * @return `Source` emitting responses of the given [[ProcessSink]]
+      */
+    def into[Out2](processSink: ProcessSink[Out, Out2],
+                   timeout: FiniteDuration): Flow[In, Out2, Future[M]] = {
+      require(
+        timeout > Duration.Zero,
+        s"timeout must be > 0, but was $timeout!"
+      )
+
+      Flow
+        .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
+          val parallelism =
+            mat.system.settings.config.getInt("streamee.max-into-parallelism")
+          intoImpl(flow, processSink, timeout, mat, parallelism)
         }
     }
   }
@@ -231,6 +254,20 @@ package object streamee {
 
   private[streamee] def toActorMaterializer(mat: Materializer) =
     mat.asInstanceOf[ActorMaterializer]
+
+  private def intoImpl[Out, Out2, M](flowOps: FlowOps[Out, M],
+                                     processSink: ProcessSink[Out, Out2],
+                                     timeout: FiniteDuration,
+                                     mat: ActorMaterializer,
+                                     parallelism: Int) =
+    flowOps
+      .map(spawnRespondee[Out, Out2](timeout, mat))
+      .alsoTo {
+        Flow[(Out, Respondee[Out2], Promise[Out2])]
+          .map { case (out, respondee2, _) => (out, respondee2) }
+          .to(processSink)
+      }
+      .mapAsync(parallelism)(_._3.future)
 
   private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {
     val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
