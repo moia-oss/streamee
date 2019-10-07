@@ -55,6 +55,9 @@ private final class PerRequestProcessor[A, B](
       }
   }
 
-  override def shutdown(): Future[Done] = queue.watchCompletion()
+  override def shutdown(): Future[Done] = {
+    queue.complete()
+    done
+  }
 
 }

@@ -164,5 +164,8 @@ private final class PermanentProcessor[A, B, C](
     }
   }
 
-  override def shutdown(): Future[Done] = queue.watchCompletion()
+  override def shutdown(): Future[Done] = {
+    queue.complete()
+    done
+  }
 }
