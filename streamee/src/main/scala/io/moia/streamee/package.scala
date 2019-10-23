@@ -70,8 +70,10 @@ package object streamee {
       * @tparam Out2 response type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
-    def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): Source[Out2, Future[M]] = {
+    def into[Out2](
+        processSink: ProcessSink[Out, Out2],
+        timeout: FiniteDuration
+    ): Source[Out2, Future[M]] = {
       require(
         timeout > Duration.Zero,
         s"timeout must be > 0, but was $timeout!"
@@ -100,8 +102,10 @@ package object streamee {
       * @tparam Out2 response type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
-    def into[Out2](processSink: ProcessSink[Out, Out2],
-                   timeout: FiniteDuration): Flow[In, Out2, Future[M]] = {
+    def into[Out2](
+        processSink: ProcessSink[Out, Out2],
+        timeout: FiniteDuration
+    ): Flow[In, Out2, Future[M]] = {
       require(
         timeout > Duration.Zero,
         s"timeout must be > 0, but was $timeout!"
@@ -240,10 +244,12 @@ package object streamee {
     ): flowWithContext.Repr[Out, CtxOut] =
       flowWithContext.via(Flow.apply.delay(of, strategy))
 
-    def throttle(elements: Int,
-                 per: FiniteDuration,
-                 maximumBurst: Int,
-                 mode: ThrottleMode): flowWithContext.Repr[Out, CtxOut] =
+    def throttle(
+        elements: Int,
+        per: FiniteDuration,
+        maximumBurst: Int,
+        mode: ThrottleMode
+    ): flowWithContext.Repr[Out, CtxOut] =
       flowWithContext.via(
         Flow.apply.throttle(elements, per, maximumBurst, mode)
       )
@@ -255,11 +261,13 @@ package object streamee {
   private[streamee] def toActorMaterializer(mat: Materializer) =
     mat.asInstanceOf[ActorMaterializer]
 
-  private def intoImpl[Out, Out2, M](flowOps: FlowOps[Out, M],
-                                     processSink: ProcessSink[Out, Out2],
-                                     timeout: FiniteDuration,
-                                     mat: ActorMaterializer,
-                                     parallelism: Int) =
+  private def intoImpl[Out, Out2, M](
+      flowOps: FlowOps[Out, M],
+      processSink: ProcessSink[Out, Out2],
+      timeout: FiniteDuration,
+      mat: ActorMaterializer,
+      parallelism: Int
+  ) =
     flowOps
       .map(spawnRespondee[Out, Out2](timeout, mat))
       .alsoTo {
