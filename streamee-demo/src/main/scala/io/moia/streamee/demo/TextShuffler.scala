@@ -38,9 +38,11 @@ object TextShuffler {
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
 
-  final case class Config(delay: FiniteDuration,
-                          wordShufflerProcessorTimeout: FiniteDuration,
-                          wordShufflerAskTimeout: FiniteDuration)
+  final case class Config(
+      delay: FiniteDuration,
+      wordShufflerProcessorTimeout: FiniteDuration,
+      wordShufflerAskTimeout: FiniteDuration
+  )
 
   def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(
       implicit mat: Materializer,

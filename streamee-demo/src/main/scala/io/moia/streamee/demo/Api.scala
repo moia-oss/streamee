@@ -18,7 +18,7 @@ package io.moia.streamee
 package demo
 
 import akka.Done
-import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
+import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
@@ -39,9 +39,9 @@ object Api extends Logging {
   def apply(
       config: Config,
       textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit untypedSystem: UntypedSystem, mat: Materializer, scheduler: Scheduler): Unit = {
+  )(implicit classicSystem: ClassicSystem, mat: Materializer, scheduler: Scheduler): Unit = {
     import config._
-    import untypedSystem.dispatcher
+    import classicSystem.dispatcher
 
     implicit val processUnavailableHandler: ExceptionHandler =
       ExceptionHandler {
@@ -49,7 +49,7 @@ object Api extends Logging {
           complete(ServiceUnavailable -> s"Processor $name unavailable!")
       }
 
-    val shutdown = CoordinatedShutdown(untypedSystem)
+    val shutdown = CoordinatedShutdown(classicSystem)
 
     Http()
       .bindAndHandle(route(textShufflerProcessor), interface, port)

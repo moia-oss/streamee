@@ -16,7 +16,7 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.{ Scheduler, ActorSystem => UntypedSystem }
+import akka.actor.{ Scheduler, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.Reason
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
@@ -35,22 +35,24 @@ import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
 import pureconfig.generic.auto.exportReader
-import pureconfig.loadConfigOrThrow
+import pureconfig.ConfigSource
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 object Main extends Logging {
 
-  final case class Config(api: Api.Config,
-                          textShufflerProcessorTimeout: FiniteDuration,
-                          textShuffler: TextShuffler.Config)
+  final case class Config(
+      api: Api.Config,
+      textShufflerProcessorTimeout: FiniteDuration,
+      textShuffler: TextShuffler.Config
+  )
 
   final object TopLevelActorTerminated extends Reason
 
   def main(args: Array[String]): Unit = {
     sys.props += "log4j2.contextSelector" -> classOf[AsyncLoggerContextSelector].getName // Always use async logging!
-    val config = loadConfigOrThrow[Config]("streamee-demo") // Must be first!
-    val system = UntypedSystem("streamee-demo")             // Always start with an untyped system!
+    val config = ConfigSource.default.at("streamee-demo").loadOrThrow[Config] // Must be first!
+    val system = ClassicSystem("streamee-demo")                               // Always start with a classic system!
     system.spawn(Main(config), "main")
   }
 
@@ -75,7 +77,7 @@ object Main extends Logging {
     implicit val mat: Materializer            = ActorMaterializer()(context.system)
     implicit val ec: ExecutionContext         = context.executionContext
     implicit val scheduler: Scheduler         = context.system.scheduler
-    implicit val untypedSystem: UntypedSystem = context.system.toUntyped
+    implicit val classicSystem: ClassicSystem = context.system.toClassic
 
     val wordShufflerRunner =
       ClusterSingleton(context.system).init(
@@ -84,9 +86,11 @@ object Main extends Logging {
       )
 
     val textShufflerProcessor =
-      FrontProcessor(TextShuffler(config.textShuffler, wordShufflerRunner),
-                     textShufflerProcessorTimeout,
-                     "text-shuffler")
+      FrontProcessor(
+        TextShuffler(config.textShuffler, wordShufflerRunner),
+        textShufflerProcessorTimeout,
+        "text-shuffler"
+      )
 
     Api(config.api, textShufflerProcessor)
   }
