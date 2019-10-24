@@ -18,6 +18,7 @@ package io.moia.streamee
 
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.stream.scaladsl.{ Flow, Sink, Source, SourceWithContext }
+import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
@@ -33,7 +34,15 @@ final class StreameeTests
     "throw an IllegalArgumentException for timeout <= 0" in {
       forAll(TestData.nonPosDuration) { timeout =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          Source.single("abc").into(Sink.ignore, timeout)
+          Source.single("abc").into(Sink.ignore, timeout, 42)
+        }
+      }
+    }
+
+    "throw an IllegalArgumentException for parallelism <= 0" in {
+      forAll(Gen.choose(Int.MinValue, 0)) { parallelism =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          Source.single("abc").into(Sink.ignore, 1.second, parallelism)
         }
       }
     }
@@ -42,7 +51,7 @@ final class StreameeTests
       val timeout = 100.milliseconds
       Source
         .single("abc")
-        .into(Sink.ignore, timeout)
+        .into(Sink.ignore, timeout, 42)
         .runWith(Sink.head)
         .failed
         .map { case ResponseTimeoutException(t) => t shouldBe timeout }
@@ -55,7 +64,7 @@ final class StreameeTests
         }
       Source
         .single("abc")
-        .into(processSink, 1.second)
+        .into(processSink, 1.second, 42)
         .runWith(Sink.head)
         .map(_ shouldBe "ABC")
     }
@@ -65,14 +74,22 @@ final class StreameeTests
     "throw an IllegalArgumentException for timeout <= 0" in {
       forAll(TestData.nonPosDuration) { timeout =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          Flow[String].into(Sink.ignore, timeout)
+          Flow[String].into(Sink.ignore, timeout, 42)
+        }
+      }
+    }
+
+    "throw an IllegalArgumentException for parallelism <= 0" in {
+      forAll(Gen.choose(Int.MinValue, 0)) { parallelism =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          Flow[String].into(Sink.ignore, 1.second, parallelism)
         }
       }
     }
 
     "result in a TimeoutException if the ProcessSink does not respond in time" in {
       val timeout = 100.milliseconds
-      val flow    = Flow[String].into(Sink.ignore, timeout)
+      val flow    = Flow[String].into(Sink.ignore, timeout, 42)
       Source
         .single("abc")
         .via(flow)
@@ -86,7 +103,7 @@ final class StreameeTests
         Sink.foreach[(String, Respondee[String])] {
           case (s, r) => r ! Respondee.Response(s.toUpperCase)
         }
-      val flow = Flow[String].into(processSink, 1.second)
+      val flow = Flow[String].into(processSink, 1.second, 42)
       Source
         .single("abc")
         .via(flow)
@@ -99,7 +116,15 @@ final class StreameeTests
     "throw an IllegalArgumentException for timeout <= 0" in {
       forAll(TestData.nonPosDuration) { timeout =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          Process[String, String]().into(Sink.ignore, timeout)
+          Process[String, String]().into(Sink.ignore, timeout, 42)
+        }
+      }
+    }
+
+    "throw an IllegalArgumentException for parallelism <= 0" in {
+      forAll(Gen.choose(Int.MinValue, 0)) { parallelism =>
+        an[IllegalArgumentException] shouldBe thrownBy {
+          Process[String, String]().into(Sink.ignore, 1.second, parallelism)
         }
       }
     }
@@ -109,7 +134,7 @@ final class StreameeTests
       val (respondee, _) = Respondee.spawn[String](timeout)
       SourceWithContext
         .fromTuples(Source.single(("abc", respondee)))
-        .via(Process[String, String]().into(Sink.ignore, timeout))
+        .via(Process[String, String]().into(Sink.ignore, timeout, 42))
         .runWith(Sink.head)
         .failed
         .map { case ResponseTimeoutException(t) => t shouldBe timeout }
@@ -123,7 +148,7 @@ final class StreameeTests
         }
       SourceWithContext
         .fromTuples(Source.single(("abc", respondee)))
-        .via(Process[String, String]().into(processSink, 1.second))
+        .via(Process[String, String]().into(processSink, 1.second, 42))
         .runWith(Sink.head)
         .map(_._1 shouldBe "ABC")
     }
@@ -178,7 +203,7 @@ final class StreameeTests
     "convert an IntoableSink into a FrontProcessor" in {
       val process           = Process[String, Int]().map(_.length)
       val intoableProcessor = IntoableProcessor(process, "name")
-      val frontProcessor    = intoableProcessor.sink.asFrontProcessor(1.second, "name")
+      val frontProcessor    = intoableProcessor.sink.asFrontProcessor(1.second, 42, "name")
       frontProcessor
         .offer("abc")
         .map(_ shouldBe 3)
