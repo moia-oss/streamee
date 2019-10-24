@@ -18,7 +18,7 @@ package io.moia.streamee
 
 import akka.actor.{ ActorSystem, CoordinatedShutdown }
 import akka.pattern.{ after => akkaAfter }
-import akka.stream.{ ActorAttributes, Materializer, Supervision, ThrottleMode }
+import akka.stream.{ ActorAttributes, Materializer, StreamRefAttributes, Supervision, ThrottleMode }
 import akka.stream.scaladsl.{ Sink, Source }
 import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
@@ -105,7 +105,7 @@ final class IntoableProcessorTests
         .into(processor.sink, 1.seconds, 42)
         .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
         .runWith(Sink.seq)
-        .map(_.size should be >= 5) // 7 - 2, 2 from IntoableProcessor
+        .map(_.max should be >= 4) // 7 - 2, 2 from IntoableProcessor, 1 from delay btw shutdown and into
     }
   }
 
@@ -150,13 +150,11 @@ final class IntoableProcessorTests
           if (n == 7) processor.shutdown()
           n
         }
-        .into(processor.sinkRef(), 1.seconds, 42)
+        .into(processor.sinkRef(StreamRefAttributes.bufferCapacity(1)), 1.seconds, 42)
         .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
         .recover { case _ => Int.MinValue }
         .runWith(Sink.seq)
-        .map(_.size should be >= 4) // 7 - 2 - 1, 2 from IntoableProcessor, 1 from SinkRef buffering
-
-      pending
+        .map(_.max should be >= 3) // 7 - 2 - 1 - 1, 2 from IntoableProcessor, 1 from SinkRef buffering, 1 from delay btw shutdown and into
     }
   }
 

@@ -16,7 +16,7 @@
 
 package io.moia.streamee
 
-import akka.stream.{ ActorAttributes, KillSwitches, Materializer, SinkRef, Supervision }
+import akka.stream.{ ActorAttributes, Attributes, KillSwitches, Materializer, Supervision }
 import akka.stream.scaladsl.{ Keep, MergeHub, Sink, StreamRefs }
 import akka.Done
 import akka.actor.CoordinatedShutdown
@@ -88,9 +88,14 @@ final class IntoableProcessor[Req, Res] private (
     * Create a `SinkRef` to be used with the `into` stream extension method remotely, i.e. when this
     * processor is running on one member node of an Akka cluster and on another member node `into`
     * is used.
+    *
+    * @param attributes Stream attributes for creating the `SinkRef`, e.g. `StreamRefAttributes.bufferCapacity`
+    * @return `SinkRef` to be used with the `into` stream extension method remotely
     */
-  def sinkRef()(implicit mat: Materializer): SinkRef[(Req, Respondee[Res])] =
-    StreamRefs.sinkRef().to(_sink).run()
+  def sinkRef(
+      attributes: Attributes = Attributes.none
+  )(implicit mat: Materializer): ProcessSinkRef[Req, Res] =
+    StreamRefs.sinkRef().addAttributes(attributes).to(_sink).run()
 
   /**
     * Shutdown this processor. Already accepted requests are completed, but no new ones are
