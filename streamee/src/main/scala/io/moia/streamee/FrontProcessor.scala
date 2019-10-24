@@ -103,7 +103,7 @@ final class FrontProcessor[Req, Res] private (
       .toMat(
         Sink.foreach { case (response, respondee) => respondee ! Respondee.Response(response) }
       )(Keep.both)
-      .withAttributes(ActorAttributes.supervisionStrategy(resume))
+      .addAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
   CoordinatedShutdown(mat.system).addTask(phase, s"shutdown-front-processor-$name") { () =>

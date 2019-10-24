@@ -56,7 +56,7 @@ object IntoableProcessor {
 final class IntoableProcessor[Req, Res] private (
     process: Process[Req, Res, Res],
     name: String,
-    bufferSize: Int = 1,
+    bufferSize: Int,
     phase: String
 )(implicit mat: Materializer)
     extends Logging {
@@ -70,7 +70,7 @@ final class IntoableProcessor[Req, Res] private (
       .toMat(
         Sink.foreach { case (response, respondee) => respondee ! Respondee.Response(response) }
       ) { case ((sink, switch), done) => (sink, switch, done) }
-      .withAttributes(ActorAttributes.supervisionStrategy(resume))
+      .addAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
   CoordinatedShutdown(mat.system).addTask(phase, s"shutdown-intoable-processor-$name") { () =>

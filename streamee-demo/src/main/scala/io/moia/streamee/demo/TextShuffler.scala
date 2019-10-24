@@ -71,7 +71,7 @@ object TextShuffler {
   def delayRequest(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
     Process()
       .delay(of, DelayOverflowStrategy.backpressure)
-      .withAttributes(Attributes.inputBuffer(1, 1))
+      .addAttributes(Attributes.inputBuffer(1, 1))
 
   def keepOriginalAndSplit: Process[ShuffleText, (String, Seq[String]), TextShuffled] =
     Process[ShuffleText, TextShuffled]() // Here the type annotation is mandatory!

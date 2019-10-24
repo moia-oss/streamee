@@ -79,7 +79,7 @@ final class IntoableProcessorTests
       Source
         .single("abc")
         .into(processor.sink, 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .runWith(Sink.headOption)
         .map(_ shouldBe None)
     }
@@ -89,7 +89,7 @@ final class IntoableProcessorTests
       val processor = IntoableProcessor(process, "name")
       Source(List((4, 0), (4, 2)))
         .into(processor.sink, 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .runWith(Sink.head)
         .map(_ shouldBe 2)
     }
@@ -108,7 +108,7 @@ final class IntoableProcessorTests
           n
         }
         .into(processor.sink, 1.seconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .runWith(Sink.seq)
         .map(_.size should be >= 5) // 7 - 2, 2 from IntoableProcessor (see above)
     }
@@ -132,7 +132,7 @@ final class IntoableProcessorTests
       Source
         .single("abc")
         .into(processor.sinkRef().sink(), 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .runWith(Sink.headOption)
         .map(_ shouldBe None)
     }
@@ -142,7 +142,7 @@ final class IntoableProcessorTests
       val processor = IntoableProcessor(process, "name")
       Source(List((4, 0), (4, 2)))
         .into(processor.sinkRef().sink(), 100.milliseconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .runWith(Sink.head)
         .map(_ shouldBe 2)
     }
@@ -161,7 +161,7 @@ final class IntoableProcessorTests
           n
         }
         .into(processor.sinkRef().sink(), 1.seconds)
-        .withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
         .toMat(Sink.seq)(Keep.right)
         .run()
         .map(_.size should be >= 4) // 7 - 2 - 1, 2 from IntoableProcessor (see above), 1 from SinkRef buffering
