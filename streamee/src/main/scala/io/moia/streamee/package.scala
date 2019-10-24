@@ -26,12 +26,22 @@ import scala.concurrent.{ ExecutionContext, Future, Promise }
 package object streamee {
 
   /**
-    * A domain logic process or process stage from an input to an output which transparently
-    * propagates a [[Respondee]] for the top-level response. For a top-level process Out == Res. Can
-    * be used locally or remotely.
+    * A domain logic process from a request to a response which transparently propagates a
+    * [[Respondee]] for the response. Can be used locally or remotely because the propagated
+    * [[Respondee]] is location transparent.
+    *
+    * Use `Step[Req, Respondee[Res]]()` to create an empty instance to be used bas an initial
+    * process step.
     */
-  type Process[-In, Out, Res] =
-    FlowWithContext[In, Respondee[Res], Out, Respondee[Res], Any]
+  type Process[-Req, Res] = FlowWithContext[Req, Respondee[Res], Res, Respondee[Res], Any]
+
+  /**
+    * A step within a [[Process]].
+    *
+    * Use `Step[Req, Respondee[Res]]()` to create an empty instance to be used as an initial
+    * process step.
+    */
+  type Step[-In, +Out, Ctx] = FlowWithContext[In, Ctx, Out, Ctx, Any]
 
   /**
     * Convenient shortcut for `ActorRef[Respondee.Response[A]]`.
@@ -39,14 +49,14 @@ package object streamee {
   type Respondee[A] = ActorRef[Respondee.Response[A]]
 
   /**
-    * Convenient shortcut for `Sink[(Req, Respondee[Res]), Any]`.
+    * Convenient shortcut for `Sink[(In, Respondee[Out]), Any]`.
     */
-  type ProcessSink[Req, Res] = Sink[(Req, Respondee[Res]), Any]
+  type ProcessSink[-In, Out] = Sink[(In, Respondee[Out]), Any]
 
   /**
-    * Convenient shortcut for `SinkRef[(Req, Respondee[Res])]`.
+    * Convenient shortcut for `SinkRef[(In, Respondee[Out])]`.
     */
-  type ProcessSinkRef[Req, Res] = SinkRef[(Req, Respondee[Res])]
+  type ProcessSinkRef[In, Out] = SinkRef[(In, Respondee[Out])]
 
   /**
     * Signals no response within the given timeout.
@@ -68,7 +78,7 @@ package object streamee {
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
       * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 response type of the given [[ProcessSink]]
+      * @tparam Out2 output type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
@@ -95,7 +105,7 @@ package object streamee {
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
       * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 response type of the given [[ProcessSink]]
+      * @tparam Out2 output type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
@@ -124,7 +134,7 @@ package object streamee {
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
       * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 response type of the given [[ProcessSink]]
+      * @tparam Out2 output type of the given [[ProcessSink]]
       * @return `FlowWithContext` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
@@ -215,7 +225,7 @@ package object streamee {
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
       FrontProcessor(
-        Process[Req, Res]().into(sink, timeout, parallelism),
+        Step[Req, Respondee[Res]]().into(sink, timeout, parallelism),
         timeout,
         name,
         bufferSize,

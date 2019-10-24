@@ -16,16 +16,19 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.{ ActorRef, Scheduler }
+import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
 import akka.stream.scaladsl.{ RestartSink, Sink, Source }
 import io.moia.streamee.{
+  FlowWithContextExt,
   FlowWithPairedContextOps,
   Process,
   ProcessSink,
   ProcessSinkRef,
-  SourceExt
+  Respondee,
+  SourceExt,
+  Step
 }
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
@@ -47,14 +50,12 @@ object TextShuffler {
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
-  ): Process[ShuffleText, TextShuffled, TextShuffled] = {
+  ): Process[ShuffleText, TextShuffled] = {
     import config._
 
     def wordShufflerSinkRef(): Future[ProcessSinkRef[ShuffleWord, WordShuffled]] =
       wordShufflerRunner
-        .ask { replyTo: ActorRef[ProcessSinkRef[ShuffleWord, WordShuffled]] =>
-          WordShufflerRunner.GetProcessSinkRef(replyTo)
-        }(wordShufflerAskTimeout, scheduler)
+        .ask(WordShufflerRunner.GetProcessSinkRef)(wordShufflerAskTimeout, scheduler)
         .recoverWith { case _ => wordShufflerSinkRef() }
 
     val wordShufflerSink =
@@ -62,32 +63,37 @@ object TextShuffler {
         Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
-    delayRequest(delay)
-      .via(keepOriginalAndSplit)
-      .via(shuffleWords(wordShufflerSink, wordShufflerProcessorTimeout))
+    Step[ShuffleText, Respondee[TextShuffled]]()
+      .via(delayRequest(delay))
+      .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
       .via(concat)
   }
 
-  def delayRequest(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
-    Process[ShuffleText, TextShuffled]()
+  def delayRequest[Ctx](
+      of: FiniteDuration
+  ): Step[ShuffleText, ShuffleText, Ctx] =
+    Step[ShuffleText, Ctx]()
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
 
-  def keepOriginalAndSplit: Process[ShuffleText, (String, Seq[String]), TextShuffled] =
-    Process[ShuffleText, TextShuffled]() // Here the type annotation is mandatory!
-      .map(_.text)
-      .push // push the original text
-      .map(_.split(" ").toList)
-      .pop // pop the original text
-
-  def shuffleWords(
+  def keepSplitShuffle[Ctx](
       wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
       wordShufflerProcessorTimeout: FiniteDuration
   )(
       implicit mat: Materializer
-  ): Process[(String, Seq[String]), (String, Seq[String]), TextShuffled] =
-    Process[(String, Seq[String]), TextShuffled]()
-      .push(_._1, _._2) // push the original text, because it gets lost (shuffled) when ingesting into the `wordShufflerSink`
+  ): Step[ShuffleText, (String, Seq[String]), Ctx] =
+    Step[ShuffleText, Ctx]()
+      .map(_.text)
+      .push // push the original text
+      .map(_.split(" ").toList)
+      .via(shuffleWords(wordShufflerSink, wordShufflerProcessorTimeout))
+      .pop
+
+  def shuffleWords[Ctx](
+      wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
+      wordShufflerProcessorTimeout: FiniteDuration
+  )(implicit mat: Materializer): Step[Seq[String], Seq[String], Ctx] =
+    Step[Seq[String], Ctx]()
       .mapAsync(1) { words =>
         Source(words)
           .map(WordShuffler.ShuffleWord)
@@ -95,10 +101,9 @@ object TextShuffler {
           .runWith(Sink.seq)
       }
       .map(_.map(_.word))
-      .pop // pop the original text, because we need it togehter with the shuffled for the purpose of displaying
 
-  def concat: Process[(String, Seq[String]), TextShuffled, TextShuffled] =
-    Process().map {
+  def concat[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
+    Step[(String, Seq[String]), Ctx]().map {
       case (originalText, shuffledWords) => TextShuffled(originalText, shuffledWords.mkString(" "))
     }
 }
