@@ -18,7 +18,7 @@ package io.moia.streamee
 package demo
 
 import akka.Done
-import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => ClassicSystem }
+import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
@@ -39,9 +39,9 @@ object Api extends Logging {
   def apply(
       config: Config,
       textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit classicSystem: ClassicSystem, mat: Materializer, scheduler: Scheduler): Unit = {
-    import config._
+  )(implicit classicSystem: ClassicSystem, mat: Materializer): Unit = {
     import classicSystem.dispatcher
+    import config._
 
     implicit val processUnavailableHandler: ExceptionHandler =
       ExceptionHandler {
@@ -55,16 +55,11 @@ object Api extends Logging {
       .bindAndHandle(route(textShufflerProcessor), interface, port)
       .onComplete {
         case Failure(cause) =>
-          logger.error(
-            s"Shutting down, because cannot bind to $interface:$port!",
-            cause
-          )
+          logger.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
           shutdown.run(BindFailure)
 
         case Success(binding) =>
-          logger.info(
-            s"Listening for HTTP connections on ${binding.localAddress}"
-          )
+          logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
           shutdown.addTask(PhaseServiceUnbind, "api.unbind") { () =>
             binding.terminate(terminationDeadline).map(_ => Done)
           }
@@ -73,7 +68,7 @@ object Api extends Logging {
 
   def route(
       textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit ec: ExecutionContext, scheduler: Scheduler): Route = {
+  )(implicit ec: ExecutionContext): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
     import io.circe.generic.auto._
@@ -90,8 +85,7 @@ object Api extends Logging {
       post {
         entity(as[ShuffleText]) { shuffleText =>
           onSuccess(textShufflerProcessor.offer(shuffleText)) {
-            case TextShuffled(original, result) =>
-              complete(s"$original -> $result")
+            case TextShuffled(original, result) => complete(s"$original -> $result")
           }
         }
       }

@@ -16,9 +16,8 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.Scheduler
 import akka.actor.typed.scaladsl.AskPattern.Askable
-import akka.actor.typed.ActorRef
+import akka.actor.typed.{ ActorRef, Scheduler }
 import akka.stream.{ Attributes, DelayOverflowStrategy, Materializer }
 import akka.stream.scaladsl.{ RestartSink, Sink, Source }
 import io.moia.streamee.{
@@ -70,7 +69,7 @@ object TextShuffler {
   }
 
   def delayRequest(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
-    Process[ShuffleText, TextShuffled]() // Type annotation only needed by IDEA!
+    Process()
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
 
@@ -99,9 +98,7 @@ object TextShuffler {
       .pop // pop the original text, because we need it togehter with the shuffled for the purpose of displaying
 
   def concat: Process[(String, Seq[String]), TextShuffled, TextShuffled] =
-    Process()
-      .map {
-        case (originalText, shuffledWords) =>
-          TextShuffled(originalText, shuffledWords.mkString(" "))
-      }
+    Process().map {
+      case (originalText, shuffledWords) => TextShuffled(originalText, shuffledWords.mkString(" "))
+    }
 }

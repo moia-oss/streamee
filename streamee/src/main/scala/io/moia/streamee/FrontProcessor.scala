@@ -61,8 +61,10 @@ object FrontProcessor {
     * @param process top-level domain logic process from request to response
     * @param timeout maximum duration for the running process to respond; must be positive!
     * @param name name, used for logging and exceptions
-    * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
-    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
+    * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must
+    *                   be positive!
+    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to
+    *              "service-requests-done"; must be defined in configufation!
     * @tparam Req request type
     * @tparam Res response type
     * @return [[FrontProcessor]]
@@ -91,30 +93,23 @@ final class FrontProcessor[Req, Res] private (
     extends Logging {
   import FrontProcessor._
 
-  require(
-    timeout > Duration.Zero,
-    s"timeout for processor $name must be > 0, but was $timeout!"
-  )
-  require(
-    bufferSize > 0,
-    s"bufferSize for processor $name must be > 0, but was $bufferSize!"
-  )
+  require(timeout > Duration.Zero, s"timeout for processor $name must be > 0, but was $timeout!")
+  require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
 
   private val (queue, _done) =
     Source
       .queue[(Req, Respondee[Res])](bufferSize, OverflowStrategy.dropNew)
       .via(process)
-      .toMat(Sink.foreach {
-        case (response, respondee) => respondee ! Respondee.Response(response)
-      })(Keep.both)
+      .toMat(
+        Sink.foreach { case (response, respondee) => respondee ! Respondee.Response(response) }
+      )(Keep.both)
       .withAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
-  coordinatedShutdown(mat)
-    .addTask(phase, s"shutdown-front-processor-$name") { () =>
-      shutdown()
-      whenDone
-    }
+  CoordinatedShutdown(mat.system).addTask(phase, s"shutdown-front-processor-$name") { () =>
+    shutdown()
+    whenDone
+  }
 
   /**
     * Offer the given request to the process. The returned `Future` is either completed successfully
@@ -128,7 +123,7 @@ final class FrontProcessor[Req, Res] private (
     val (respondee, response) = Respondee.spawn[Res](timeout)
     queue
       .offer((request, respondee))
-      .recover { case _: StreamDetachedException => Dropped } // after shutdown we want to fail with `ProcessorUnavailable`
+      .recover { case _: StreamDetachedException => Dropped } // after shutdown fail with // `ProcessorUnavailable`
       .flatMap {
         case Enqueued => response.future // might result in a `TimeoutException`
         case Dropped  => Future.failed(ProcessorUnavailable(name))

@@ -22,7 +22,7 @@ import akka.stream.Materializer
 import io.moia.streamee.{ IntoableProcessor, Process, ProcessSinkRef }
 import org.apache.logging.log4j.scala.Logging
 import scala.annotation.tailrec
-import scala.util.{ Failure, Random, Success }
+import scala.util.Random
 
 object WordShuffler {
 
@@ -86,12 +86,7 @@ object WordShufflerRunner extends Logging {
 
       Behaviors.receiveMessagePartial {
         case GetProcessSinkRef(replyTo) =>
-          wordShufflerProcessor
-            .sinkRef()
-            .onComplete {
-              case Success(sinkRef) => replyTo ! sinkRef
-              case Failure(cause)   => logger.error("Cannot create ProcessSinkRef!", cause)
-            }
+          replyTo ! wordShufflerProcessor.sinkRef()
           Behaviors.same
 
         case Shutdown =>
