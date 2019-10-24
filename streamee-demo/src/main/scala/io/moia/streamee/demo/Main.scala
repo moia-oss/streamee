@@ -16,11 +16,11 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.{ Scheduler, ActorSystem => ClassicSystem }
+import akka.actor.{ ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.Behavior
+import akka.actor.typed.{ Behavior, Scheduler }
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, UntypedActorSystemOps }
+import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
 import akka.cluster.typed.{
   Cluster,
   ClusterSingleton,
@@ -30,7 +30,6 @@ import akka.cluster.typed.{
   Unsubscribe
 }
 import akka.stream.Materializer
-import akka.stream.typed.scaladsl.ActorMaterializer
 import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.apache.logging.log4j.scala.Logging
@@ -74,7 +73,7 @@ object Main extends Logging {
   private def initialize(config: Config)(implicit context: ActorContext[_]) = {
     import config._
 
-    implicit val mat: Materializer            = ActorMaterializer()(context.system)
+    implicit val mat: Materializer            = Materializer(context.system)
     implicit val ec: ExecutionContext         = context.executionContext
     implicit val scheduler: Scheduler         = context.system.scheduler
     implicit val classicSystem: ClassicSystem = context.system.toClassic

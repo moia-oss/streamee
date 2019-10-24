@@ -16,7 +16,7 @@
 
 package io.moia.streamee
 
-import akka.actor.typed.scaladsl.adapter.UntypedActorSystemOps
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.stream.scaladsl.{ Flow, Sink, Source, SourceWithContext }
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks

@@ -17,7 +17,6 @@
 package io.moia.streamee
 
 import akka.actor.{ ActorSystem, Scheduler }
-import akka.stream.{ ActorMaterializer, Materializer }
 import org.scalatest.{ BeforeAndAfterAll, Suite }
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -26,9 +25,6 @@ trait AkkaSuite extends Suite with BeforeAndAfterAll {
 
   protected implicit val system: ActorSystem =
     ActorSystem()
-
-  protected implicit val mat: Materializer =
-    ActorMaterializer()
 
   protected implicit val scheduler: Scheduler =
     system.scheduler

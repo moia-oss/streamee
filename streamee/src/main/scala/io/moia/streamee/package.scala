@@ -18,7 +18,7 @@ package io.moia
 
 import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
-import akka.stream.{ ActorMaterializer, DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
+import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowOps, FlowWithContext, Sink, Source }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -74,17 +74,12 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration
     ): Source[Out2, Future[M]] = {
-      require(
-        timeout > Duration.Zero,
-        s"timeout must be > 0, but was $timeout!"
-      )
+      require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
 
-      Source
-        .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-          val parallelism =
-            mat.system.settings.config.getInt("streamee.max-into-parallelism")
-          intoImpl(source, processSink, timeout, mat, parallelism)
-        }
+      Source.fromMaterializer { (mat, _) =>
+        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
+        intoImpl(source, processSink, timeout, mat, parallelism)
+      }
     }
   }
 
@@ -106,17 +101,12 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration
     ): Flow[In, Out2, Future[M]] = {
-      require(
-        timeout > Duration.Zero,
-        s"timeout must be > 0, but was $timeout!"
-      )
+      require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
 
-      Flow
-        .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-          val parallelism =
-            mat.system.settings.config.getInt("streamee.max-into-parallelism")
-          intoImpl(flow, processSink, timeout, mat, parallelism)
-        }
+      Flow.fromMaterializer { (mat, _) =>
+        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
+        intoImpl(flow, processSink, timeout, mat, parallelism)
+      }
     }
   }
 
@@ -140,27 +130,20 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration
     ): FlowWithContext[In, CtxIn, Out2, CtxOut, Future[M]] = {
-      require(
-        timeout > Duration.Zero,
-        s"timeout must be > 0, but was $timeout!"
-      )
+      require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
 
-      FlowWithContext.fromTuples(
-        Flow
-          .setup { (mat, _) => // We need the `ActorMaterializer` to get its `system`!
-            val parallelism = mat.system.settings.config
-              .getInt("streamee.max-into-parallelism")
-            flowWithContext
-              .map(spawnRespondee[Out, Out2](timeout, mat))
-              .via(Flow.apply.alsoTo {
-                Flow[((Out, Respondee[Out2], Promise[Out2]), CtxOut)]
-                  .map { case ((out, respondee2, _), _) => (out, respondee2) }
-                  .to(processSink)
-              })
-              .mapAsync(parallelism)(_._3.future)
-              .asFlow
-          }
-      )
+      FlowWithContext.fromTuples(Flow.fromMaterializer { (mat, _) =>
+        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
+        flowWithContext
+          .map(spawnRespondee[Out, Out2](timeout, mat))
+          .via(Flow.apply.alsoTo {
+            Flow[((Out, Respondee[Out2], Promise[Out2]), CtxOut)]
+              .map { case ((out, respondee2, _), _) => (out, respondee2) }
+              .to(processSink)
+          })
+          .mapAsync(parallelism)(_._3.future)
+          .asFlow
+      })
     }
 
     /**
@@ -171,15 +154,11 @@ package object streamee {
       * @param g transform the emitted element
       * @tparam A target type of the transformation of the element pushed to the context
       * @tparam B target type of the transformation of the element
-      * @return `FlowWithContext` propagating its transformed input elements along with the context and emitting transformed input elements
+      * @return `FlowWithContext` propagating its transformed input elements along with the context
+      *         and emitting transformed input elements
       */
-    def push[A, B](
-        f: Out => A,
-        g: Out => B
-    ): FlowWithContext[In, CtxIn, B, (A, CtxOut), Any] =
-      flowWithContext.via(Flow.apply.map {
-        case (out, ctxOut) => (g(out), (f(out), ctxOut))
-      })
+    def push[A, B](f: Out => A, g: Out => B): FlowWithContext[In, CtxIn, B, (A, CtxOut), Any] =
+      flowWithContext.via(Flow.apply.map { case (out, ctxOut) => (g(out), (f(out), ctxOut)) })
 
     /**
       * Push the emitted element to the propagated context.
@@ -200,12 +179,11 @@ package object streamee {
       * Pop a formerly pushed and potentially transformed element from the propagated context and
       * pair it up with the emitted element.
       *
-      * @return `FlowWithContext` propagating the former context only and emitting the propagated transformed former input elements along with its actual input elements
+      * @return `FlowWithContext` propagating the former context only and emitting the propagated
+      *         transformed former input elements along with its actual input elements
       */
     def pop: FlowWithContext[In, CtxIn, (A, Out), CtxOut, Any] =
-      flowWithContext.via(Flow.apply.map {
-        case (out, (a, ctxOut)) => ((a, out), ctxOut)
-      })
+      flowWithContext.via(Flow.apply.map { case (out, (a, ctxOut)) => ((a, out), ctxOut) })
   }
 
   /**
@@ -218,8 +196,10 @@ package object streamee {
       *
       * @param timeout maximum duration for the running process to respond; must be positive!
       * @param name name, used for logging and exceptions
-      * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
-      * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must be defined in configufation!
+      * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1;
+      *                   must be positive!
+      * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to
+      *              "service-requests-done"; must be defined in configufation!
       * @return [[FrontProcessor]]
       */
     def asFrontProcessor(
@@ -228,7 +208,13 @@ package object streamee {
         bufferSize: Int = 1,
         phase: String = CoordinatedShutdown.PhaseServiceRequestsDone
     )(implicit mat: Materializer, ec: ExecutionContext): FrontProcessor[Req, Res] =
-      FrontProcessor(Process[Req, Res]().into(sink, timeout), timeout, name, bufferSize, phase)
+      FrontProcessor(
+        Process[Req, Res]().into(sink, timeout),
+        timeout,
+        name,
+        bufferSize,
+        phase
+      )
   }
 
   /**
@@ -250,22 +236,14 @@ package object streamee {
         maximumBurst: Int,
         mode: ThrottleMode
     ): flowWithContext.Repr[Out, CtxOut] =
-      flowWithContext.via(
-        Flow.apply.throttle(elements, per, maximumBurst, mode)
-      )
+      flowWithContext.via(Flow.apply.throttle(elements, per, maximumBurst, mode))
   }
-
-  private[streamee] def coordinatedShutdown(mat: Materializer) =
-    CoordinatedShutdown(toActorMaterializer(mat).system)
-
-  private[streamee] def toActorMaterializer(mat: Materializer) =
-    mat.asInstanceOf[ActorMaterializer]
 
   private def intoImpl[Out, Out2, M](
       flowOps: FlowOps[Out, M],
       processSink: ProcessSink[Out, Out2],
       timeout: FiniteDuration,
-      mat: ActorMaterializer,
+      mat: Materializer,
       parallelism: Int
   ) =
     flowOps

@@ -32,8 +32,10 @@ object IntoableProcessor {
     *
     * @param process top-level domain logic process from request to response
     * @param name name, used for logging
-    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
-    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to ""service-stop""; must be defined in configufation!
+    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1;
+    *                   must be positive!
+    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to ""service-stop"";
+    *              must be defined in configufation!
     * @tparam Req request type
     * @tparam Res response type
     * @return [[IntoableProcessor]]
@@ -58,27 +60,23 @@ final class IntoableProcessor[Req, Res] private (
     phase: String
 )(implicit mat: Materializer)
     extends Logging {
-  require(
-    bufferSize > 0,
-    s"bufferSize for processor $name must be > 0, but was $bufferSize!"
-  )
+  require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
 
   private val (_sink, switch, _done) =
     MergeHub
       .source[(Req, Respondee[Res])](bufferSize)
       .viaMat(KillSwitches.single)(Keep.both)
       .via(process)
-      .toMat(Sink.foreach {
-        case (response, respondee) => respondee ! Respondee.Response(response)
-      }) { case ((sink, switch), done) => (sink, switch, done) }
+      .toMat(
+        Sink.foreach { case (response, respondee) => respondee ! Respondee.Response(response) }
+      ) { case ((sink, switch), done) => (sink, switch, done) }
       .withAttributes(ActorAttributes.supervisionStrategy(resume))
       .run()
 
-  coordinatedShutdown(mat)
-    .addTask(phase, s"shutdown-intoable-processor-$name") { () =>
-      shutdown()
-      whenDone
-    }
+  CoordinatedShutdown(mat.system).addTask(phase, s"shutdown-intoable-processor-$name") { () =>
+    shutdown()
+    whenDone
+  }
 
   /**
     * Sink to be used with the `into` stream extension method locally.
@@ -91,9 +89,7 @@ final class IntoableProcessor[Req, Res] private (
     * processor is running on one member node of an Akka cluster and on another member node `into`
     * is used.
     */
-  def sinkRef()(
-      implicit mat: Materializer
-  ): Future[SinkRef[(Req, Respondee[Res])]] =
+  def sinkRef()(implicit mat: Materializer): SinkRef[(Req, Respondee[Res])] =
     StreamRefs.sinkRef().to(_sink).run()
 
   /**
