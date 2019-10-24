@@ -10,7 +10,12 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="io.moia.streamee" level="${sys:loglevel.demoprocess:-debug}"
+        <Logger name="io.moia.streamee" level="${sys:loglevel.stremee-demo:-debug}"
+                additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
+
+        <Logger name="akka.stream.Materializer" level="${sys:loglevel.materializer:-debug}"
                 additivity="false">
             <AppenderRef ref="stdout"/>
         </Logger>

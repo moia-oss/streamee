@@ -69,9 +69,9 @@ object TextShuffler {
   }
 
   def delayRequest(of: FiniteDuration): Process[ShuffleText, ShuffleText, TextShuffled] =
-    Process()
+    Process[ShuffleText, TextShuffled]()
       .delay(of, DelayOverflowStrategy.backpressure)
-      .addAttributes(Attributes.inputBuffer(1, 1))
+      .withAttributes(Attributes.inputBuffer(1, 1))
 
   def keepOriginalAndSplit: Process[ShuffleText, (String, Seq[String]), TextShuffled] =
     Process[ShuffleText, TextShuffled]() // Here the type annotation is mandatory!
@@ -91,7 +91,7 @@ object TextShuffler {
       .mapAsync(1) { words =>
         Source(words)
           .map(WordShuffler.ShuffleWord)
-          .into(wordShufflerSink, wordShufflerProcessorTimeout)
+          .into(wordShufflerSink, wordShufflerProcessorTimeout, 42)
           .runWith(Sink.seq)
       }
       .map(_.map(_.word))

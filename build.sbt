@@ -27,6 +27,7 @@ lazy val `streamee` =
         library.akkaHttpTestkit       % Test,
         library.akkaStreamTestkit     % Test,
         library.log4jCore             % Test,
+        library.log4jSlf4j            % Test,
         library.scalaCheck            % Test,
         library.scalaTest             % Test,
       )

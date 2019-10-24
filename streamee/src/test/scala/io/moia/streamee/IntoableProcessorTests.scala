@@ -19,7 +19,7 @@ package io.moia.streamee
 import akka.actor.{ ActorSystem, CoordinatedShutdown }
 import akka.pattern.{ after => akkaAfter }
 import akka.stream.{ ActorAttributes, Materializer, Supervision, ThrottleMode }
-import akka.stream.scaladsl.{ Keep, Sink, Source }
+import akka.stream.scaladsl.{ Sink, Source }
 import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -67,50 +67,45 @@ final class IntoableProcessorTests
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
-        .into(processor.sink, 1.second)
+        .into(processor.sink, 1.second, 42)
         .runWith(Sink.head)
         .map(_ shouldBe 3)
     }
 
     "fail after the given timeout" in {
-      val delay     = 100.milliseconds
-      val process   = Process[String, String]().delay(delay)
+      val timeout   = 100.milliseconds
+      val process   = Process[String, String]().delay(timeout * 3)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
-        .into(processor.sink, 100.milliseconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .into(processor.sink, timeout, 42)
         .runWith(Sink.headOption)
-        .map(_ shouldBe None)
+        .failed
+        .map(_ shouldBe ResponseTimeoutException(timeout))
     }
 
     "resume on failure" in {
-      val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
+      val process   = Process[Int, Int]().map(42 / _)
       val processor = IntoableProcessor(process, "name")
-      Source(List((4, 0), (4, 2)))
-        .into(processor.sink, 100.milliseconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
-        .runWith(Sink.head)
-        .map(_ shouldBe 2)
+      Source(List(1, 0, 2, 0, 3))
+        .into(processor.sink, 1.second, 42)
+        .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
+        .runWith(Sink.seq)
+        .map(_ shouldBe List(42, 21, 14))
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process = Process[Int, Int]().throttle(
-        1,
-        100.milliseconds,
-        0,
-        ThrottleMode.Shaping
-      )
+      val process   = Process[Int, Int]().throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
         .map { n =>
           if (n == 7) processor.shutdown()
           n
         }
-        .into(processor.sink, 1.seconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .into(processor.sink, 1.seconds, 42)
+        .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
         .runWith(Sink.seq)
-        .map(_.size should be >= 5) // 7 - 2, 2 from IntoableProcessor (see above)
+        .map(_.size should be >= 5) // 7 - 2, 2 from IntoableProcessor
     }
   }
 
@@ -120,51 +115,46 @@ final class IntoableProcessorTests
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
-        .into(processor.sinkRef().sink(), 1.second)
+        .into(processor.sinkRef(), 1.second, 42)
         .runWith(Sink.head)
         .map(_ shouldBe 3)
     }
 
     "fail after the given timeout" in {
-      val delay     = 100.milliseconds
-      val process   = Process[String, String]().delay(delay)
+      val timeout   = 100.milliseconds
+      val process   = Process[String, String]().delay(timeout * 3)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
-        .into(processor.sinkRef().sink(), 100.milliseconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
+        .into(processor.sinkRef(), timeout, 42)
         .runWith(Sink.headOption)
-        .map(_ shouldBe None)
+        .failed
+        .map(_ shouldBe ResponseTimeoutException(timeout))
     }
 
     "resume on failure" in {
-      val process   = Process[(Int, Int), Int]().map { case (n, m) => n / m }
+      val process   = Process[Int, Int]().map(42 / _)
       val processor = IntoableProcessor(process, "name")
-      Source(List((4, 0), (4, 2)))
-        .into(processor.sinkRef().sink(), 100.milliseconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
-        .runWith(Sink.head)
-        .map(_ shouldBe 2)
+      Source(List(1, 0, 2, 0, 3))
+        .into(processor.sinkRef(), 1.second, 42)
+        .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
+        .runWith(Sink.seq)
+        .map(_ shouldBe List(42, 21, 14))
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process = Process[Int, Int]().throttle(
-        1,
-        100.milliseconds,
-        0,
-        ThrottleMode.Shaping
-      )
+      val process   = Process[Int, Int]().throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
         .map { n =>
           if (n == 7) processor.shutdown()
           n
         }
-        .into(processor.sinkRef().sink(), 1.seconds)
-        .addAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider))
-        .toMat(Sink.seq)(Keep.right)
-        .run()
-        .map(_.size should be >= 4) // 7 - 2 - 1, 2 from IntoableProcessor (see above), 1 from SinkRef buffering
+        .into(processor.sinkRef(), 1.seconds, 42)
+        .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
+        .recover { case _ => Int.MinValue }
+        .runWith(Sink.seq)
+        .map(_.size should be >= 4) // 7 - 2 - 1, 2 from IntoableProcessor, 1 from SinkRef buffering
 
       pending
     }
@@ -181,4 +171,10 @@ final class IntoableProcessorTests
       doneOrLate.map(_ => succeed)
     }
   }
+
+  private def resumeOnTimeout(t: Throwable) =
+    t match {
+      case _: ResponseTimeoutException => Supervision.Resume
+      case _                           => Supervision.Stop
+    }
 }

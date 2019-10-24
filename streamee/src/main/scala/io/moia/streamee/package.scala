@@ -67,19 +67,19 @@ package object streamee {
       *
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
+      * @param parallelism maximum duration for the running process to respond; must be positive!
       * @tparam Out2 response type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
-        timeout: FiniteDuration
+        timeout: FiniteDuration,
+        parallelism: Int
     ): Source[Out2, Future[M]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+      require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
-      Source.fromMaterializer { (mat, _) =>
-        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
-        intoImpl(source, processSink, timeout, mat, parallelism)
-      }
+      Source.fromMaterializer((mat, _) => intoImpl(source, processSink, timeout, mat, parallelism))
     }
   }
 
@@ -94,19 +94,19 @@ package object streamee {
       *
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
+      * @param parallelism maximum duration for the running process to respond; must be positive!
       * @tparam Out2 response type of the given [[ProcessSink]]
       * @return `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
-        timeout: FiniteDuration
+        timeout: FiniteDuration,
+        parallelism: Int
     ): Flow[In, Out2, Future[M]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+      require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
-      Flow.fromMaterializer { (mat, _) =>
-        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
-        intoImpl(flow, processSink, timeout, mat, parallelism)
-      }
+      Flow.fromMaterializer((mat, _) => intoImpl(flow, processSink, timeout, mat, parallelism))
     }
   }
 
@@ -123,17 +123,19 @@ package object streamee {
       *
       * @param processSink [[ProcessSink]] to emit into
       * @param timeout maximum duration for the running process to respond; must be positive!
+      * @param parallelism maximum duration for the running process to respond; must be positive!
       * @tparam Out2 response type of the given [[ProcessSink]]
       * @return `FlowWithContext` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
-        timeout: FiniteDuration
+        timeout: FiniteDuration,
+        parallelism: Int
     ): FlowWithContext[In, CtxIn, Out2, CtxOut, Future[M]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
+      require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
       FlowWithContext.fromTuples(Flow.fromMaterializer { (mat, _) =>
-        val parallelism = mat.system.settings.config.getInt("streamee.max-into-parallelism")
         flowWithContext
           .map(spawnRespondee[Out, Out2](timeout, mat))
           .via(Flow.apply.alsoTo {
@@ -195,6 +197,7 @@ package object streamee {
       * Creates a canonical [[FrontProcessor]] from this [[ProcessSink]].
       *
       * @param timeout maximum duration for the running process to respond; must be positive!
+      * @param parallelism maximum duration for the running process to respond; must be positive!
       * @param name name, used for logging and exceptions
       * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1;
       *                   must be positive!
@@ -204,17 +207,21 @@ package object streamee {
       */
     def asFrontProcessor(
         timeout: FiniteDuration,
+        parallelism: Int,
         name: String,
         bufferSize: Int = 1,
         phase: String = CoordinatedShutdown.PhaseServiceRequestsDone
-    )(implicit mat: Materializer, ec: ExecutionContext): FrontProcessor[Req, Res] =
+    )(implicit mat: Materializer, ec: ExecutionContext): FrontProcessor[Req, Res] = {
+      require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
+
       FrontProcessor(
-        Process[Req, Res]().into(sink, timeout),
+        Process[Req, Res]().into(sink, timeout, parallelism),
         timeout,
         name,
         bufferSize,
         phase
       )
+    }
   }
 
   /**
