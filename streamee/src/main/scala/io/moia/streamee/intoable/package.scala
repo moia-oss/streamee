@@ -16,9 +16,10 @@
 
 package io.moia.streamee
 
-import akka.actor.Scheduler
+import akka.actor.{ Scheduler, typed }
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
+import akka.actor.typed.scaladsl.adapter.ClassicSchedulerOps
 import akka.stream.{ KillSwitch, KillSwitches, Materializer }
 import akka.stream.scaladsl.{ Flow, Keep, MergeHub, Sink, Source, FlowOps => AkkaFlowOps }
 import akka.util.Timeout
@@ -143,8 +144,9 @@ package object intoable {
     respondeeFactory: RespondeeFactory[B]): flowOps.Repr[B] =
     flowOps
       .mapAsync(parallelism) { a =>
-        implicit val askTimeout: Timeout = responseTimeout // let's use the same timeout
-        val b                            = Promise[B]()
+        implicit val askTimeout: Timeout             = responseTimeout // let's use the same timeout
+        implicit val typedScheduler: typed.Scheduler = scheduler.toTyped
+        val b                                        = Promise[B]()
         def createRespondee(replyTo: ActorRef[RespondeeFactory.RespondeeCreated[B]]) =
           RespondeeFactory.CreateRespondee[B](b, responseTimeout, replyTo, s"a = $a")
         val respondee = (respondeeFactory ? createRespondee).map(_.respondee)

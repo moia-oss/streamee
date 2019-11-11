@@ -64,7 +64,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.5.20"
+      val akka           = "2.6.0"
       val akkaHttp       = "10.1.7"
       val akkaHttpJson   = "1.25.2"
       val akkaLog4j      = "1.6.1"
@@ -75,7 +75,7 @@ lazy val library =
       val log4jApiScala  = "11.0"
       val pureConfig     = "0.10.1"
       val scalaCheck     = "1.14.0"
-      val utest          = "0.6.6"
+      val utest          = "0.7.1"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka

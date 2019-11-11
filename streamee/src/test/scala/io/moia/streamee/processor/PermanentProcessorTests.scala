@@ -25,7 +25,6 @@ import scala.concurrent.duration.DurationInt
 import utest._
 
 object PermanentProcessorTests extends ActorTestSuite {
-  import testKit._
 
   private val plusOne = Flow[Int].map(_ + 1)
 

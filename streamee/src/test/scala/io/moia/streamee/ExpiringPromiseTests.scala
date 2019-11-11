@@ -20,7 +20,6 @@ import scala.concurrent.duration.DurationInt
 import utest._
 
 object ExpiringPromiseTests extends ActorTestSuite {
-  import testKit._
 
   override def tests: Tests =
     Tests {
