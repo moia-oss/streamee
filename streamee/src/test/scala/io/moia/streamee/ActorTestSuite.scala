@@ -17,28 +17,23 @@
 package io.moia.streamee
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.actor.typed.scaladsl.adapter.TypedActorSystemOps
-import akka.actor.{ ActorSystem => UntypedSystem }
+import akka.actor.typed.scaladsl.adapter.{ TypedActorSystemOps, TypedSchedulerOps }
+import akka.actor.{ ActorSystem => UntypedSystem, Scheduler => UntypedScheduler }
 import akka.stream.Materializer
-import akka.stream.typed.scaladsl.ActorMaterializer
 import scala.concurrent.ExecutionContext
 import utest.TestSuite
 
 trait ActorTestSuite extends TestSuite {
 
-  protected val testKit: ActorTestKit =
-    ActorTestKit()
+  protected val testKit: ActorTestKit = ActorTestKit()
 
   import testKit._
 
-  protected implicit val untypedSystem: UntypedSystem =
-    system.toUntyped
+  protected implicit val untypedSystem: UntypedSystem       = system.toClassic
+  protected implicit val untypedScheduler: UntypedScheduler = scheduler.toClassic
 
-  protected implicit val ec: ExecutionContext =
-    system.executionContext
-
-  protected implicit val mat: Materializer =
-    ActorMaterializer()
+  protected implicit val ec: ExecutionContext       = system.executionContext
+  protected implicit val materializer: Materializer = Materializer(untypedSystem)
 
   override def utestAfterAll(): Unit = {
     shutdownTestKit()

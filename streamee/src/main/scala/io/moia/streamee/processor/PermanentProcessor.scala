@@ -97,9 +97,9 @@ private object PermanentProcessor extends Logging {
         })
 
         override def preStart(): Unit =
-          schedulePeriodicallyWithInitialDelay("gc",
-                                               sweepCompleteResponsesInterval,
-                                               sweepCompleteResponsesInterval)
+          scheduleWithFixedDelay("gc",
+                                 sweepCompleteResponsesInterval,
+                                 sweepCompleteResponsesInterval)
 
         override protected def onTimer(timerKey: Any): Unit =
           responses = responses.filter { case (_, response) => !response.isCompleted }
