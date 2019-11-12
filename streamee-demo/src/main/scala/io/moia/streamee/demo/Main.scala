@@ -32,13 +32,13 @@ import akka.cluster.typed.{
 import akka.stream.Materializer
 import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
-import org.apache.logging.log4j.scala.Logging
+import org.slf4j.LoggerFactory
 import pureconfig.generic.auto.exportReader
 import pureconfig.ConfigSource
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-object Main extends Logging {
+object Main {
 
   final case class Config(
       api: Api.Config,
@@ -47,6 +47,8 @@ object Main extends Logging {
   )
 
   final object TopLevelActorTerminated extends Reason
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   def main(args: Array[String]): Unit = {
     sys.props += "log4j2.contextSelector" -> classOf[AsyncLoggerContextSelector].getName // Always use async logging!
@@ -57,11 +59,12 @@ object Main extends Logging {
 
   def apply(config: Config): Behavior[SelfUp] =
     Behaviors.setup { context =>
-      logger.info(s"${context.system.name} started and ready to join cluster")
+      if (logger.isInfoEnabled)
+        logger.info(s"${context.system.name} started and ready to join cluster")
       Cluster(context.system).subscriptions ! Subscribe(context.self, classOf[SelfUp])
 
       Behaviors.receive { (context, _) =>
-        logger.info(s"${context.system.name} joined cluster and is up")
+        if (logger.isInfoEnabled) logger.info(s"${context.system.name} joined cluster and is up")
         Cluster(context.system).subscriptions ! Unsubscribe(context.self)
 
         initialize(config)(context)

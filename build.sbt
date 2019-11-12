@@ -21,8 +21,7 @@ lazy val `streamee` =
       libraryDependencies ++= Seq(
         library.akkaHttp,
         library.akkaStreamTyped,
-        library.log4jApi,
-        library.log4jApiScala,
+        library.slf4jApi,
         library.akkaActorTestkitTyped % Test,
         library.akkaHttpTestkit       % Test,
         library.akkaStreamTestkit     % Test,
@@ -45,7 +44,6 @@ lazy val `streamee-demo` =
         library.akkaSlf4j,
         library.circeGeneric,
         library.disruptor,
-        library.log4jApiScala,
         library.log4jCore,
         library.log4jSlf4j,
         library.pureConfig,
@@ -60,17 +58,17 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.6.0-RC2"
+      val akka           = "2.6.0"
       val akkaHttp       = "10.1.10"
       val akkaHttpJson   = "1.29.1"
       val akkaLog4j      = "1.6.1"
       val circe          = "0.12.3"
       val disruptor      = "3.4.2"
       val log4j          = "2.12.1"
-      val log4jApiScala  = "11.0"
       val pureConfig     = "0.12.1"
       val scalaCheck     = "1.14.2"
       val scalaTest      = "3.0.8"
+      val slf4j          = "1.7.29"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"        %% "akka-actor-testkit-typed"    % Version.akka
     val akkaClusterShardingTyped = "com.typesafe.akka"        %% "akka-cluster-sharding-typed" % Version.akka
@@ -82,13 +80,12 @@ lazy val library =
     val akkaStreamTyped          = "com.typesafe.akka"        %% "akka-stream-typed"           % Version.akka
     val circeGeneric             = "io.circe"                 %% "circe-generic"               % Version.circe
     val disruptor                = "com.lmax"                 %  "disruptor"                   % Version.disruptor
-    val log4jApi                 = "org.apache.logging.log4j" %  "log4j-api"                   % Version.log4j
-    val log4jApiScala            = "org.apache.logging.log4j" %% "log4j-api-scala"             % Version.log4jApiScala
     val log4jCore                = "org.apache.logging.log4j" %  "log4j-core"                  % Version.log4j
     val log4jSlf4j               = "org.apache.logging.log4j" %  "log4j-slf4j-impl"            % Version.log4j
     val pureConfig               = "com.github.pureconfig"    %% "pureconfig"                  % Version.pureConfig
     val scalaCheck               = "org.scalacheck"           %% "scalacheck"                  % Version.scalaCheck
     val scalaTest                = "org.scalatest"            %% "scalatest"                   % Version.scalaTest
+    val slf4jApi                 = "org.slf4j"                %  "slf4j-api"                   % Version.slf4j
   }
 
 // *****************************************************************************
@@ -103,7 +100,7 @@ lazy val settings =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.10",
+    scalaVersion := "2.13.1",
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),
@@ -114,8 +111,6 @@ lazy val commonSettings =
       "-language:_",
       "-target:jvm-1.8",
       "-encoding", "UTF-8",
-      "-Ypartial-unification",
-      "-Ywarn-unused-import"
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
@@ -129,7 +124,7 @@ lazy val scalafmtSettings =
 lazy val sonatypeSettings = {
   import xerial.sbt.Sonatype._
   Seq(
-    publishTo := sonatypePublishTo.value,
+    publishTo := sonatypePublishToBundle.value,
     sonatypeProfileName := organization.value,
     publishMavenStyle := true,
     sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io")),

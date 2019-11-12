@@ -17,9 +17,8 @@
 package io.moia.streamee
 
 import akka.stream.scaladsl.FlowWithContext
-import org.apache.logging.log4j.scala.Logging
 
-object Process extends Logging {
+object Process {
 
   /**
     * Factory for an empty [[Process]]. Convenient shortcut for

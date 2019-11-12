@@ -28,7 +28,7 @@ import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.Done
 import akka.actor.CoordinatedShutdown
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
-import org.apache.logging.log4j.scala.Logging
+import org.slf4j.LoggerFactory
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 
@@ -89,12 +89,13 @@ final class FrontProcessor[Req, Res] private (
     name: String,
     bufferSize: Int,
     phase: String
-)(implicit mat: Materializer, ec: ExecutionContext)
-    extends Logging {
+)(implicit mat: Materializer, ec: ExecutionContext) {
   import FrontProcessor._
 
   require(timeout > Duration.Zero, s"timeout for processor $name must be > 0, but was $timeout!")
   require(bufferSize > 0, s"bufferSize for processor $name must be > 0, but was $bufferSize!")
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   private val (queue, _done) =
     Source
@@ -136,7 +137,7 @@ final class FrontProcessor[Req, Res] private (
     * accepted. To watch shutdown completion use [[whenDone]].
     */
   def shutdown(): Unit = {
-    logger.warn(s"Shutdown for processor $name requested!")
+    if (logger.isWarnEnabled) logger.warn(s"Shutdown for processor $name requested!")
     queue.complete()
   }
 
@@ -150,7 +151,7 @@ final class FrontProcessor[Req, Res] private (
     _done
 
   private def resume(cause: Throwable) = {
-    logger.error(s"Processor $name failed and resumes", cause)
+    if (logger.isErrorEnabled) logger.error(s"Processor $name failed and resumes", cause)
     Supervision.Resume
   }
 }

@@ -20,7 +20,7 @@ import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.stream.Materializer
 import io.moia.streamee.{ IntoableProcessor, Process, ProcessSinkRef }
-import org.apache.logging.log4j.scala.Logging
+import org.slf4j.LoggerFactory
 import scala.annotation.tailrec
 import scala.util.Random
 
@@ -52,18 +52,18 @@ object WordShuffler {
         val (left, right) = word.splitAt(Random.nextInt(word.length))
         val c             = right.head
         val nextWord      = left + right.tail
-        loop(nextWord, c + acc)
+        loop(nextWord, c +: acc)
       }
 
     if (word.length <= 3)
       word
     else {
-      word.head + loop(word.tail.init) + word.last
+      word.head +: loop(word.tail.init) :+ word.last
     }
   }
 }
 
-object WordShufflerRunner extends Logging {
+object WordShufflerRunner {
   import WordShuffler._
 
   sealed trait Command
@@ -71,6 +71,8 @@ object WordShufflerRunner extends Logging {
       extends Command
   final case object Shutdown     extends Command
   private final case object Stop extends Command
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   def apply()(implicit mat: Materializer): Behavior[Command] =
     Behaviors.setup { context =>
@@ -80,7 +82,7 @@ object WordShufflerRunner extends Logging {
       val wordShufflerProcessor = IntoableProcessor(WordShuffler(), "word-shuffler")
 
       wordShufflerProcessor.whenDone.onComplete { reason =>
-        logger.warn(s"Process completed: $reason")
+        if (logger.isWarnEnabled) logger.warn(s"Process completed: $reason")
         self ! Stop
       }
 
