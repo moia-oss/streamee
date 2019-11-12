@@ -25,16 +25,18 @@ import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
 import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
-import org.apache.logging.log4j.scala.Logging
+import org.slf4j.LoggerFactory
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{ Failure, Success }
 
-object Api extends Logging {
+object Api {
 
   final case class Config(interface: String, port: Int, terminationDeadline: FiniteDuration)
 
   private final object BindFailure extends Reason
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   def apply(
       config: Config,
@@ -55,11 +57,13 @@ object Api extends Logging {
       .bindAndHandle(route(textShufflerProcessor), interface, port)
       .onComplete {
         case Failure(cause) =>
-          logger.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
+          if (logger.isErrorEnabled)
+            logger.error(s"Shutting down, because cannot bind to $interface:$port!", cause)
           shutdown.run(BindFailure)
 
         case Success(binding) =>
-          logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
+          if (logger.isInfoEnabled)
+            logger.info(s"Listening for HTTP connections on ${binding.localAddress}")
           shutdown.addTask(PhaseServiceUnbind, "api.unbind") { () =>
             binding.terminate(terminationDeadline).map(_ => Done)
           }
