@@ -17,7 +17,7 @@
 package io.moia.streamee
 
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
-import akka.stream.scaladsl.{ Flow, Sink, Source, SourceWithContext }
+import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source, SourceWithContext }
 import org.scalacheck.Gen
 import org.scalatest.{ AsyncWordSpec, Matchers }
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -116,7 +116,7 @@ final class StreameeTests
     "throw an IllegalArgumentException for timeout <= 0" in {
       forAll(TestData.nonPosDuration) { timeout =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          Process[String, String]().into(Sink.ignore, timeout, 42)
+          FlowWithContext[String, Respondee[String]].into(Sink.ignore, timeout, 42)
         }
       }
     }
@@ -124,7 +124,7 @@ final class StreameeTests
     "throw an IllegalArgumentException for parallelism <= 0" in {
       forAll(Gen.choose(Int.MinValue, 0)) { parallelism =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          Process[String, String]().into(Sink.ignore, 1.second, parallelism)
+          FlowWithContext[String, Respondee[String]].into(Sink.ignore, 1.second, parallelism)
         }
       }
     }
@@ -134,7 +134,7 @@ final class StreameeTests
       val (respondee, _) = Respondee.spawn[String](timeout)
       SourceWithContext
         .fromTuples(Source.single(("abc", respondee)))
-        .via(Process[String, String]().into(Sink.ignore, timeout, 42))
+        .via(FlowWithContext[String, Respondee[String]].into(Sink.ignore, timeout, 42))
         .runWith(Sink.head)
         .failed
         .map { case ResponseTimeoutException(t) => t shouldBe timeout }
@@ -148,7 +148,7 @@ final class StreameeTests
         }
       SourceWithContext
         .fromTuples(Source.single(("abc", respondee)))
-        .via(Process[String, String]().into(processSink, 1.second, 42))
+        .via(FlowWithContext[String, Respondee[String]].into(processSink, 1.second, 42))
         .runWith(Sink.head)
         .map(_._1 shouldBe "ABC")
     }
@@ -157,7 +157,7 @@ final class StreameeTests
   "Calling push and pop" should {
     "first push each elements to the propagated context and then pop it" in {
       val process =
-        Process[String, (String, Int)]()
+        Step[String, Respondee[(String, Int)]]()
           .map(_.toUpperCase)
           .push
           .map(_.length)
@@ -179,7 +179,7 @@ final class StreameeTests
 
     "first push and transform each elements to the propagated context and then pop and transform it" in {
       val process =
-        Process[String, (String, Int)]()
+        Step[String, Respondee[(String, Int)]]()
           .push(_.toUpperCase, _ * 2)
           .map(_.length)
           .pop
@@ -201,7 +201,7 @@ final class StreameeTests
 
   "Calling asFrontProcessor" should {
     "convert an IntoableSink into a FrontProcessor" in {
-      val process           = Process[String, Int]().map(_.length)
+      val process           = Step[String, Respondee[Int]]().map(_.length)
       val intoableProcessor = IntoableProcessor(process, "name")
       val frontProcessor    = intoableProcessor.sink.asFrontProcessor(1.second, 42, "name")
       frontProcessor

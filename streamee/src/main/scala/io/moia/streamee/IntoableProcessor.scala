@@ -41,7 +41,7 @@ object IntoableProcessor {
     * @return [[IntoableProcessor]]
     */
   def apply[Req, Res](
-      process: Process[Req, Res, Res],
+      process: Process[Req, Res],
       name: String,
       bufferSize: Int = 1,
       phase: String = CoordinatedShutdown.PhaseServiceStop
@@ -54,7 +54,7 @@ object IntoableProcessor {
   * Notice that shutting down might result in dropping (losing) `bufferSize` number of requsts!
   */
 final class IntoableProcessor[Req, Res] private (
-    process: Process[Req, Res, Res],
+    process: Process[Req, Res],
     name: String,
     bufferSize: Int,
     phase: String

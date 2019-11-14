@@ -18,16 +18,15 @@ package io.moia.streamee
 
 import akka.stream.scaladsl.FlowWithContext
 
-object Process {
+object Step {
 
   /**
-    * Factory for an empty [[Process]]. Convenient shortcut for
-    * `FlowWithContext[Req, Respondee[Res]]`.
+    * Create an empty [[Step]] instance which can be used as an initial process step.
     *
-    * @tparam Req request type
-    * @tparam Res response type
-    * @return empty [[Process]]
+    * @tparam In input type of the initial process step
+    * @tparam Ctx context type of the initial process step
+    * @return Empty [[Step]]
     */
-  def apply[Req, Res](): Process[Req, Req, Res] =
-    FlowWithContext[Req, Respondee[Res]]
+  def apply[In, Ctx](): Step[In, In, Ctx] =
+    FlowWithContext[In, Ctx]
 }

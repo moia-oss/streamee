@@ -70,7 +70,7 @@ object FrontProcessor {
     * @return [[FrontProcessor]]
     */
   def apply[Req, Res](
-      process: Process[Req, Res, Res],
+      process: Process[Req, Res],
       timeout: FiniteDuration,
       name: String,
       bufferSize: Int = 1,
@@ -84,7 +84,7 @@ object FrontProcessor {
   * responding to the [[Respondee]].
   */
 final class FrontProcessor[Req, Res] private (
-    process: Process[Req, Res, Res],
+    process: Process[Req, Res],
     timeout: FiniteDuration,
     name: String,
     bufferSize: Int,
