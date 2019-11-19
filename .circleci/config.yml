@@ -6,7 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-    - image: hseeberger/scala-sbt:8u181_2.12.8_1.2.8
+    - image: hseeberger/scala-sbt:8u222_1.3.3_2.13.1
 
     working_directory: ~/repo
 
@@ -14,7 +14,7 @@ jobs:
       # Setting the JVM minimum memory allocation to 256 MB and maximum allocation to 2 GB.
       # java.awt.headless=true: Disabling GUI features because streamee don't use them
       # Dilating durations to account for slower CI environment
-      SBT_OPTS: "-Xms256m -Xmx2g -Djava.awt.headless=true -Dakka.test.timefactor=2"
+      SBT_OPTS: "-Xms256m -Xmx2g -Djava.awt.headless=true"
 
     steps:
     - checkout
@@ -26,7 +26,7 @@ jobs:
         - sbt-v1-deps
     - run:
         name: Running SBT compilation
-        command: sbt -no-colors -batch "; test:compile"
+        command: sbt -no-colors -batch +test:compile
     - save_cache:
         paths:
         - ~/.m2
@@ -35,4 +35,4 @@ jobs:
         key: sbt-v1-deps-{{ checksum "build.sbt" }}
     - run:
         name: Running tests
-        command: sbt -no-colors -batch -Dakka.test.timefactor=3.0 "; test"
+        command: sbt -no-colors -batch -Dakka.test.timefactor=3.0 +test
