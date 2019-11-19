@@ -101,6 +101,7 @@ lazy val settings =
 lazy val commonSettings =
   Seq(
     scalaVersion := "2.13.1",
+    crossScalaVersions := Seq(scalaVersion.value, "2.12.10"),
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),

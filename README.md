@@ -43,7 +43,7 @@ accepted and – very important – all in-flight requests have been processed.
 Include Streamee in your project by adding the following to your `build.sbt`:
 
 ```
-libraryDependencies += "io.moia" %% "streamee" % "4.0.0" // find the latest version at the badge at the top  
+libraryDependencies += "io.moia" %% "streamee" % "4.0.0" // find the latest version at the badge at the top
 ```
 
 Artifacts are hosted on Maven Central.
@@ -82,12 +82,12 @@ def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
     .map(_.map {
       case FourtyTwoOut(fourtyTwo) => Response(fourtyTwo)
     })
-``` 
+```
 
 Next we have to create the actual processor, i.e. the running stream into which the process is
 embedded, by calling `Processor.perRequest` or `Processor.permanent`. See below for details about
 these different kinds of processors. For `FourtyTwo` we use a per-request processor.
- 
+
 In the demo subproject "streamee-demo" this happens in `Api`:
 
 ``` scala
@@ -101,7 +101,7 @@ Actually the above is just a short form for the below, i.e. already conveniently
 `CoordinatedShutdown`:
 
 ``` scala
-val fourtyTwoProcessor = 
+val fourtyTwoProcessor =
   Processor
     .perRequest(FourtyTwo(), processorTimeout, "per-request")
     .registerWithCoordinatedShutdown(CoordinatedShutdown(untypedSystem))
@@ -132,7 +132,7 @@ post {
       }
   }
 }
-```  
+```
 
 ## Per-request and permanent Processors
 
@@ -152,9 +152,9 @@ In "streamee-demo" this is how it looks like in `FourtyTwoCorrelated`:
 ``` scala
 final case class Request(question: String, correlationId: UUID = UUID.randomUUID())
 final case class Response(answer: String, correlationId: UUID = UUID.randomUUID())
-``` 
+```
 
-We probably want to register a custom exception handler for `ProcessorUnavailable` exceptions. 
+We probably want to register a custom exception handler for `ProcessorUnavailable` exceptions.
 Streamee already comes with a ready to use one: `Processor.processorUnavailableHandler`.
 
 In "streamee-demo" this happens in `Api` at the level where `bindAndHandle` is called:
@@ -174,10 +174,10 @@ To publish a release to Maven Central follow these steps:
 1. Create a tag/release on GitHub
 2. Publish the artifact to the OSS Sonatype stage repository:
    ```
-   sbt publishSigned
-   ```  
+   sbt +publishSigned
+   ```
    Note that your Sonatype credentials needs to be configured on your machine and you need to have access writes to publish artifacts to the group id `io.moia`.
 3. Release artifact to Maven Central with:
    ```
-   sbt sonatypeRelease
+   sbt sonatypeBundleRelease
    ```
