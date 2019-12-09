@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-package io.moia.streamee
-package demo
+package io.moia.streamee.demo
 
 import akka.Done
 import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
@@ -25,6 +24,7 @@ import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
 import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives.complete
 import akka.stream.Materializer
+import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
