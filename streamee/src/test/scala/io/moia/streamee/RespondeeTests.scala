@@ -16,7 +16,8 @@
 
 package io.moia.streamee
 
-import org.scalatest.{ AsyncWordSpec, Matchers }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
 import scala.concurrent.duration.DurationInt
 
 final class RespondeeTests extends AsyncWordSpec with AkkaSuite with Matchers {

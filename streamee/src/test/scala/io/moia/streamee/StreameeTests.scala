@@ -19,7 +19,8 @@ package io.moia.streamee
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source, SourceWithContext }
 import org.scalacheck.Gen
-import org.scalatest.{ AsyncWordSpec, Matchers }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.Promise
