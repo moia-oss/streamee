@@ -20,7 +20,8 @@ import akka.actor.{ ActorSystem, CoordinatedShutdown }
 import akka.pattern.{ after => akkaAfter }
 import akka.stream.Materializer
 import org.scalacheck.Gen
-import org.scalatest.{ AsyncWordSpec, Matchers }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.Future

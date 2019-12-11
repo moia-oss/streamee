@@ -22,13 +22,14 @@ lazy val `streamee` =
         library.akkaHttp,
         library.akkaStreamTyped,
         library.slf4jApi,
-        library.akkaActorTestkitTyped % Test,
-        library.akkaHttpTestkit       % Test,
-        library.akkaStreamTestkit     % Test,
-        library.log4jCore             % Test,
-        library.log4jSlf4j            % Test,
-        library.scalaCheck            % Test,
-        library.scalaTest             % Test,
+        library.akkaActorTestkitTyped   % Test,
+        library.akkaHttpTestkit         % Test,
+        library.akkaStreamTestkit       % Test,
+        library.log4jCore               % Test,
+        library.log4jSlf4j              % Test,
+        library.scalaCheck              % Test,
+        library.scalaTest               % Test,
+        library.scalaTestPlusScalaCheck % Test,
       )
     )
 
@@ -58,17 +59,18 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka         = "2.6.1"
-      val akkaHttp     = "10.1.11"
-      val akkaHttpJson = "1.29.1"
-      val akkaLog4j    = "1.6.1"
-      val circe        = "0.12.3"
-      val disruptor    = "3.4.2"
-      val log4j        = "2.12.1"
-      val pureConfig   = "0.12.1"
-      val scalaCheck   = "1.14.2"
-      val scalaTest    = "3.0.8"
-      val slf4j        = "1.7.29"
+      val akka                    = "2.6.1"
+      val akkaHttp                = "10.1.11"
+      val akkaHttpJson            = "1.29.1"
+      val akkaLog4j               = "1.6.1"
+      val circe                   = "0.12.3"
+      val disruptor               = "3.4.2"
+      val log4j                   = "2.12.1"
+      val pureConfig              = "0.12.1"
+      val scalaCheck              = "1.14.2"
+      val scalaTest               = "3.1.0"
+      val scalaTestPlusScalaCheck = "3.1.0.0-RC2"
+      val slf4j                   = "1.7.29"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"        %% "akka-actor-testkit-typed"    % Version.akka
     val akkaClusterShardingTyped = "com.typesafe.akka"        %% "akka-cluster-sharding-typed" % Version.akka
@@ -85,6 +87,7 @@ lazy val library =
     val pureConfig               = "com.github.pureconfig"    %% "pureconfig"                  % Version.pureConfig
     val scalaCheck               = "org.scalacheck"           %% "scalacheck"                  % Version.scalaCheck
     val scalaTest                = "org.scalatest"            %% "scalatest"                   % Version.scalaTest
+    val scalaTestPlusScalaCheck  = "org.scalatestplus"        %% "scalatestplus-scalacheck"    % Version.scalaTestPlusScalaCheck
     val slf4jApi                 = "org.slf4j"                %  "slf4j-api"                   % Version.slf4j
   }
 
