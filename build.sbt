@@ -61,16 +61,16 @@ lazy val library =
     object Version {
       val akka                    = "2.6.1"
       val akkaHttp                = "10.1.11"
-      val akkaHttpJson            = "1.29.1"
+      val akkaHttpJson            = "1.30.0"
       val akkaLog4j               = "1.6.1"
       val circe                   = "0.12.3"
       val disruptor               = "3.4.2"
-      val log4j                   = "2.12.1"
+      val log4j                   = "2.13.0"
       val pureConfig              = "0.12.1"
-      val scalaCheck              = "1.14.2"
+      val scalaCheck              = "1.14.3"
       val scalaTest               = "3.1.0"
       val scalaTestPlusScalaCheck = "3.1.0.0-RC2"
-      val slf4j                   = "1.7.29"
+      val slf4j                   = "1.7.30"
     }
     val akkaActorTestkitTyped    = "com.typesafe.akka"        %% "akka-actor-testkit-typed"    % Version.akka
     val akkaClusterShardingTyped = "com.typesafe.akka"        %% "akka-cluster-sharding-typed" % Version.akka
