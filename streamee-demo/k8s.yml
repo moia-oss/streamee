@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamee-demo-http
+spec:
+  selector:
+    app: streamee-demo
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamee-demo-management
+spec:
+  selector:
+    app: streamee-demo
+  type: NodePort
+  ports:
+    - name: management
+      port: 8558
+      targetPort: management
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamee-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: streamee-demo
+  template:
+    metadata:
+      name: streamee-demo
+      labels:
+        app: streamee-demo
+    spec:
+      containers:
+        - name: streamee-demo
+          image: hseeberger/streamee-demo:latest
+          imagePullPolicy: IfNotPresent
+          args: [
+            "-Dloglevel.root=info"
+          ]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 8558
+            - name: akka-remote
+              containerPort: 25520
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+subjects:
+  - kind: User
+    name: system:serviceaccount:default:default
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
