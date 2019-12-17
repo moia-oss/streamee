@@ -29,6 +29,8 @@ import akka.cluster.typed.{
   Subscribe,
   Unsubscribe
 }
+import akka.management.cluster.bootstrap.ClusterBootstrap
+import akka.management.scaladsl.AkkaManagement
 import akka.stream.Materializer
 import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
@@ -51,10 +53,19 @@ object Main {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def main(args: Array[String]): Unit = {
-    sys.props += "log4j2.contextSelector" -> classOf[AsyncLoggerContextSelector].getName // Always use async logging!
-    val config = ConfigSource.default.at("streamee-demo").loadOrThrow[Config] // Must be first!
-    val system = ClassicSystem("streamee-demo")                               // Always start with a classic system!
+    // Always use async logging!
+    sys.props += "log4j2.contextSelector" -> classOf[AsyncLoggerContextSelector].getName
+
+    // Must happen before creating the actor system!
+    val config = ConfigSource.default.at("streamee-demo").loadOrThrow[Config]
+
+    // Always start with a classic system!
+    val system = ClassicSystem("streamee-demo")
     system.spawn(Main(config), "main")
+
+    // Cluster bootstrap
+    AkkaManagement(system).start()
+    ClusterBootstrap(system).start()
   }
 
   def apply(config: Config): Behavior[SelfUp] =
