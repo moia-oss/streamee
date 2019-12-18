@@ -293,6 +293,30 @@ package object streamee {
   def startStep[In, Ctx]: Step[In, In, Ctx] =
     FlowWithContext[In, Ctx]
 
+  /**
+    * Wraps the given [[Step]] in one emitting its input together with its output (as a `Tuple2`).
+    *
+    * Notice that thanks to type inference there should be no special requirements regarding the
+    * context type of the given step, i.e. if you define it in a generic way – as a parameterized
+    * method like usual – it should work without any type annotations:
+    *
+    *{{{
+    *def length[Ctx]: Step[String, Int, Ctx] =
+    *  startStep[String, Ctx].map(_.length)
+    *
+    *val process: Process[String, (String, Int)] =
+    *  zipWithIn(lenght) // No need to give type args to length!
+    *}}}
+    *
+    * @param step [[Step]] to be wrapped
+    * @tparam In input type of the given [[Step]]
+    * @tparam Out output type of the given [[Step]]
+    * @tparam Ctx
+    * @return [[Step]] emitting the input of the wrapped one together with its ouput (as a `Tuple2`)
+    */
+  def zipWithIn[In, Out, Ctx](step: Step[In, Out, (In, Ctx)]): Step[In, (In, Out), Ctx] =
+    startStep[In, Ctx].push.via(step).pop
+
   private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {
     val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
     (out, respondee2, out2)
