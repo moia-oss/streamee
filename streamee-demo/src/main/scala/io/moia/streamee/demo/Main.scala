@@ -16,12 +16,19 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.{ActorSystem => ClassicSystem}
+import akka.actor.{ ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.{Behavior, Scheduler}
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.scaladsl.adapter.{ClassicActorSystemOps, TypedActorSystemOps}
-import akka.cluster.typed.{Cluster, ClusterSingleton, SelfUp, SingletonActor, Subscribe, Unsubscribe}
+import akka.actor.typed.{ Behavior, Scheduler }
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
+import akka.cluster.typed.{
+  Cluster,
+  ClusterSingleton,
+  SelfUp,
+  SingletonActor,
+  Subscribe,
+  Unsubscribe
+}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import io.moia.streamee.FrontProcessor

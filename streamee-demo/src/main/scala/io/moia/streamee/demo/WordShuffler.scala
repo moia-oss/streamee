@@ -19,7 +19,14 @@ package io.moia.streamee.demo
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.stream.Materializer
-import io.moia.streamee.{ IntoableProcessor, Process, ProcessSinkRef, Respondee, Step }
+import io.moia.streamee.{
+  IntoableProcessor,
+  Process,
+  ProcessSinkRef,
+  Step,
+  startProcess,
+  startStep
+}
 import org.slf4j.LoggerFactory
 import scala.annotation.tailrec
 import scala.util.Random
@@ -30,19 +37,19 @@ object WordShuffler {
   final case class WordShuffled(word: String)
 
   def apply(): Process[ShuffleWord, WordShuffled] =
-    Step[ShuffleWord, Respondee[WordShuffled]]()
+    startProcess[ShuffleWord, WordShuffled]()
       .via(shuffleWordToString)
       .via(shuffle)
       .via(stringToWordShuffled)
 
   def shuffleWordToString[Ctx]: Step[ShuffleWord, String, Ctx] =
-    Step[ShuffleWord, Ctx]().map(_.word)
+    startStep[ShuffleWord, Ctx]().map(_.word)
 
   def shuffle[Ctx]: Step[String, String, Ctx] =
-    Step[String, Ctx]().map(shuffleWord)
+    startStep[String, Ctx]().map(shuffleWord)
 
   def stringToWordShuffled[Ctx]: Step[String, WordShuffled, Ctx] =
-    Step[String, Ctx]().map(WordShuffled)
+    startStep[String, Ctx]().map(WordShuffled)
 
   private def shuffleWord(word: String) = {
     @tailrec def loop(word: String, acc: String = ""): String =
