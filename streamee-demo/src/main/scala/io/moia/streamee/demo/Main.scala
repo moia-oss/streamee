@@ -16,22 +16,14 @@
 
 package io.moia.streamee.demo
 
-import akka.actor.{ ActorSystem => ClassicSystem }
+import akka.actor.{ActorSystem => ClassicSystem}
 import akka.actor.CoordinatedShutdown.Reason
-import akka.actor.typed.{ Behavior, Scheduler }
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import akka.actor.typed.scaladsl.adapter.{ ClassicActorSystemOps, TypedActorSystemOps }
-import akka.cluster.typed.{
-  Cluster,
-  ClusterSingleton,
-  SelfUp,
-  SingletonActor,
-  Subscribe,
-  Unsubscribe
-}
+import akka.actor.typed.{Behavior, Scheduler}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.scaladsl.adapter.{ClassicActorSystemOps, TypedActorSystemOps}
+import akka.cluster.typed.{Cluster, ClusterSingleton, SelfUp, SingletonActor, Subscribe, Unsubscribe}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
-import akka.stream.Materializer
 import io.moia.streamee.FrontProcessor
 import org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
 import org.slf4j.LoggerFactory
@@ -87,10 +79,9 @@ object Main {
   private def initialize(config: Config)(implicit context: ActorContext[_]) = {
     import config._
 
-    implicit val mat: Materializer            = Materializer(context.system)
+    implicit val classicSystem: ClassicSystem = context.system.toClassic
     implicit val ec: ExecutionContext         = context.executionContext
     implicit val scheduler: Scheduler         = context.system.scheduler
-    implicit val classicSystem: ClassicSystem = context.system.toClassic
 
     val wordShufflerRunner =
       ClusterSingleton(context.system).init(

@@ -20,13 +20,10 @@ import akka.Done
 import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes.{ OK, ServiceUnavailable }
-import akka.http.scaladsl.server.{ ExceptionHandler, Route }
-import akka.http.scaladsl.server.Directives.complete
-import akka.stream.Materializer
+import akka.http.scaladsl.model.StatusCodes.OK
+import akka.http.scaladsl.server.Route
 import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{ Failure, Success }
 
@@ -41,15 +38,10 @@ object Api {
   def apply(
       config: Config,
       textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit classicSystem: ClassicSystem, mat: Materializer): Unit = {
+  )(implicit classicSystem: ClassicSystem): Unit = {
+    import FrontProcessor.processorUnavailableHandler
     import classicSystem.dispatcher
     import config._
-
-    implicit val processUnavailableHandler: ExceptionHandler =
-      ExceptionHandler {
-        case FrontProcessor.ProcessorUnavailable(name) =>
-          complete(ServiceUnavailable -> s"Processor $name unavailable!")
-      }
 
     val shutdown = CoordinatedShutdown(classicSystem)
 
@@ -72,7 +64,7 @@ object Api {
 
   def route(
       textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit ec: ExecutionContext): Route = {
+  ): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
     import io.circe.generic.auto._
