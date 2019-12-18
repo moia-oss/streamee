@@ -36,7 +36,7 @@ final class FrontProcessorTests
     "throw an IllegalArgumentException for timeout <= 0" in {
       forAll(TestData.nonPosDuration) { timeout =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          FrontProcessor(startProcess[Int, Int], timeout, "name")
+          FrontProcessor(Process[Int, Int], timeout, "name")
         }
       }
     }
@@ -44,7 +44,7 @@ final class FrontProcessorTests
     "throw an IllegalArgumentException for bufferSize <= 0" in {
       forAll(Gen.choose(Int.MinValue, 0)) { bufferSize =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          FrontProcessor(startProcess[Int, Int], 1.second, "name", bufferSize)
+          FrontProcessor(Process[Int, Int], 1.second, "name", bufferSize)
         }
       }
     }
@@ -52,7 +52,7 @@ final class FrontProcessorTests
 
   "Calling offer" should {
     "eventually succeed" in {
-      val process   = startProcess[String, Int].map(_.length)
+      val process   = Process[String, Int].map(_.length)
       val processor = FrontProcessor(process, 1.second, "name")
       processor
         .offer("abc")
@@ -61,7 +61,7 @@ final class FrontProcessorTests
 
     "fail after the given timeout" in {
       val timeout   = 100.milliseconds
-      val process   = startProcess[String, String].delay(1.second)
+      val process   = Process[String, String].delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
       processor
         .offer("abc")
@@ -70,7 +70,7 @@ final class FrontProcessorTests
     }
 
     "resume on failure" in {
-      val process   = startProcess[(Int, Int), Int].map { case (n, m) => n / m }
+      val process   = Process[(Int, Int), Int].map { case (n, m) => n / m }
       val processor = FrontProcessor(process, 1.second, "name")
       processor
         .offer((4, 0))
@@ -82,7 +82,7 @@ final class FrontProcessorTests
     }
 
     "process already offered requests on shutdown" in {
-      val process   = startProcess[String, String].delay(100.milliseconds)
+      val process   = Process[String, String].delay(100.milliseconds)
       val processor = FrontProcessor(process, 1.second, "name")
       val response1 = processor.offer("abc")
       processor.shutdown()
@@ -97,7 +97,7 @@ final class FrontProcessorTests
 
   "Calling shutdown" should {
     "complete whenDone" in {
-      val processor = FrontProcessor(startProcess[Int, Int], 1.second, "name")
+      val processor = FrontProcessor(Process[Int, Int], 1.second, "name")
       val done      = processor.whenDone
       processor.shutdown()
       for {
@@ -112,7 +112,7 @@ final class FrontProcessorTests
       val testSystem = ActorSystem()
       val testMat    = Materializer(testSystem)
       val processor =
-        FrontProcessor(startProcess[Int, Int], 1.second, "name")(
+        FrontProcessor(Process[Int, Int], 1.second, "name")(
           testMat,
           testSystem.dispatcher
         )
