@@ -27,6 +27,9 @@ import akka.stream.{
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.Done
 import akka.actor.CoordinatedShutdown
+import akka.http.scaladsl.model.StatusCodes.ServiceUnavailable
+import akka.http.scaladsl.server.Directives.complete
+import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.QueueOfferResult.{ Dropped, Enqueued }
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ ExecutionContext, Future }
@@ -49,6 +52,16 @@ object FrontProcessor {
     */
   final case class ProcessorError(cause: QueueOfferResult)
       extends Exception(s"QueueOfferResult $cause was not expected!")
+
+  /**
+    * Import this `ExceptionHandler` to map [[ProcessorUnavailable]]  – as result of calling
+    * [[FrontProcessor.offer]] – to HTTP status 503.
+    */
+  implicit val processorUnavailableHandler: ExceptionHandler =
+    ExceptionHandler {
+      case ProcessorUnavailable(name) =>
+        complete(ServiceUnavailable -> s"Processor $name unavailable!")
+    }
 
   /**
     * Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
@@ -97,7 +110,7 @@ final class FrontProcessor[Req, Res] private (
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val (queue, _done) =
+  private val (queue, done) =
     Source
       .queue[(Req, Respondee[Res])](bufferSize, OverflowStrategy.dropNew)
       .via(process)
@@ -124,7 +137,7 @@ final class FrontProcessor[Req, Res] private (
     val (respondee, response) = Respondee.spawn[Res](timeout)
     queue
       .offer((request, respondee))
-      .recover { case _: StreamDetachedException => Dropped } // after shutdown fail with // `ProcessorUnavailable`
+      .recover { case _: StreamDetachedException => Dropped } // after shutdown fail with `ProcessorUnavailable`
       .flatMap {
         case Enqueued => response.future // might result in a `TimeoutException`
         case Dropped  => Future.failed(ProcessorUnavailable(name))
@@ -148,7 +161,7 @@ final class FrontProcessor[Req, Res] private (
     * @return completion signal
     */
   def whenDone: Future[Done] =
-    _done
+    done
 
   private def resume(cause: Throwable) = {
     if (logger.isErrorEnabled) logger.error(s"Processor $name failed and resumes", cause)

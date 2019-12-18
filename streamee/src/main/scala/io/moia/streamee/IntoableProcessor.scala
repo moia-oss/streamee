@@ -63,7 +63,7 @@ final class IntoableProcessor[Req, Res] private (
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val (_sink, switch, _done) =
+  private val (_sink, switch, done) =
     MergeHub
       .source[(Req, Respondee[Res])](bufferSize)
       .viaMat(KillSwitches.single)(Keep.both)
@@ -114,7 +114,7 @@ final class IntoableProcessor[Req, Res] private (
     * @return signal for completion
     */
   def whenDone: Future[Done] =
-    _done
+    done
 
   private def resume(cause: Throwable) = {
     if (logger.isErrorEnabled) logger.error(s"Processor $name failed and resumes", cause)
