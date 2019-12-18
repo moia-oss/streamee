@@ -37,7 +37,7 @@ final class IntoableProcessorTests
     "throw an IllegalArgumentException for bufferSize <= 0" in {
       forAll(Gen.choose(Int.MinValue, 0)) { bufferSize =>
         an[IllegalArgumentException] shouldBe thrownBy {
-          IntoableProcessor(startProcess[Int, Int], "name", bufferSize)
+          IntoableProcessor(Process[Int, Int], "name", bufferSize)
         }
       }
     }
@@ -46,7 +46,7 @@ final class IntoableProcessorTests
   "Calling shutdown" should {
     "fail after the given timeout" in {
       val timeout   = 100.milliseconds
-      val process   = startProcess[String, String].delay(1.second)
+      val process   = Process[String, String].delay(1.second)
       val processor = FrontProcessor(process, timeout, "name")
       processor
         .offer("abc")
@@ -55,7 +55,7 @@ final class IntoableProcessorTests
     }
 
     "complete whenDone" in {
-      val processor = IntoableProcessor(startProcess[Int, Int], "name")
+      val processor = IntoableProcessor(Process[Int, Int], "name")
       val done      = processor.whenDone
       processor.shutdown()
       done.map(_ => succeed)
@@ -64,7 +64,7 @@ final class IntoableProcessorTests
 
   "Using an IntoableProcessor locally" should {
     "eventually emit into the outer stream" in {
-      val process   = startProcess[String, Int].map(_.length)
+      val process   = Process[String, Int].map(_.length)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
@@ -75,7 +75,7 @@ final class IntoableProcessorTests
 
     "fail after the given timeout" in {
       val timeout   = 100.milliseconds
-      val process   = startProcess[String, String].delay(timeout * 3)
+      val process   = Process[String, String].delay(timeout * 3)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
@@ -86,7 +86,7 @@ final class IntoableProcessorTests
     }
 
     "resume on failure" in {
-      val process   = startProcess[Int, Int].map(42 / _)
+      val process   = Process[Int, Int].map(42 / _)
       val processor = IntoableProcessor(process, "name")
       Source(List(1, 0, 2, 0, 3))
         .into(processor.sink, 1.second, 42)
@@ -96,7 +96,7 @@ final class IntoableProcessorTests
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process   = startProcess[Int, Int].throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
+      val process   = Process[Int, Int].throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
         .map { n =>
@@ -112,7 +112,7 @@ final class IntoableProcessorTests
 
   "Using an IntoableProcessor remotely" should {
     "eventually emit into the outer stream" in {
-      val process   = startProcess[String, Int].map(_.length)
+      val process   = Process[String, Int].map(_.length)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
@@ -123,7 +123,7 @@ final class IntoableProcessorTests
 
     "fail after the given timeout" in {
       val timeout   = 100.milliseconds
-      val process   = startProcess[String, String].delay(timeout * 3)
+      val process   = Process[String, String].delay(timeout * 3)
       val processor = IntoableProcessor(process, "name")
       Source
         .single("abc")
@@ -134,7 +134,7 @@ final class IntoableProcessorTests
     }
 
     "resume on failure" in {
-      val process   = startProcess[Int, Int].map(42 / _)
+      val process   = Process[Int, Int].map(42 / _)
       val processor = IntoableProcessor(process, "name")
       Source(List(1, 0, 2, 0, 3))
         .into(processor.sinkRef(), 1.second, 42)
@@ -144,7 +144,7 @@ final class IntoableProcessorTests
     }
 
     "at most drop as many requests as the bufferSize on shutdown" in {
-      val process   = startProcess[Int, Int].throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
+      val process   = Process[Int, Int].throttle(1, 100.milliseconds, 0, ThrottleMode.Shaping)
       val processor = IntoableProcessor(process, "name", 2)
       Source(1.to(10))
         .map { n =>
@@ -163,7 +163,7 @@ final class IntoableProcessorTests
     "shutdown the processor" in {
       val testSystem = ActorSystem()
       val testMat    = Materializer(testSystem)
-      val processor  = IntoableProcessor(startProcess[Int, Int], "name")(testMat)
+      val processor  = IntoableProcessor(Process[Int, Int], "name")(testMat)
       val late       = akkaAfter(5.second, scheduler)(Future.failed(new Exception("Late!")))
       val doneOrLate = Future.firstCompletedOf(List(processor.whenDone, late))
       CoordinatedShutdown(testSystem).run(CoordinatedShutdown.UnknownReason)

@@ -30,7 +30,7 @@ package object streamee {
     * [[Respondee]] for the response. Can be used locally or remotely because the propagated
     * [[Respondee]] is location transparent.
     *
-    * Use [[startProcess]] to create an empty initial process [[Step]], i.e. one where the context
+    * Use [[Process]] to create an empty initial process [[Step]], i.e. one where the context
     * is a [[Respondee]].
     */
   type Process[-Req, Res] = Step[Req, Res, Respondee[Res]]
@@ -40,7 +40,7 @@ package object streamee {
     * order to compose [[Step]]s into a [[Process]] a [[Respondee]] must at least be a part of
     * the context.
     *
-    * Use [[startStep]] to create an empty initial [[Step]].
+    * Use [[Step]] to create an empty initial [[Step]].
     */
   type Step[-In, +Out, Ctx] = FlowWithContext[In, Ctx, Out, Ctx, Any]
 
@@ -226,7 +226,7 @@ package object streamee {
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
       FrontProcessor(
-        startProcess[Req, Res].into(sink, timeout, parallelism),
+        Process[Req, Res].into(sink, timeout, parallelism),
         timeout,
         name,
         bufferSize,
@@ -274,26 +274,6 @@ package object streamee {
       .mapAsync(parallelism)(_._3.future)
 
   /**
-    * Create an empty initial process [[Step]], i.e. one where the context is a [[Respondee]].
-    *
-    * @tparam Req request type
-    * @tparam Res response type
-    * @return empty initial process [[Step]]
-    */
-  def startProcess[Req, Res]: Step[Req, Req, Respondee[Res]] =
-    startStep[Req, Respondee[Res]]
-
-  /**
-    * Create an empty initial [[Step]].
-    *
-    * @tparam In input type of the initial step
-    * @tparam Ctx context type of the initial step
-    * @return empty initial [[Step]]
-    */
-  def startStep[In, Ctx]: Step[In, In, Ctx] =
-    FlowWithContext[In, Ctx]
-
-  /**
     * Wraps the given [[Step]] in one emitting its input together with its output (as a `Tuple2`).
     *
     * Notice that thanks to type inference there should be no special requirements regarding the
@@ -302,7 +282,7 @@ package object streamee {
     *
     *{{{
     *def length[Ctx]: Step[String, Int, Ctx] =
-    *  startStep[String, Ctx].map(_.length)
+    *  Step[String, Ctx].map(_.length)
     *
     *val process: Process[String, (String, Int)] =
     *  zipWithIn(lenght) // No need to give type args to length!
@@ -315,7 +295,7 @@ package object streamee {
     * @return [[Step]] emitting the input of the wrapped one together with its ouput (as a `Tuple2`)
     */
   def zipWithIn[In, Out, Ctx](step: Step[In, Out, (In, Ctx)]): Step[In, (In, Out), Ctx] =
-    startStep[In, Ctx].push.via(step).pop
+    Step[In, Ctx].push.via(step).pop
 
   private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {
     val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
