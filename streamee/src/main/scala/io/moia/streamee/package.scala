@@ -226,7 +226,7 @@ package object streamee {
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
       FrontProcessor(
-        startProcess[Req, Res]().into(sink, timeout, parallelism),
+        startProcess[Req, Res].into(sink, timeout, parallelism),
         timeout,
         name,
         bufferSize,
@@ -280,8 +280,8 @@ package object streamee {
     * @tparam Res response type
     * @return empty initial process [[Step]]
     */
-  def startProcess[Req, Res](): Step[Req, Req, Respondee[Res]] =
-    startStep[Req, Respondee[Res]]()
+  def startProcess[Req, Res]: Step[Req, Req, Respondee[Res]] =
+    startStep[Req, Respondee[Res]]
 
   /**
     * Create an empty initial [[Step]].
@@ -290,7 +290,7 @@ package object streamee {
     * @tparam Ctx context type of the initial step
     * @return empty initial [[Step]]
     */
-  def startStep[In, Ctx](): Step[In, In, Ctx] =
+  def startStep[In, Ctx]: Step[In, In, Ctx] =
     FlowWithContext[In, Ctx]
 
   private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {

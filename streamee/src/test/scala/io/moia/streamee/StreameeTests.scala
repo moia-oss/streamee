@@ -158,7 +158,7 @@ final class StreameeTests
   "Calling push and pop" should {
     "first push each elements to the propagated context and then pop it" in {
       val process =
-        startProcess[String, (String, Int)]()
+        startProcess[String, (String, Int)]
           .map(_.toUpperCase)
           .push
           .map(_.length)
@@ -180,7 +180,7 @@ final class StreameeTests
 
     "first push and transform each elements to the propagated context and then pop and transform it" in {
       val process =
-        startProcess[String, (String, Int)]()
+        startProcess[String, (String, Int)]
           .push(_.toUpperCase, _ * 2)
           .map(_.length)
           .pop
@@ -202,7 +202,7 @@ final class StreameeTests
 
   "Calling asFrontProcessor" should {
     "convert an IntoableSink into a FrontProcessor" in {
-      val process           = startProcess[String, Int]().map(_.length)
+      val process           = startProcess[String, Int].map(_.length)
       val intoableProcessor = IntoableProcessor(process, "name")
       val frontProcessor    = intoableProcessor.sink.asFrontProcessor(1.second, 42, "name")
       frontProcessor
