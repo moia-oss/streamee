@@ -18,6 +18,7 @@ package io.moia.streamee
 
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source, SourceWithContext }
+import akka.NotUsed
 import org.scalacheck.Gen
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
@@ -208,6 +209,19 @@ final class StreameeTests
       frontProcessor
         .offer("abc")
         .map(_ shouldBe 3)
+    }
+  }
+
+  "Calling zipWithIn" should {
+    "wrap the given step in one emitting its input together with its output" in {
+      def length[Ctx]                                = startStep[String, Ctx].map(_.length)
+      val step: Step[String, (String, Int), NotUsed] = zipWithIn(length)
+      val test                                       = "test"
+      SourceWithContext
+        .fromTuples(Source.single((test, NotUsed)))
+        .via(step)
+        .runWith(Sink.head)
+        .map(_ shouldBe ((test, test.length), NotUsed))
     }
   }
 }
