@@ -37,19 +37,19 @@ object WordShuffler {
   final case class WordShuffled(word: String)
 
   def apply(): Process[ShuffleWord, WordShuffled] =
-    startProcess[ShuffleWord, WordShuffled]()
+    startProcess[ShuffleWord, WordShuffled]
       .via(shuffleWordToString)
       .via(shuffle)
       .via(stringToWordShuffled)
 
   def shuffleWordToString[Ctx]: Step[ShuffleWord, String, Ctx] =
-    startStep[ShuffleWord, Ctx]().map(_.word)
+    startStep[ShuffleWord, Ctx].map(_.word)
 
   def shuffle[Ctx]: Step[String, String, Ctx] =
-    startStep[String, Ctx]().map(shuffleWord)
+    startStep[String, Ctx].map(shuffleWord)
 
   def stringToWordShuffled[Ctx]: Step[String, WordShuffled, Ctx] =
-    startStep[String, Ctx]().map(WordShuffled)
+    startStep[String, Ctx].map(WordShuffled)
 
   private def shuffleWord(word: String) = {
     @tailrec def loop(word: String, acc: String = ""): String =
