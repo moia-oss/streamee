@@ -70,9 +70,7 @@ object TextShuffler {
       .via(concat)
   }
 
-  def delayRequest[Ctx](
-      of: FiniteDuration
-  ): Step[ShuffleText, ShuffleText, Ctx] =
+  def delayRequest[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
     startStep[ShuffleText, Ctx]()
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
@@ -80,9 +78,7 @@ object TextShuffler {
   def keepSplitShuffle[Ctx](
       wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
       wordShufflerProcessorTimeout: FiniteDuration
-  )(
-      implicit mat: Materializer
-  ): Step[ShuffleText, (String, Seq[String]), Ctx] =
+  )(implicit mat: Materializer): Step[ShuffleText, (String, Seq[String]), Ctx] =
     startStep[ShuffleText, Ctx]()
       .map(_.text)
       .push // push the original text
