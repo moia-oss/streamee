@@ -39,6 +39,13 @@ object TextShuffler {
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
 
+  sealed trait Error
+  sealed trait InvalidRequest extends Error
+  object Error {
+    final object EmptyText   extends InvalidRequest
+    final object InvalidText extends InvalidRequest
+  }
+
   final case class Config(
       delay: FiniteDuration,
       wordShufflerProcessorTimeout: FiniteDuration,
@@ -49,7 +56,7 @@ object TextShuffler {
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
-  ): Process[ShuffleText, TextShuffled] = {
+  ): Process[ShuffleText, Either[Error, TextShuffled]] = {
     import config._
 
     def wordShufflerSinkRef(): Future[ProcessSinkRef[ShuffleWord, WordShuffled]] =
@@ -62,13 +69,21 @@ object TextShuffler {
         Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
-    Process[ShuffleText, TextShuffled]
-      .via(delayRequest(delay))
-      .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
-      .via(concat)
+    Process[ShuffleText, Either[Error, TextShuffled]]
+      .via(validateRequest)
+      .viaEither(delayProcessing(delay))
+      .viaEither(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+      .viaEither(concat)
   }
 
-  def delayRequest[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
+  def validateRequest[Ctx]: Step[ShuffleText, Either[InvalidRequest, ShuffleText], Ctx] =
+    Step[ShuffleText, Ctx].map {
+      case ShuffleText(text) if text.trim.isEmpty  => Left(Error.EmptyText)
+      case ShuffleText(text) if text.contains(" ") => Left(Error.InvalidText)
+      case shuffleText                             => Right(shuffleText)
+    }
+
+  def delayProcessing[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
     Step[ShuffleText, Ctx]
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))

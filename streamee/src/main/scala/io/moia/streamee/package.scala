@@ -18,8 +18,17 @@ package io.moia
 
 import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
-import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
-import akka.stream.scaladsl.{ Flow, FlowOps, FlowWithContext, Sink, Source }
+import akka.stream.{ DelayOverflowStrategy, FlowShape, Graph, Materializer, SinkRef, ThrottleMode }
+import akka.stream.scaladsl.{
+  Broadcast,
+  Flow,
+  FlowOps,
+  FlowWithContext,
+  GraphDSL,
+  Merge,
+  Sink,
+  Source
+}
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 
@@ -184,8 +193,8 @@ package object streamee {
     * Extension methods for `FlowWithContext` with paired output context; see
     * [[FlowWithContextExt]].
     */
-  final implicit class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, A](
-      val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Any]
+  final implicit class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, Mat, A](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Mat]
   ) extends AnyVal {
 
     /**
@@ -195,8 +204,45 @@ package object streamee {
       * @return `FlowWithContext` propagating the former context only and emitting the propagated
       *         transformed former input elements along with its actual input elements
       */
-    def pop: FlowWithContext[In, CtxIn, (A, Out), CtxOut, Any] =
+    def pop: FlowWithContext[In, CtxIn, (A, Out), CtxOut, Mat] =
       flowWithContext.via(Flow.apply.map { case (out, (a, ctxOut)) => ((a, out), ctxOut) })
+  }
+
+  /**
+    * Extension methods for `FlowWithContext` with paired output context.
+    */
+  final implicit class EitherFlowWithContextOps[In, CtxIn, Out, CtxOut, Mat, E](
+      val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
+  ) extends AnyVal {
+
+    def mapEither[Out2](f: Out => Out2): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Any] =
+      flowWithContext.map {
+        case Left(e)    => Left(e)
+        case Right(out) => Right(f(out))
+      }
+
+    def viaEither[Out2](
+        viaFlow: Graph[FlowShape[(Out, CtxOut), (Out2, CtxOut)], Any]
+    ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
+      val flow =
+        Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
+          import GraphDSL.Implicits._
+
+          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
+          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
+          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
+          val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
+          val mapRight  = FlowWithContext[Out2, CtxOut].map(Right(_))
+
+          // format: OFF
+        flowWithContext ~> bcast ~> leftOnly             ~>             merge
+                           bcast ~> rightOnly ~> viaFlow ~> mapRight ~> merge
+        // format: ON
+
+          FlowShape(flowWithContext.in, merge.out)
+        })
+      FlowWithContext.fromTuples(flow)
+    }
   }
 
   /**
@@ -257,22 +303,6 @@ package object streamee {
       flowWithContext.via(Flow.apply.throttle(elements, per, maximumBurst, mode))
   }
 
-  private def intoImpl[Out, Out2, Mat](
-      flowOps: FlowOps[Out, Mat],
-      processSink: ProcessSink[Out, Out2],
-      timeout: FiniteDuration,
-      mat: Materializer,
-      parallelism: Int
-  ) =
-    flowOps
-      .map(spawnRespondee[Out, Out2](timeout, mat))
-      .alsoTo {
-        Flow[(Out, Respondee[Out2], Promise[Out2])]
-          .map { case (out, respondee2, _) => (out, respondee2) }
-          .to(processSink)
-      }
-      .mapAsync(parallelism)(_._3.future)
-
   /**
     * Wraps the given [[Step]] in one emitting its input together with its output (as a `Tuple2`).
     *
@@ -296,6 +326,22 @@ package object streamee {
     */
   def zipWithIn[In, Out, Ctx](step: Step[In, Out, (In, Ctx)]): Step[In, (In, Out), Ctx] =
     Step[In, Ctx].push.via(step).pop
+
+  private def intoImpl[Out, Out2, M](
+      flowOps: FlowOps[Out, M],
+      processSink: ProcessSink[Out, Out2],
+      timeout: FiniteDuration,
+      mat: Materializer,
+      parallelism: Int
+  ) =
+    flowOps
+      .map(spawnRespondee[Out, Out2](timeout, mat))
+      .alsoTo {
+        Flow[(Out, Respondee[Out2], Promise[Out2])]
+          .map { case (out, respondee2, _) => (out, respondee2) }
+          .to(processSink)
+      }
+      .mapAsync(parallelism)(_._3.future)
 
   private def spawnRespondee[Out, Out2](timeout: FiniteDuration, mat: Materializer)(out: Out) = {
     val (respondee2, out2) = Respondee.spawn[Out2](timeout)(mat)
