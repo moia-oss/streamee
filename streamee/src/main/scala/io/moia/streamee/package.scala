@@ -20,8 +20,8 @@ import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
 import akka.stream.{ DelayOverflowStrategy, Materializer, SinkRef, ThrottleMode }
 import akka.stream.scaladsl.{ Flow, FlowOps, FlowWithContext, Sink, Source }
-import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 
 package object streamee {
 
@@ -70,7 +70,7 @@ package object streamee {
   /**
     * Extension methods for `Source`.
     */
-  implicit final class SourceExt[Out, M](val source: Source[Out, M]) extends AnyVal {
+  final implicit class SourceExt[Out, Mat](val source: Source[Out, Mat]) extends AnyVal {
 
     /**
       * Ingest into the given [[ProcessSink]] and emit its response or fail with
@@ -86,7 +86,7 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration,
         parallelism: Int
-    ): Source[Out2, Future[M]] = {
+    ): Source[Out2, Future[Mat]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
@@ -97,7 +97,7 @@ package object streamee {
   /**
     * Extension methods for `Flow`.
     */
-  implicit final class FlowExt[In, Out, M](val flow: Flow[In, Out, M]) extends AnyVal {
+  final implicit class FlowExt[In, Out, Mat](val flow: Flow[In, Out, Mat]) extends AnyVal {
 
     /**
       * Ingest into the given [[ProcessSink]] and emit its response or fail with
@@ -113,7 +113,7 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration,
         parallelism: Int
-    ): Flow[In, Out2, Future[M]] = {
+    ): Flow[In, Out2, Future[Mat]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
@@ -124,8 +124,8 @@ package object streamee {
   /**
     * Extension methods for `FlowWithContext`.
     */
-  implicit final class FlowWithContextExt[In, CtxIn, Out, CtxOut, M](
-      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, M]
+  final implicit class FlowWithContextExt[In, CtxIn, Out, CtxOut, Mat](
+      val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
   ) extends AnyVal {
 
     /**
@@ -142,7 +142,7 @@ package object streamee {
         processSink: ProcessSink[Out, Out2],
         timeout: FiniteDuration,
         parallelism: Int
-    ): FlowWithContext[In, CtxIn, Out2, CtxOut, Future[M]] = {
+    ): FlowWithContext[In, CtxIn, Out2, CtxOut, Future[Mat]] = {
       require(timeout > Duration.Zero, s"timeout must be > 0, but was $timeout!")
       require(parallelism > 0, s"parallelism must be > 0, but was $parallelism!")
 
@@ -184,7 +184,7 @@ package object streamee {
     * Extension methods for `FlowWithContext` with paired output context; see
     * [[FlowWithContextExt]].
     */
-  implicit final class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, A](
+  final implicit class FlowWithPairedContextOps[In, CtxIn, Out, CtxOut, A](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, (A, CtxOut), Any]
   ) extends AnyVal {
 
@@ -202,7 +202,7 @@ package object streamee {
   /**
     * Extension methods for `ProcessSink`.
     */
-  implicit final class ProcessSinkOps[Req, Res](val sink: ProcessSink[Req, Res]) extends AnyVal {
+  final implicit class ProcessSinkOps[Req, Res](val sink: ProcessSink[Req, Res]) extends AnyVal {
 
     /**
       * Creates a canonical [[FrontProcessor]] from this [[ProcessSink]].
@@ -238,7 +238,7 @@ package object streamee {
   /**
     * Missing standard operators from `FlowOps` not yet defined on `FlowWithContext` (by Akka).
     */
-  implicit final class FlowWithContextOpsAkka[In, CtxIn, Out, CtxOut](
+  final implicit class FlowWithContextOpsAkka[In, CtxIn, Out, CtxOut](
       val flowWithContext: FlowWithContext[In, CtxIn, Out, CtxOut, Any]
   ) extends AnyVal {
 
@@ -257,8 +257,8 @@ package object streamee {
       flowWithContext.via(Flow.apply.throttle(elements, per, maximumBurst, mode))
   }
 
-  private def intoImpl[Out, Out2, M](
-      flowOps: FlowOps[Out, M],
+  private def intoImpl[Out, Out2, Mat](
+      flowOps: FlowOps[Out, Mat],
       processSink: ProcessSink[Out, Out2],
       timeout: FiniteDuration,
       mat: Materializer,
