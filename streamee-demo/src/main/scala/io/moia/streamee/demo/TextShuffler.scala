@@ -29,10 +29,12 @@ import io.moia.streamee.{
   SourceExt,
   Step
 }
+import io.moia.streamee.demo.TextShuffler.Error.RandomError
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Random
 
 object TextShuffler {
 
@@ -40,10 +42,10 @@ object TextShuffler {
   final case class TextShuffled(originalText: String, shuffledText: String)
 
   sealed trait Error
-  sealed trait InvalidRequest extends Error
   object Error {
-    final object EmptyText   extends InvalidRequest
-    final object InvalidText extends InvalidRequest
+    final object EmptyText   extends Error
+    final object InvalidText extends Error
+    final object RandomError extends Error
   }
 
   final case class Config(
@@ -72,11 +74,12 @@ object TextShuffler {
     Process[ShuffleText, Either[Error, TextShuffled]]
       .via(validateRequest)
       .rightVia(delayProcessing(delay))
+      .rightFlatVia(randomError)
       .rightVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
       .rightVia(concat)
   }
 
-  def validateRequest[Ctx]: Step[ShuffleText, Either[InvalidRequest, ShuffleText], Ctx] =
+  def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
     Step[ShuffleText, Ctx].map {
       case ShuffleText(text) if text.trim.isEmpty  => Left(Error.EmptyText)
       case ShuffleText(text) if text.contains(" ") => Left(Error.InvalidText)
@@ -87,6 +90,10 @@ object TextShuffler {
     Step[ShuffleText, Ctx]
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
+
+  def randomError[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
+    Step[ShuffleText, Ctx]
+      .map(shuffleText => if (Random.nextBoolean()) Left(RandomError) else Right(shuffleText))
 
   def keepSplitShuffle[Ctx](
       wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],

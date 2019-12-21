@@ -20,7 +20,7 @@ import akka.Done
 import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes.{ BadRequest, OK }
+import akka.http.scaladsl.model.StatusCodes.{ BadRequest, InternalServerError, OK }
 import akka.http.scaladsl.server.Route
 import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
@@ -83,6 +83,7 @@ object Api {
           onSuccess(textShufflerProcessor.offer(shuffleText)) {
             case Left(Error.EmptyText)                 => complete(BadRequest -> "Empty text!")
             case Left(Error.InvalidText)               => complete(BadRequest -> "Invalid text!")
+            case Left(Error.RandomError)               => complete(InternalServerError -> "Random error!")
             case Right(TextShuffled(original, result)) => complete(s"$original -> $result")
           }
         }
