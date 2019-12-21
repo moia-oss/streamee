@@ -221,7 +221,7 @@ package object streamee {
         case Right(out) => Right(f(out))
       }
 
-    def viaEither[Out2](
+    def rightVia[Out2](
         viaFlow: Graph[FlowShape[(Out, CtxOut), (Out2, CtxOut)], Any]
     ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
       val flow =
