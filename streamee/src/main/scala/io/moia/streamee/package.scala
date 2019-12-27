@@ -215,13 +215,7 @@ package object streamee {
       val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
   ) extends AnyVal {
 
-    def mapEither[Out2](f: Out => Out2): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Any] =
-      flowWithContext.map {
-        case Left(e)    => Left(e)
-        case Right(out) => Right(f(out))
-      }
-
-    def rightVia[Out2](
+    def mapVia[Out2](
         viaFlow: Graph[FlowShape[(Out, CtxOut), (Out2, CtxOut)], Any]
     ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
       val flow =
@@ -244,7 +238,7 @@ package object streamee {
       FlowWithContext.fromTuples(flow)
     }
 
-    def rightFlatVia[Out2](
+    def flatMapVia[Out2](
         viaFlow: Graph[FlowShape[(Out, CtxOut), (Either[E, Out2], CtxOut)], Any]
     ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
       val flow =
