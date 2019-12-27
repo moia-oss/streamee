@@ -20,7 +20,7 @@ import akka.Done
 import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes.OK
+import akka.http.scaladsl.model.StatusCodes.{ BadRequest, InternalServerError, OK }
 import akka.http.scaladsl.server.Route
 import io.moia.streamee.FrontProcessor
 import org.slf4j.LoggerFactory
@@ -29,16 +29,18 @@ import scala.util.{ Failure, Success }
 
 object Api {
 
+  type TextShufflerProcessor =
+    FrontProcessor[TextShuffler.ShuffleText, Either[TextShuffler.Error, TextShuffler.TextShuffled]]
+
   final case class Config(interface: String, port: Int, terminationDeadline: FiniteDuration)
 
   private final object BindFailure extends Reason
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def apply(
-      config: Config,
-      textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  )(implicit classicSystem: ClassicSystem): Unit = {
+  def apply(config: Config, textShufflerProcessor: TextShufflerProcessor)(
+      implicit classicSystem: ClassicSystem
+  ): Unit = {
     import FrontProcessor.processorUnavailableHandler
     import classicSystem.dispatcher
     import config._
@@ -62,9 +64,7 @@ object Api {
       }
   }
 
-  def route(
-      textShufflerProcessor: FrontProcessor[TextShuffler.ShuffleText, TextShuffler.TextShuffled]
-  ): Route = {
+  def route(textShufflerProcessor: TextShufflerProcessor): Route = {
     import akka.http.scaladsl.server.Directives._
     import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
     import io.circe.generic.auto._
@@ -81,7 +81,10 @@ object Api {
       post {
         entity(as[ShuffleText]) { shuffleText =>
           onSuccess(textShufflerProcessor.offer(shuffleText)) {
-            case TextShuffled(original, result) => complete(s"$original -> $result")
+            case Left(Error.EmptyText)                 => complete(BadRequest -> "Empty text!")
+            case Left(Error.InvalidText)               => complete(BadRequest -> "Invalid text!")
+            case Left(Error.RandomError)               => complete(InternalServerError -> "Random error!")
+            case Right(TextShuffled(original, result)) => complete(s"$original -> $result")
           }
         }
       }

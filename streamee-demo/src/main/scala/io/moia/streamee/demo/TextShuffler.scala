@@ -29,15 +29,24 @@ import io.moia.streamee.{
   SourceExt,
   Step
 }
+import io.moia.streamee.demo.TextShuffler.Error.RandomError
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Random
 
 object TextShuffler {
 
   final case class ShuffleText(text: String)
   final case class TextShuffled(originalText: String, shuffledText: String)
+
+  sealed trait Error
+  object Error {
+    final object EmptyText   extends Error
+    final object InvalidText extends Error
+    final object RandomError extends Error
+  }
 
   final case class Config(
       delay: FiniteDuration,
@@ -49,7 +58,7 @@ object TextShuffler {
       implicit mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
-  ): Process[ShuffleText, TextShuffled] = {
+  ): Process[ShuffleText, Either[Error, TextShuffled]] = {
     import config._
 
     def wordShufflerSinkRef(): Future[ProcessSinkRef[ShuffleWord, WordShuffled]] =
@@ -62,16 +71,29 @@ object TextShuffler {
         Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
-    Process[ShuffleText, TextShuffled]
-      .via(delayRequest(delay))
-      .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
-      .via(concat)
+    Process[ShuffleText, Either[Error, TextShuffled]]
+      .via(validateRequest)
+      .mapVia(delayProcessing(delay))
+      .flatMapVia(randomError)
+      .mapVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+      .mapVia(concat)
   }
 
-  def delayRequest[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
+  def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
+    Step[ShuffleText, Ctx].map {
+      case ShuffleText(text) if text.trim.isEmpty  => Left(Error.EmptyText)
+      case ShuffleText(text) if text.contains(" ") => Left(Error.InvalidText)
+      case shuffleText                             => Right(shuffleText)
+    }
+
+  def delayProcessing[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
     Step[ShuffleText, Ctx]
       .delay(of, DelayOverflowStrategy.backpressure)
       .withAttributes(Attributes.inputBuffer(1, 1))
+
+  def randomError[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
+    Step[ShuffleText, Ctx]
+      .map(shuffleText => if (Random.nextBoolean()) Left(RandomError) else Right(shuffleText))
 
   def keepSplitShuffle[Ctx](
       wordShufflerSink: ProcessSink[WordShuffler.ShuffleWord, WordShuffler.WordShuffled],
