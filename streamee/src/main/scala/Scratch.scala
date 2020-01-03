@@ -30,7 +30,7 @@ object Scratch {
 
   implicit final class FlowExt[In, Out, E, Mat](val flow: Flow[In, Either[E, Out], Mat])
       extends AnyVal {
-    def unwrap(errors: Sink[Either[E, Out], Any]): Flow[In, Out, Mat] =
+    def errorTo(errors: Sink[Either[E, Out], Any]): Flow[In, Out, Mat] =
       flow
         .alsoTo(
           Flow[Either[E, Out]]
@@ -40,7 +40,10 @@ object Scratch {
         .collect { case Right(n) => n }
   }
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit =
+    errorSink()
+
+  private def errorSink() = {
     implicit val system: ActorSystem = ActorSystem()
 
     val (errorSink, errorSource) =
@@ -52,9 +55,9 @@ object Scratch {
     val process: Flow[Int, Either[Error, Int], Any] =
       Flow[Int]
         .map(n => if (n % 2 != 0) Left(Error.OddNumber(n)) else Right(n))
-        .unwrap(errorSink)
+        .errorTo(errorSink)
         .map(n => if (n > 10) Left(Error.TooLargeNumber(n)) else Right(n))
-        .unwrap(errorSink)
+        .errorTo(errorSink)
         .map(n => if (n > 20) Left(Error.WayTooLargeNumber(n)) else Right(n))
         .merge(errorSource, eagerComplete = true)
 
@@ -63,9 +66,6 @@ object Scratch {
         .zipWith(Source.tick(0.millis, 250.millis, NotUsed)) { case (n, _) => n }
         .via(process)
         .runForeach(println)
-
-//    StdIn.readLine("Hit ENTER to continue ...")
-//    switch.shutdown()
 
     import system.dispatcher
     done.onComplete { result =>
