@@ -40,17 +40,17 @@ import akka.stream.{
 }
 import akka.{ Done, NotUsed }
 import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
-import org.apache.logging.log4j.scala.Logging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
-private object PermanentProcessor extends Logging {
+private object PermanentProcessor extends StrictLogging {
 
   final class PromisesStage[A, B, C](correlateRequest: A => C,
                                      correlateResponse: B => C,
                                      sweepCompleteResponsesInterval: FiniteDuration)
       extends GraphStage[FanInShape2[(A, Promise[B]), B, NotUsed]]
-      with Logging {
+      with StrictLogging {
 
     override val shape: FanInShape2[(A, Promise[B]), B, NotUsed] =
       new FanInShape2(Inlet[(A, Promise[B])]("PromisesStage.in0"),

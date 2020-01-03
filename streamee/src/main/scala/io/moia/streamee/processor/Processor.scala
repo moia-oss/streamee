@@ -24,14 +24,14 @@ import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.scaladsl.Flow
 import akka.stream.{ Materializer, QueueOfferResult }
-import org.apache.logging.log4j.scala.Logging
+import com.typesafe.scalalogging.StrictLogging
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ ExecutionContext, Future }
 
 /**
   * Factories and more for [[Processor]]s.
   */
-object Processor extends Logging {
+object Processor extends StrictLogging {
 
   /**
     * Signals that a [[Processor]] cannot process requests at this time. Only relevant for
