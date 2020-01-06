@@ -17,6 +17,7 @@
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ BroadcastHub, Flow, Keep, MergeHub, Sink, Source }
 import akka.NotUsed
+import akka.stream.Materializer
 import scala.concurrent.duration.DurationInt
 
 object Scratch {
@@ -32,12 +33,19 @@ object Scratch {
       extends AnyVal {
     def errorTo(errors: Sink[Either[E, Out], Any]): Flow[In, Out, Mat] =
       flow
-        .alsoTo(
-          Flow[Either[E, Out]]
-            .filter(_.isLeft)
-            .to(errors)
-        )
+        .alsoTo(Flow[Either[E, Out]].filter(_.isLeft).to(errors))
         .collect { case Right(n) => n }
+  }
+
+  def tapErrors[In, Out, E](
+      process: Sink[Either[E, Out], Any] => Flow[In, Either[E, Out], Any]
+  )(implicit mat: Materializer): Flow[In, Either[E, Out], Any] = {
+    val (errorTap, errors) =
+      MergeHub
+        .source[Either[E, Out]]
+        .toMat(BroadcastHub.sink[Either[E, Out]])(Keep.both)
+        .run()
+    process(errorTap).merge(errors, eagerComplete = true)
   }
 
   def main(args: Array[String]): Unit =
@@ -46,23 +54,18 @@ object Scratch {
   private def errorSink() = {
     implicit val system: ActorSystem = ActorSystem()
 
-    val (errorSink, errorSource) =
-      MergeHub
-        .source[Either[Error, Int]]
-        .toMat(BroadcastHub.sink[Either[Error, Int]])(Keep.both)
-        .run()
-
     val process: Flow[Int, Either[Error, Int], Any] =
-      Flow[Int]
-        .map(n => if (n % 2 != 0) Left(Error.OddNumber(n)) else Right(n))
-        .errorTo(errorSink)
-        .map(n => if (n > 10) Left(Error.TooLargeNumber(n)) else Right(n))
-        .errorTo(errorSink)
-        .map(n => if (n > 20) Left(Error.WayTooLargeNumber(n)) else Right(n))
-        .merge(errorSource, eagerComplete = true)
+      tapErrors { errorTap =>
+        Flow[Int]
+          .map(n => if (n % 2 != 0) Left(Error.OddNumber(n)) else Right(n))
+          .errorTo(errorTap)
+          .map(n => if (n > 10) Left(Error.TooLargeNumber(n)) else Right(n))
+          .errorTo(errorTap)
+          .map(n => if (n > 20) Left(Error.WayTooLargeNumber(n)) else Right(n))
+      }
 
     val done =
-      Source(22.to(6).by(-1))
+      Source(22.to(5).by(-1))
         .zipWith(Source.tick(0.millis, 250.millis, NotUsed)) { case (n, _) => n }
         .via(process)
         .runForeach(println)
