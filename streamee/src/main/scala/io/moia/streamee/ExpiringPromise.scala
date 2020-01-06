@@ -38,7 +38,7 @@ object ExpiringPromise {
                                                            scheduler: Scheduler): Promise[A] = {
     val result          = Promise[A]()
     val responseTimeout = after(timeout, scheduler)(Future.failed(PromiseExpired(timeout, hint)))
-    result.tryCompleteWith(responseTimeout)
+    result.completeWith(responseTimeout)
     result
   }
 }

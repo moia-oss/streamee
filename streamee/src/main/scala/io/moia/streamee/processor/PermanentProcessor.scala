@@ -40,17 +40,18 @@ import akka.stream.{
 }
 import akka.{ Done, NotUsed }
 import io.moia.streamee.processor.Processor.{ ProcessorUnavailable, UnexpectedQueueOfferResult }
-import org.apache.logging.log4j.scala.Logging
+import org.slf4j.LoggerFactory
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 
-private object PermanentProcessor extends Logging {
+private object PermanentProcessor {
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   final class PromisesStage[A, B, C](correlateRequest: A => C,
                                      correlateResponse: B => C,
                                      sweepCompleteResponsesInterval: FiniteDuration)
-      extends GraphStage[FanInShape2[(A, Promise[B]), B, NotUsed]]
-      with Logging {
+      extends GraphStage[FanInShape2[(A, Promise[B]), B, NotUsed]] {
 
     override val shape: FanInShape2[(A, Promise[B]), B, NotUsed] =
       new FanInShape2(Inlet[(A, Promise[B])]("PromisesStage.in0"),
@@ -107,7 +108,7 @@ private object PermanentProcessor extends Logging {
   }
 
   def resume(name: String)(cause: Throwable): Supervision.Directive = {
-    logger.error(s"Processor $name failed and resumes", cause)
+    if (logger.isErrorEnabled) logger.error(s"Processor $name failed and resumes", cause)
     Supervision.Resume
   }
 }

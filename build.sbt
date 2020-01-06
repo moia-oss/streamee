@@ -22,7 +22,7 @@ lazy val `streamee` =
         library.akkaHttp,
         library.akkaStreamTyped,
         library.log4jApi,
-        library.log4jApiScala,
+        library.slf4jApi,
         library.akkaActorTestkitTyped % Test,
         library.akkaHttpTestkit       % Test,
         library.akkaStreamTestkit     % Test,
@@ -42,17 +42,16 @@ lazy val `streamee-demo` =
       Compile / packageSrc / publishArtifact := false,
       libraryDependencies ++= Seq(
         library.akkaClusterShardingTyped,
-        library.akkaDiscoveryDns,
         library.akkaHttpCirce,
         library.akkaManagementClusterBootstrap,
         library.akkaManagementClusterHttp,
         library.akkaSlf4j,
         library.circeGeneric,
         library.disruptor,
-        library.log4jApiScala,
         library.log4jCore,
         library.log4jSlf4j,
-        library.pureConfig
+        library.pureConfig,
+        library.slf4jApi
       ),
       publishArtifact := false
     )
@@ -64,22 +63,21 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.6.0"
-      val akkaHttp       = "10.1.7"
-      val akkaHttpJson   = "1.25.2"
+      val akka           = "2.6.1"
+      val akkaHttp       = "10.1.11"
+      val akkaHttpJson   = "1.30.0"
       val akkaLog4j      = "1.6.1"
-      val akkaManagement = "0.20.0"
-      val circe          = "0.11.1"
+      val akkaManagement = "1.0.5"
+      val circe          = "0.12.3"
       val disruptor      = "3.4.2"
-      val log4j          = "2.11.1"
-      val log4jApiScala  = "11.0"
-      val pureConfig     = "0.10.1"
-      val scalaCheck     = "1.14.0"
-      val utest          = "0.7.1"
+      val log4j          = "2.13.0"
+      val pureConfig     = "0.12.2"
+      val scalaCheck     = "1.14.3"
+      val utest          = "0.7.2"
+      val slf4j          = "1.7.30"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
-    val akkaDiscoveryDns               = "com.lightbend.akka.discovery"  %% "akka-discovery-dns"                % Version.akkaManagement
     val akkaHttp                       = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
     val akkaHttpCirce                  = "de.heikoseeberger"             %% "akka-http-circe"                   % Version.akkaHttpJson
     val akkaHttpTestkit                = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
@@ -91,12 +89,12 @@ lazy val library =
     val circeGeneric                   = "io.circe"                      %% "circe-generic"                     % Version.circe
     val disruptor                      = "com.lmax"                      %  "disruptor"                         % Version.disruptor
     val log4jApi                       = "org.apache.logging.log4j"      %  "log4j-api"                         % Version.log4j
-    val log4jApiScala                  = "org.apache.logging.log4j"      %% "log4j-api-scala"                   % Version.log4jApiScala
     val log4jCore                      = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
     val log4jSlf4j                     = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
     val pureConfig                     = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
     val scalaCheck                     = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
     val utest                          = "com.lihaoyi"                   %% "utest"                             % Version.utest
+    val slf4jApi                       = "org.slf4j"                     %  "slf4j-api"                         % Version.slf4j
   }
 
 // *****************************************************************************
@@ -112,7 +110,8 @@ lazy val settings =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.8",
+    scalaVersion := "2.13.1",
+    crossScalaVersions := Seq("2.12.10", "2.13.1"),
     organization := "io.moia",
     organizationName := "MOIA GmbH",
     startYear := Some(2018),
@@ -122,9 +121,7 @@ lazy val commonSettings =
       "-deprecation",
       "-language:_",
       "-target:jvm-1.8",
-      "-encoding", "UTF-8",
-      "-Ypartial-unification",
-      "-Ywarn-unused-import"
+      "-encoding", "UTF-8"
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
     Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
