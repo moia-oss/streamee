@@ -15,9 +15,9 @@
  */
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{ BroadcastHub, Flow, Keep, MergeHub, Sink, Source }
+import akka.stream.scaladsl.{ BroadcastHub, Flow, GraphDSL, Keep, MergeHub, Sink, Source }
 import akka.NotUsed
-import akka.stream.Materializer
+import akka.stream.{ FlowShape, Materializer }
 import scala.concurrent.duration.DurationInt
 
 object Scratch {
@@ -31,21 +31,25 @@ object Scratch {
 
   implicit final class FlowExt[In, Out, E, Mat](val flow: Flow[In, Either[E, Out], Mat])
       extends AnyVal {
-    def errorTo(errors: Sink[Either[E, Out], Any]): Flow[In, Out, Mat] =
+    def errorTo(errors: Sink[E, Any]): Flow[In, Out, Mat] =
       flow
-        .alsoTo(Flow[Either[E, Out]].filter(_.isLeft).to(errors))
+        .alsoTo(
+          Flow[Either[E, Out]]
+            .collect { case Left(e) => e }
+            .to(errors)
+        )
         .collect { case Right(n) => n }
   }
 
   def tapErrors[In, Out, E](
-      process: Sink[Either[E, Out], Any] => Flow[In, Either[E, Out], Any]
+      process: Sink[E, Any] => Flow[In, Either[E, Out], Any]
   )(implicit mat: Materializer): Flow[In, Either[E, Out], Any] = {
     val (errorTap, errors) =
       MergeHub
-        .source[Either[E, Out]]
-        .toMat(BroadcastHub.sink[Either[E, Out]])(Keep.both)
+        .source[E]
+        .toMat(BroadcastHub.sink[E])(Keep.both)
         .run()
-    process(errorTap).merge(errors, eagerComplete = true)
+    process(errorTap).merge(errors.map(Left.apply), eagerComplete = true)
   }
 
   def main(args: Array[String]): Unit =
