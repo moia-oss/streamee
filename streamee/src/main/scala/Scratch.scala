@@ -17,8 +17,10 @@
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ BroadcastHub, Flow, GraphDSL, Keep, MergeHub, Sink, Source }
 import akka.NotUsed
-import akka.stream.{ FlowShape, Materializer }
-import scala.concurrent.duration.DurationInt
+import akka.stream.{ DelayOverflowStrategy, FlowShape, KillSwitches, Materializer }
+import scala.concurrent.duration.{ DurationConversions, DurationInt }
+import scala.compat.java8.DurationConverters.DurationOps
+import scala.util.{ Failure, Success }
 
 object Scratch {
 
@@ -44,12 +46,21 @@ object Scratch {
   def tapErrors[In, Out, E](
       process: Sink[E, Any] => Flow[In, Either[E, Out], Any]
   )(implicit mat: Materializer): Flow[In, Either[E, Out], Any] = {
-    val (errorTap, errors) =
+    val ((errorTap, switch), errors) =
       MergeHub
-        .source[E]
+        .source[E](1)
+        .viaMat(KillSwitches.single)(Keep.both)
         .toMat(BroadcastHub.sink[E])(Keep.both)
         .run()
-    process(errorTap).merge(errors.map(Left.apply), eagerComplete = true)
+    process(errorTap)
+      .alsoTo(
+        Flow[Any]
+          .to(Sink.onComplete {
+            case Success(_)     => switch.shutdown()
+            case Failure(cause) => switch.abort(cause)
+          })
+      )
+      .merge(errors.map(Left.apply))
   }
 
   def main(args: Array[String]): Unit =
@@ -69,8 +80,8 @@ object Scratch {
       }
 
     val done =
-      Source(22.to(5).by(-1))
-        .zipWith(Source.tick(0.millis, 250.millis, NotUsed)) { case (n, _) => n }
+      Source(100.to(5).by(-1))
+      //        .zipWith(Source.tick(0.millis, 100.millis, NotUsed)) { case (n, _) => n }
         .via(process)
         .runForeach(println)
 
