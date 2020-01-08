@@ -26,8 +26,10 @@ import io.moia.streamee.{
   Process,
   ProcessSink,
   ProcessSinkRef,
+  Respondee,
   SourceExt,
-  Step
+  Step,
+  tapErrors
 }
 import io.moia.streamee.demo.TextShuffler.Error.RandomError
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
@@ -43,9 +45,10 @@ object TextShuffler {
 
   sealed trait Error
   object Error {
-    final object EmptyText   extends Error
-    final object InvalidText extends Error
-    final object RandomError extends Error
+    final object EmptyText    extends Error
+    final object InvalidText  extends Error
+    final object EmptyWordSeq extends Error
+    final object RandomError  extends Error
   }
 
   final case class Config(
@@ -71,13 +74,16 @@ object TextShuffler {
         Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
-    Process[ShuffleText, Either[Error, TextShuffled]]
-      .via(validateRequest)
-//      .mapVia(delayProcessing(delay))
-//      .flatMapVia(randomError)
-//      .mapVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
-//      .mapVia(concat)
-    ???
+    tapErrors { errorTap =>
+      Process[ShuffleText, Either[Error, TextShuffled]]
+        .via(validateRequest)
+        .errorTo(errorTap)
+        .via(delayProcessing(delay))
+        .via(randomError)
+        .errorTo(errorTap)
+        .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+        .via(concat)
+    }
   }
 
   def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
@@ -120,8 +126,9 @@ object TextShuffler {
       }
       .map(_.map(_.word))
 
-  def concat[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
+  def concat[Ctx]: Step[(String, Seq[String]), Either[Error, TextShuffled], Ctx] =
     Step[(String, Seq[String]), Ctx].map {
-      case (originalText, shuffledWords) => TextShuffled(originalText, shuffledWords.mkString(" "))
+      case (_, words) if words.isEmpty => Left(Error.EmptyWordSeq)
+      case (text, words)               => Right(TextShuffled(text, words.mkString(" ")))
     }
 }

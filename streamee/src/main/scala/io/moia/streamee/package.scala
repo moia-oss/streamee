@@ -18,19 +18,12 @@ package io.moia
 
 import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
-import akka.stream.{ DelayOverflowStrategy, FlowShape, Graph, Materializer, SinkRef, ThrottleMode }
-import akka.stream.scaladsl.{
-  Broadcast,
-  Flow,
-  FlowOps,
-  FlowWithContext,
-  GraphDSL,
-  Merge,
-  Sink,
-  Source
-}
-import scala.concurrent.{ ExecutionContext, Future, Promise }
-import scala.concurrent.duration.{ Duration, FiniteDuration }
+import akka.annotation.ApiMayChange
+import akka.stream.{DelayOverflowStrategy, KillSwitches, Materializer, SinkRef, ThrottleMode}
+import akka.stream.scaladsl.{BroadcastHub, Flow, FlowOps, FlowWithContext, Keep, MergeHub, Sink, Source}
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.util.{Failure, Success}
 
 package object streamee {
 
@@ -209,6 +202,33 @@ package object streamee {
   }
 
   /**
+    * Extension methods for `FlowWithContext` with output of type `Either`.
+    */
+  final implicit class EitherFlowWithContextOps[In, CtxIn, Out, CtxOut, Mat, E](
+      val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
+  ) extends AnyVal {
+
+    /**
+      * Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`
+      * elements.
+      *
+      * @param errors error `Sink`
+      * @return `FlowWithContext` collecting only contents of `Right` elements
+      */
+    @ApiMayChange
+    def errorTo(errors: Sink[(E, CtxOut), Any]): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
+      flowWithContext
+        .via(
+          Flow.apply.alsoTo(
+            Flow[(Either[E, Out], CtxOut)]
+              .collect { case (Left(e), ctxOut) => (e, ctxOut) }
+              .to(errors)
+          )
+        )
+        .collect { case Right(out) => out }
+  }
+
+  /**
     * Extension methods for `ProcessSink`.
     */
   final implicit class ProcessSinkOps[Req, Res](val sink: ProcessSink[Req, Res]) extends AnyVal {
@@ -284,11 +304,45 @@ package object streamee {
     * @param step [[Step]] to be wrapped
     * @tparam In input type of the given [[Step]]
     * @tparam Out output type of the given [[Step]]
-    * @tparam Ctx
+    * @tparam Ctx context type of the given [[Step]]
     * @return [[Step]] emitting the input of the wrapped one together with its ouput (as a `Tuple2`)
     */
   def zipWithIn[In, Out, Ctx](step: Step[In, Out, (In, Ctx)]): Step[In, (In, Out), Ctx] =
     Step[In, Ctx].push.via(step).pop
+
+  /**
+    * Prepare an error `Sink` for a `FlowWithContext` with output of type `Either` such that it can
+    * be used with the extension method [[EitherFlowWithContextOps.errorTo]].
+    *
+    * @param f factory for a `FlowWithContext` with output of type `Either`
+    * @param mat implicit `Materializer`
+    * @tparam In input type of the `FlowWithContext` to be created
+    * @tparam Out output type of the `FlowWithContext` to be created
+    * @tparam E error type (`Left`) of the `FlowWithContext` to be created
+    * @return `FlowWithContext` with output of type `Either`
+    */
+  @ApiMayChange
+  def tapErrors[In, CtxIn, Out, CtxOut, Mat, E](
+      f: Sink[(E, CtxOut), Any] => FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
+  )(implicit mat: Materializer): FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat] = {
+    val ((errorTap, switch), errors) =
+      MergeHub
+        .source[(E, CtxOut)](1)
+        .viaMat(KillSwitches.single)(Keep.both)
+        .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
+        .run()
+    f(errorTap)
+      .via(
+        Flow.apply.alsoTo(
+          Flow[(Either[E, Out], CtxOut)]
+            .to(Sink.onComplete {
+              case Success(_)     => switch.shutdown()
+              case Failure(cause) => switch.abort(cause)
+            })
+        )
+      )
+      .via(Flow.apply.merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) }))
+  }
 
   private def intoImpl[Out, Out2, M](
       flowOps: FlowOps[Out, M],

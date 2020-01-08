@@ -201,6 +201,12 @@ final class StreameeTests
     }
   }
 
+  "Calling errorTo" should {
+    "tap errors into the given Sink" in {
+      pending
+    }
+  }
+
   "Calling asFrontProcessor" should {
     "convert an IntoableSink into a FrontProcessor" in {
       val process           = Process[String, Int].map(_.length)
@@ -222,6 +228,12 @@ final class StreameeTests
         .via(step)
         .runWith(Sink.head)
         .map(_ shouldBe ((test, test.length), NotUsed))
+    }
+  }
+
+  "Calling tapErrors" should {
+    "prepare an error Sink for a flowWithContext with output of type Either" in {
+      pending
     }
   }
 }
