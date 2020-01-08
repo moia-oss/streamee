@@ -73,10 +73,11 @@ object TextShuffler {
 
     Process[ShuffleText, Either[Error, TextShuffled]]
       .via(validateRequest)
-      .mapVia(delayProcessing(delay))
-      .flatMapVia(randomError)
-      .mapVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
-      .mapVia(concat)
+//      .mapVia(delayProcessing(delay))
+//      .flatMapVia(randomError)
+//      .mapVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+//      .mapVia(concat)
+    ???
   }
 
   def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =

@@ -209,59 +209,6 @@ package object streamee {
   }
 
   /**
-    * Extension methods for `FlowWithContext` with paired output context.
-    */
-  final implicit class EitherFlowWithContextOps[In, CtxIn, Out, CtxOut, Mat, E](
-      val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
-  ) extends AnyVal {
-
-    def mapVia[Out2](
-        viaFlow: Graph[FlowShape[(Out, CtxOut), (Out2, CtxOut)], Any]
-    ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
-      val flow =
-        Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
-          import GraphDSL.Implicits._
-
-          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
-          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
-          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
-          val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
-          val mapRight  = FlowWithContext[Out2, CtxOut].map(Right(_))
-
-          // format: OFF
-        flowWithContext ~> bcast ~> leftOnly             ~>             merge
-                           bcast ~> rightOnly ~> viaFlow ~> mapRight ~> merge
-        // format: ON
-
-          FlowShape(flowWithContext.in, merge.out)
-        })
-      FlowWithContext.fromTuples(flow)
-    }
-
-    def flatMapVia[Out2](
-        viaFlow: Graph[FlowShape[(Out, CtxOut), (Either[E, Out2], CtxOut)], Any]
-    ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
-      val flow =
-        Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
-          import GraphDSL.Implicits._
-
-          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
-          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
-          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
-          val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
-
-          // format: OFF
-          flowWithContext ~> bcast ~> leftOnly       ~>       merge
-                             bcast ~> rightOnly ~> viaFlow ~> merge
-          // format: ON
-
-          FlowShape(flowWithContext.in, merge.out)
-        })
-      FlowWithContext.fromTuples(flow)
-    }
-  }
-
-  /**
     * Extension methods for `ProcessSink`.
     */
   final implicit class ProcessSinkOps[Req, Res](val sink: ProcessSink[Req, Res]) extends AnyVal {
