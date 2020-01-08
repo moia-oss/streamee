@@ -57,6 +57,8 @@ object TextShuffler {
       wordShufflerAskTimeout: FiniteDuration
   )
 
+  private val validText = """[\w\s]*""".r // use a symbol like $ or * to fail this pattern
+
   def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(
       implicit mat: Materializer,
       ec: ExecutionContext,
@@ -88,9 +90,9 @@ object TextShuffler {
 
   def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
     Step[ShuffleText, Ctx].map {
-      case ShuffleText(text) if text.trim.isEmpty  => Left(Error.EmptyText)
-      case ShuffleText(text) if text.contains(" ") => Left(Error.InvalidText)
-      case shuffleText                             => Right(shuffleText)
+      case ShuffleText(text) if text.trim.isEmpty        => Left(Error.EmptyText)
+      case ShuffleText(text) if !validText.matches(text) => Left(Error.InvalidText)
+      case shuffleText                                   => Right(shuffleText)
     }
 
   def delayProcessing[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =

@@ -19,11 +19,20 @@ package io.moia
 import akka.actor.typed.ActorRef
 import akka.actor.CoordinatedShutdown
 import akka.annotation.ApiMayChange
-import akka.stream.{DelayOverflowStrategy, KillSwitches, Materializer, SinkRef, ThrottleMode}
-import akka.stream.scaladsl.{BroadcastHub, Flow, FlowOps, FlowWithContext, Keep, MergeHub, Sink, Source}
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.{Failure, Success}
+import akka.stream.{ DelayOverflowStrategy, KillSwitches, Materializer, SinkRef, ThrottleMode }
+import akka.stream.scaladsl.{
+  BroadcastHub,
+  Flow,
+  FlowOps,
+  FlowWithContext,
+  Keep,
+  MergeHub,
+  Sink,
+  Source
+}
+import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.util.{ Failure, Success }
 
 package object streamee {
 
@@ -324,24 +333,27 @@ package object streamee {
   @ApiMayChange
   def tapErrors[In, CtxIn, Out, CtxOut, Mat, E](
       f: Sink[(E, CtxOut), Any] => FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
-  )(implicit mat: Materializer): FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat] = {
-    val ((errorTap, switch), errors) =
-      MergeHub
-        .source[(E, CtxOut)](1)
-        .viaMat(KillSwitches.single)(Keep.both)
-        .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
-        .run()
-    f(errorTap)
-      .via(
-        Flow.apply.alsoTo(
-          Flow[(Either[E, Out], CtxOut)]
-            .to(Sink.onComplete {
-              case Success(_)     => switch.shutdown()
-              case Failure(cause) => switch.abort(cause)
-            })
-        )
-      )
-      .via(Flow.apply.merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) }))
+  ): FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Future[Mat]] = {
+    val flow =
+      Flow.fromMaterializer {
+        case (mat, _) =>
+          val ((errorTap, switch), errors) =
+            MergeHub
+              .source[(E, CtxOut)](1)
+              .viaMat(KillSwitches.single)(Keep.both)
+              .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
+              .run()(mat)
+          f(errorTap).asFlow
+            .alsoTo(
+              Flow[(Either[E, Out], CtxOut)]
+                .to(Sink.onComplete {
+                  case Success(_)     => switch.shutdown()
+                  case Failure(cause) => switch.abort(cause)
+                })
+            )
+            .merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) })
+      }
+    FlowWithContext.fromTuples(flow)
   }
 
   private def intoImpl[Out, Out2, M](
