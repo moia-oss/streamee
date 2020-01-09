@@ -26,7 +26,6 @@ import io.moia.streamee.{
   Process,
   ProcessSink,
   ProcessSinkRef,
-  Respondee,
   SourceExt,
   Step,
   tapErrors
@@ -85,14 +84,15 @@ object TextShuffler {
         .errorTo(errorTap)
         .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
         .via(concat)
+        .errorTo(errorTap) // not needed for finishing via(concat0)
     }
   }
 
   def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
     Step[ShuffleText, Ctx].map {
-      case ShuffleText(text) if text.trim.isEmpty        => Left(Error.EmptyText)
-      case ShuffleText(text) if !validText.matches(text) => Left(Error.InvalidText)
-      case shuffleText                                   => Right(shuffleText)
+      case ShuffleText(text) if text.trim.isEmpty                        => Left(Error.EmptyText)
+      case ShuffleText(text) if !validText.pattern.matcher(text).matches => Left(Error.InvalidText)
+      case shuffleText                                                   => Right(shuffleText)
     }
 
   def delayProcessing[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
@@ -132,5 +132,10 @@ object TextShuffler {
     Step[(String, Seq[String]), Ctx].map {
       case (_, words) if words.isEmpty => Left(Error.EmptyWordSeq)
       case (text, words)               => Right(TextShuffled(text, words.mkString(" ")))
+    }
+
+  def concat0[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
+    Step[(String, Seq[String]), Ctx].map {
+      case (text, words) => TextShuffled(text, words.mkString(" "))
     }
 }

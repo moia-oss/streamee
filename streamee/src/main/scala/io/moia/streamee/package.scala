@@ -324,7 +324,6 @@ package object streamee {
     * be used with the extension method [[EitherFlowWithContextOps.errorTo]].
     *
     * @param f factory for a `FlowWithContext` with output of type `Either`
-    * @param mat implicit `Materializer`
     * @tparam In input type of the `FlowWithContext` to be created
     * @tparam Out output type of the `FlowWithContext` to be created
     * @tparam E error type (`Left`) of the `FlowWithContext` to be created
@@ -332,7 +331,7 @@ package object streamee {
     */
   @ApiMayChange
   def tapErrors[In, CtxIn, Out, CtxOut, Mat, E](
-      f: Sink[(E, CtxOut), Any] => FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
+      f: Sink[(E, CtxOut), Any] => FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
   ): FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Future[Mat]] = {
     val flow =
       Flow.fromMaterializer {
@@ -343,9 +342,11 @@ package object streamee {
               .viaMat(KillSwitches.single)(Keep.both)
               .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
               .run()(mat)
-          f(errorTap).asFlow
+          f(errorTap)
+            .map(Right.apply)
+            .asFlow
             .alsoTo(
-              Flow[(Either[E, Out], CtxOut)]
+              Flow[Any]
                 .to(Sink.onComplete {
                   case Success(_)     => switch.shutdown()
                   case Failure(cause) => switch.abort(cause)
