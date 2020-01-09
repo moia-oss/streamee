@@ -221,17 +221,17 @@ package object streamee {
       * Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`
       * elements.
       *
-      * @param errors error `Sink`
+      * @param errorTap `Sink` for errors
       * @return `FlowWithContext` collecting only contents of `Right` elements
       */
     @ApiMayChange
-    def errorTo(errors: Sink[(E, CtxOut), Any]): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
+    def errorTo(errorTap: Sink[(E, CtxOut), Any]): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
       flowWithContext
         .via(
           Flow.apply.alsoTo(
             Flow[(Either[E, Out], CtxOut)]
               .collect { case (Left(e), ctxOut) => (e, ctxOut) }
-              .to(errors)
+              .to(errorTap)
           )
         )
         .collect { case Right(out) => out }

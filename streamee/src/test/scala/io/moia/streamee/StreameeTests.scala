@@ -16,7 +16,6 @@
 
 package io.moia.streamee
 
-import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.stream.scaladsl.{ Flow, FlowWithContext, Sink, Source, SourceWithContext }
 import akka.NotUsed
 import org.scalacheck.Gen
@@ -24,7 +23,6 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.Promise
 
 final class StreameeTests
     extends AsyncWordSpec
@@ -158,19 +156,16 @@ final class StreameeTests
 
   "Calling push and pop" should {
     "first push each elements to the propagated context and then pop it" in {
-      val process =
-        Process[String, (String, Int)]
+      val flow =
+        FlowWithContext[String, NotUsed]
           .map(_.toUpperCase)
           .push
           .map(_.length)
           .pop
 
-      val response  = Promise[(String, Int)]()
-      val respondee = system.spawnAnonymous(Respondee[(String, Int)](response, 1.second))
-
       Source
-        .single(("abc", respondee))
-        .via(process)
+        .single(("abc", NotUsed))
+        .via(flow)
         .runWith(Sink.head)
         .map {
           case ((s, n), _) =>
@@ -180,18 +175,15 @@ final class StreameeTests
     }
 
     "first push and transform each elements to the propagated context and then pop and transform it" in {
-      val process =
-        Process[String, (String, Int)]
+      val flow =
+        FlowWithContext[String, NotUsed]
           .push(_.toUpperCase, _ * 2)
           .map(_.length)
           .pop
 
-      val response  = Promise[(String, Int)]()
-      val respondee = system.spawnAnonymous(Respondee[(String, Int)](response, 1.second))
-
       Source
-        .single(("abc", respondee))
-        .via(process)
+        .single(("abc", NotUsed))
+        .via(flow)
         .runWith(Sink.head)
         .map {
           case ((s, n), _) =>
@@ -203,7 +195,18 @@ final class StreameeTests
 
   "Calling errorTo" should {
     "tap errors into the given Sink" in {
-      pending
+      val (errors, errorTap) = Sink.seq[(String, NotUsed)].preMaterialize()
+      val flow               = FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
+      SourceWithContext
+        .fromTuples(Source(List(Right(1), Left("a"), Right(2), Left("b")).map((_, NotUsed))))
+        .via(flow)
+        .runWith(Sink.seq)
+        .zip(errors)
+        .map {
+          case (ns, errors) =>
+            ns.map(_._1) shouldBe List(1, 2)
+            errors.map(_._1) shouldBe List("a", "b")
+        }
     }
   }
 
@@ -233,7 +236,16 @@ final class StreameeTests
 
   "Calling tapErrors" should {
     "prepare an error Sink for a flowWithContext with output of type Either" in {
-      pending
+      val flow: FlowWithContext[Either[String, Int], NotUsed, Either[String, Int], NotUsed, Any] =
+        tapErrors { errorTap =>
+          FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
+        }
+      val elements = List(Right(1), Left("a"), Right(2), Left("b")).map((_, NotUsed))
+      SourceWithContext
+        .fromTuples(Source(elements))
+        .via(flow)
+        .runWith(Sink.seq)
+        .map(_ should contain theSameElementsAs elements)
     }
   }
 }
