@@ -27,7 +27,8 @@ import io.moia.streamee.{
   ProcessSink,
   ProcessSinkRef,
   SourceExt,
-  Step
+  Step,
+  tapErrors
 }
 import io.moia.streamee.demo.TextShuffler.Error.RandomError
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
@@ -43,9 +44,10 @@ object TextShuffler {
 
   sealed trait Error
   object Error {
-    final object EmptyText   extends Error
-    final object InvalidText extends Error
-    final object RandomError extends Error
+    final object EmptyText    extends Error
+    final object InvalidText  extends Error
+    final object EmptyWordSeq extends Error
+    final object RandomError  extends Error
   }
 
   final case class Config(
@@ -53,6 +55,8 @@ object TextShuffler {
       wordShufflerProcessorTimeout: FiniteDuration,
       wordShufflerAskTimeout: FiniteDuration
   )
+
+  private val validText = """[\w\s]*""".r // use a symbol like $ or * to fail this pattern
 
   def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(
       implicit mat: Materializer,
@@ -71,19 +75,24 @@ object TextShuffler {
         Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
-    Process[ShuffleText, Either[Error, TextShuffled]]
-      .via(validateRequest)
-      .mapVia(delayProcessing(delay))
-      .flatMapVia(randomError)
-      .mapVia(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
-      .mapVia(concat)
+    tapErrors { errorTap =>
+      Process[ShuffleText, Either[Error, TextShuffled]]
+        .via(validateRequest)
+        .errorTo(errorTap)
+        .via(delayProcessing(delay))
+        .via(randomError)
+        .errorTo(errorTap)
+        .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+        .via(concat)
+        .errorTo(errorTap) // not needed for finishing via(concat0)
+    }
   }
 
   def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
     Step[ShuffleText, Ctx].map {
-      case ShuffleText(text) if text.trim.isEmpty  => Left(Error.EmptyText)
-      case ShuffleText(text) if text.contains(" ") => Left(Error.InvalidText)
-      case shuffleText                             => Right(shuffleText)
+      case ShuffleText(text) if text.trim.isEmpty                        => Left(Error.EmptyText)
+      case ShuffleText(text) if !validText.pattern.matcher(text).matches => Left(Error.InvalidText)
+      case shuffleText                                                   => Right(shuffleText)
     }
 
   def delayProcessing[Ctx](of: FiniteDuration): Step[ShuffleText, ShuffleText, Ctx] =
@@ -119,8 +128,14 @@ object TextShuffler {
       }
       .map(_.map(_.word))
 
-  def concat[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
+  def concat[Ctx]: Step[(String, Seq[String]), Either[Error, TextShuffled], Ctx] =
     Step[(String, Seq[String]), Ctx].map {
-      case (originalText, shuffledWords) => TextShuffled(originalText, shuffledWords.mkString(" "))
+      case (_, words) if words.isEmpty => Left(Error.EmptyWordSeq)
+      case (text, words)               => Right(TextShuffled(text, words.mkString(" ")))
+    }
+
+  def concat0[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
+    Step[(String, Seq[String]), Ctx].map {
+      case (text, words) => TextShuffled(text, words.mkString(" "))
     }
 }

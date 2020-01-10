@@ -84,6 +84,7 @@ object Api {
             case Left(Error.EmptyText)                 => complete(BadRequest -> "Empty text!")
             case Left(Error.InvalidText)               => complete(BadRequest -> "Invalid text!")
             case Left(Error.RandomError)               => complete(InternalServerError -> "Random error!")
+            case Left(Error.EmptyWordSeq)              => complete(InternalServerError -> "Words empty!")
             case Right(TextShuffled(original, result)) => complete(s"$original -> $result")
           }
         }
