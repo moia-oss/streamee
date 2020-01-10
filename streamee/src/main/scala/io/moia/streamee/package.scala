@@ -320,14 +320,14 @@ package object streamee {
     Step[In, Ctx].push.via(step).pop
 
   /**
-    * Prepare an error `Sink` for a `FlowWithContext` with output of type `Either` such that it can
-    * be used with the extension method [[EitherFlowWithContextOps.errorTo]].
+    * Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
+    * extension method [[EitherFlowWithContextOps.errorTo]].
     *
-    * @param f factory for a `FlowWithContext` with output of type `Either`
+    * @param f factory for a `FlowWithContext`
     * @tparam In input type of the `FlowWithContext` to be created
     * @tparam Out output type of the `FlowWithContext` to be created
     * @tparam E error type (`Left`) of the `FlowWithContext` to be created
-    * @return `FlowWithContext` with output of type `Either`
+    * @return `FlowWithContext` potentially using the provided error `Sink`
     */
   @ApiMayChange
   def tapErrors[In, CtxIn, Out, CtxOut, Mat, E](
