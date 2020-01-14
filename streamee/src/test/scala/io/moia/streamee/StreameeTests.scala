@@ -193,23 +193,6 @@ final class StreameeTests
     }
   }
 
-  "Calling errorTo" should {
-    "tap errors into the given Sink" in {
-      val (errors, errorTap) = Sink.seq[(String, NotUsed)].preMaterialize()
-      val flow               = FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
-      SourceWithContext
-        .fromTuples(Source(List(Right(1), Left("a"), Right(2), Left("b")).map((_, NotUsed))))
-        .via(flow)
-        .runWith(Sink.seq)
-        .zip(errors)
-        .map {
-          case (ns, errors) =>
-            ns.map(_._1) shouldBe List(1, 2)
-            errors.map(_._1) shouldBe List("a", "b")
-        }
-    }
-  }
-
   "Calling asFrontProcessor" should {
     "convert an IntoableSink into a FrontProcessor" in {
       val process           = Process[String, Int].map(_.length)
@@ -231,72 +214,6 @@ final class StreameeTests
         .via(step)
         .runWith(Sink.head)
         .map(_ shouldBe ((test, test.length), NotUsed))
-    }
-  }
-
-  "Calling tapErrors" should {
-    "create a FlowWithContext by providing an error Sink" in {
-      val flow: FlowWithContext[Either[String, Int], NotUsed, Either[String, Int], NotUsed, Any] =
-        tapErrors { errorTap =>
-          FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
-        }
-      val elements =
-        1.to(100)
-          .flatMap(n => List(Right(n), Left(n.toString)))
-          .map((_, NotUsed))
-      SourceWithContext
-        .fromTuples(Source(elements))
-        .via(flow)
-        .runWith(Sink.seq)
-        .map(_ should contain theSameElementsAs elements)
-    }
-
-    "allow the created FlowWithContext to be run twice sequentially" in {
-      val flow: FlowWithContext[Either[String, Int], NotUsed, Either[String, Int], NotUsed, Any] =
-        tapErrors { errorTap =>
-          FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
-        }
-      val elements =
-        1.to(100)
-          .flatMap(n => List(Right(n), Left(n.toString)))
-          .map((_, NotUsed))
-      val source =
-        SourceWithContext
-          .fromTuples(Source(elements))
-          .via(flow)
-      val results =
-        for {
-          result1 <- source.runWith(Sink.seq)
-          result2 <- source.runWith(Sink.seq)
-        } yield (result1, result2)
-      results.map {
-        case (result1, result2) =>
-          result1 should contain theSameElementsAs elements
-          result2 should contain theSameElementsAs elements
-      }
-    }
-
-    "allow the created FlowWithContext to be run twice concurrently" in {
-      val flow: FlowWithContext[Either[String, Int], NotUsed, Either[String, Int], NotUsed, Any] =
-        tapErrors { errorTap =>
-          FlowWithContext[Either[String, Int], NotUsed].errorTo(errorTap)
-        }
-      val elements =
-        1.to(100)
-          .flatMap(n => List(Right(n), Left(n.toString)))
-          .map((_, NotUsed))
-      val source =
-        SourceWithContext
-          .fromTuples(Source(elements))
-          .via(flow)
-      val result1 = source.runWith(Sink.seq)
-      val result2 = source.runWith(Sink.seq)
-      val results = result1.zip(result2)
-      results.map {
-        case (result1, result2) =>
-          result1 should contain theSameElementsAs elements
-          result2 should contain theSameElementsAs elements
-      }
     }
   }
 }
