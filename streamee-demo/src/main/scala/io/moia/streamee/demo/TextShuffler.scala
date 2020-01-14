@@ -27,9 +27,9 @@ import io.moia.streamee.{
   ProcessSink,
   ProcessSinkRef,
   SourceExt,
-  Step,
-  tapErrors
+  Step
 }
+import io.moia.streamee.either.{ EitherFlowWithContextOps, tapErrors }
 import io.moia.streamee.demo.TextShuffler.Error.RandomError
 import io.moia.streamee.demo.WordShuffler.{ ShuffleWord, WordShuffled }
 import scala.collection.immutable.Seq
