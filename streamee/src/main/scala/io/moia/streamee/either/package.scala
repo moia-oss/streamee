@@ -17,8 +17,18 @@
 package io.moia.streamee
 
 import akka.annotation.ApiMayChange
-import akka.stream.KillSwitches
-import akka.stream.scaladsl.{ BroadcastHub, Flow, FlowWithContext, Keep, MergeHub, Sink }
+import akka.stream.{ FlowShape, Graph, KillSwitches }
+import akka.stream.scaladsl.{
+  Broadcast,
+  BroadcastHub,
+  Flow,
+  FlowWithContext,
+  GraphDSL,
+  Keep,
+  Merge,
+  MergeHub,
+  Sink
+}
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
 
@@ -30,6 +40,69 @@ package object either {
   final implicit class EitherFlowWithContextOps[In, CtxIn, Out, CtxOut, Mat, E](
       val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
   ) extends AnyVal {
+
+    /**
+      * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
+      * and passing `Left` elements through.
+      *
+      * @param viaFlow FlowWithContext` to connect to this one
+      * @tparam Out2 output type of the given `FlowWithContext`
+      * @return `FlowWithContext` with output of type `Either`
+      */
+    @ApiMayChange
+    def mapVia[Out2](
+        viaFlow: Graph[FlowShape[(Out, CtxOut), (Out2, CtxOut)], Any]
+    ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
+      val flow =
+        Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
+          import GraphDSL.Implicits._
+
+          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
+          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
+          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
+          val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
+          val mapRight  = FlowWithContext[Out2, CtxOut].map(Right(_))
+
+          // format: OFF
+          flowWithContext ~> bcast ~> leftOnly             ~>             merge
+                             bcast ~> rightOnly ~> viaFlow ~> mapRight ~> merge
+          // format: ON
+
+          FlowShape(flowWithContext.in, merge.out)
+        })
+      FlowWithContext.fromTuples(flow)
+    }
+
+    /**
+      * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
+      * and passing `Left` elements through.
+      *
+      * @param viaFlow FlowWithContext` to connect to this one
+      * @tparam Out2 output type of the given `FlowWithContext`
+      * @return `FlowWithContext` with output of type `Either`
+      */
+    @ApiMayChange
+    def flatMapVia[Out2](
+        viaFlow: Graph[FlowShape[(Out, CtxOut), (Either[E, Out2], CtxOut)], Any]
+    ): FlowWithContext[In, CtxIn, Either[E, Out2], CtxOut, Mat] = {
+      val flow =
+        Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
+          import GraphDSL.Implicits._
+
+          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
+          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
+          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
+          val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
+
+          // format: OFF
+          flowWithContext ~> bcast ~> leftOnly       ~>       merge
+                             bcast ~> rightOnly ~> viaFlow ~> merge
+          // format: ON
+
+          FlowShape(flowWithContext.in, merge.out)
+        })
+      FlowWithContext.fromTuples(flow)
+    }
 
     /**
       * Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`

@@ -29,6 +29,30 @@ final class EitherTests
     with Matchers
     with ScalaCheckDrivenPropertyChecks {
 
+  "Calling mapVia" should {
+    "connect this FlowWithContext with the given one" in {
+      val flow    = FlowWithContext[Either[String, Int], NotUsed]
+      val viaFlow = FlowWithContext[Int, NotUsed].map(_ + 1)
+      SourceWithContext
+        .fromTuples(Source(List(Right(1), Left("a"), Right(2), Left("b")).map((_, NotUsed))))
+        .via(flow.mapVia(viaFlow))
+        .runWith(Sink.seq)
+        .map(_ shouldBe List(Right(2), Left("a"), Right(3), Left("b")).map((_, NotUsed)))
+    }
+  }
+
+  "Calling flatMapVia" should {
+    "connect this FlowWithContext with the given one" in {
+      val flow    = FlowWithContext[Either[String, Int], NotUsed]
+      val viaFlow = FlowWithContext[Int, NotUsed].map(n => if (n == 1) Left("x") else Right(n + 1))
+      SourceWithContext
+        .fromTuples(Source(List(Right(1), Left("a"), Right(2), Left("b")).map((_, NotUsed))))
+        .via(flow.flatMapVia(viaFlow))
+        .runWith(Sink.seq)
+        .map(_ shouldBe List(Left("x"), Left("a"), Right(3), Left("b")).map((_, NotUsed)))
+    }
+  }
+
   "Calling errorTo" should {
     "tap errors into the given Sink" in {
       val (errors, errorTap) = Sink.seq[(String, NotUsed)].preMaterialize()
