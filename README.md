@@ -43,125 +43,100 @@ accepted and – very important – all in-flight requests have been processed.
 Include Streamee in your project by adding the following to your `build.sbt`:
 
 ```
-libraryDependencies += "io.moia" %% "streamee" % "4.0.0" // find the latest version at the badge at the top
+libraryDependencies += "io.moia" %% "streamee" % "5.0.0" // find the latest version at the badge at the top
 ```
 
 Artifacts are hosted on Maven Central.
 
 ## Usage and API
 
-In order to use Streamee we first have to define domain logic for each process. Streamee requires to
-use the type `Flow[A, B, Any]` where `A` is the request type and `R` is the response type.
+In order to use Streamee we first have to define the domain logic for each process. Streamee uses
+the type `FlowWithContext[Req, Respondee[Res], Res, Respondee[Res], Any]` where `Req` is the request
+type, `Res` is the response type and `Respondee[Res]` is a typed actor providing something like an
+expiring location transparent promise which is threaded through the process in the context object
+and is used to complete the response.
 
-In the demo subproject "streamee-demo" one simple process is defined in the `FourtyTwo` object:
+There are some type aliases for your convenience:
 
 ``` scala
-type Process = Flow[Request, ErrorOr[Response], NotUsed]
-type ErrorOr[A] = Either[Error, A]
-
-def apply()(implicit ec: ExecutionContext, scheduler: Scheduler): Process =
-  Flow[Request]
-    // Lift into ErrorOr to make all stages look alike
-    .map(Right[Error, Request])
-    // Via fist stage
-    .map(_.map {
-      case Request(question) => ValidateQuestionIn(question)
-    })
-    .via(validateQuestion)
-    // Via second stage
-    .map(_.map {
-      case ValidateQuestionOut(question) => LookupAnswersIn(question)
-    })
-    .via(lookupAnswersStage)
-    // Via third stage
-    .map(_.map {
-      case LookupAnswersOut(answer) => FourtyTwoIn(answer)
-    })
-    .via(fourtyTwo)
-    // To response
-    .map(_.map {
-      case FourtyTwoOut(fourtyTwo) => Response(fourtyTwo)
-    })
+type Process[-Req, Res]   = Step[Req, Res, Respondee[Res]]
+type Step[-In, +Out, Ctx] = FlowWithContext[In, Ctx, Out, Ctx, Any]
+type Respondee[A]         = ActorRef[Respondee.Response[A]]
+// More in the io.moia.streamee package object
 ```
 
-Next we have to create the actual processor, i.e. the running stream into which the process is
-embedded, by calling `Processor.perRequest` or `Processor.permanent`. See below for details about
-these different kinds of processors. For `FourtyTwo` we use a per-request processor.
-
-In the demo subproject "streamee-demo" this happens in `Api`:
+An example process could look like this:
 
 ``` scala
-val fourtyTwoProcessor = Processor.perRequest(FourtyTwo(),
-                                              processorTimeout,
-                                              "per-request",
-                                              CoordinatedShutdown(untypedSystem))
-```
+// ...
 
-Actually the above is just a short form for the below, i.e. already conveniently registering with
-`CoordinatedShutdown`:
+val textShuffler: Process[ShuffleText, Either[Error, TextShuffled]] =
+  Process[ShuffleText, Either[Error, TextShuffled]]
+    .via(validateRequest)
+    .errorTo(errorTap)
+    .via(delayProcessing(delay))
+    .via(randomError)
+    .errorTo(errorTap)
+    .via(keepSplitShuffle(wordShufflerSink, wordShufflerProcessorTimeout))
+    .via(concat)
+    .errorTo(errorTap) // not needed for finishing via(concat0)
 
-``` scala
-val fourtyTwoProcessor =
-  Processor
-    .perRequest(FourtyTwo(), processorTimeout, "per-request")
-    .registerWithCoordinatedShutdown(CoordinatedShutdown(untypedSystem))
-```
-
-Requests given to a `Processor` via the `process` method are emitted into the given process. Once
-the response is available, the returned `Future` is either completed successfully with the response
-or failed with `PromiseExpired` if the processor does not create the response without its `timeout`.
-
-Finally we have to connect each processor to its respective place in the Akka HTTP route with the
-default `onSuccess` directive.
-
-In the demo subproject "streamee-demo" this happens in `Api`:
-
-``` scala
-post {
-  entity(as[Request]) {
-    case Request(question) =>
-      onSuccess(fourtyTwoProcessor.process(FourtyTwo.Request(question))) {
-        case Left(FourtyTwo.Error.EmptyQuestion) =>
-          complete(StatusCodes.BadRequest -> "Empty question not allowed!")
-
-        case Left(_) =>
-          complete(StatusCodes.InternalServerError -> "Oops, something bad happended :-(")
-
-        case Right(FourtyTwo.Response(answer)) =>
-          complete(StatusCodes.Created -> s"The answer is $answer")
-      }
+def validateRequest[Ctx]: Step[ShuffleText, Either[Error, ShuffleText], Ctx] =
+  Step[ShuffleText, Ctx].map {
+    case ShuffleText(text) if text.trim.isEmpty                        => Left(Error.EmptyText)
+    case ShuffleText(text) if !validText.pattern.matcher(text).matches => Left(Error.InvalidText)
+    case shuffleText                                                   => Right(shuffleText)
   }
+
+// ...
+```
+
+## FrontProcessor
+
+In order to hook up a process to a service endpoint, e.g. a HTTP route, we use a `FrontProcessor`.
+It internally runs a process and allows offering a request into the running process to get
+a `Future` for the response.
+
+A `FrontProcessor` is configured with a timeout and fails the `Future`s returned by `offer` in case
+the running process cannot produce a response in time. If the running process executes back
+pressure, `offer` fails fast by dropping the request with a failed `Future` carrying a
+`ProcessorUnavailable` exception.
+
+``` scala
+val textShufflerProcessor =
+  FrontProcessor(
+    textShuffler, // see above
+    textShufflerProcessorTimeout,
+    "text-shuffler"
+  )
+
+// ...
+
+onSuccess(textShufflerProcessor.offer(shuffleText)) {
+  case Left(Error.InvalidText)               => complete(BadRequest -> "Invalid text!")
+  case Left(Error.RandomError)               => complete(InternalServerError -> "Random error!")
+  // ...
+  case Right(TextShuffled(original, result)) => complete(s"$original -> $result")
 }
 ```
 
-## Per-request and permanent Processors
-
-So far we have used per-request processors. When the `process` method of such a per-request
-processor is called, it runs the process in a sub-flow for the given single request. Notice that
-there is no back pressure over requests due to using sub-flows.
-
-We can also use permanent processors. When the `process` method of such a permanent processor is
-called, it emits the request into the process. If the process back pressures the returned `Future`
-is failed with `ProcessorUnavailable`.
-
-Notice that for permanent processors a buffer size and correlation functions between request and
-response need to be given.
-
-In "streamee-demo" this is how it looks like in `FourtyTwoCorrelated`:
-
-``` scala
-final case class Request(question: String, correlationId: UUID = UUID.randomUUID())
-final case class Response(answer: String, correlationId: UUID = UUID.randomUUID())
-```
-
 We probably want to register a custom exception handler for `ProcessorUnavailable` exceptions.
-Streamee already comes with a ready to use one: `Processor.processorUnavailableHandler`.
+Streamee already comes with a ready to use one: `FrontProcessor.processorUnavailableHandler`.
 
 In "streamee-demo" this happens in `Api` at the level where `bindAndHandle` is called:
 
 ``` scala
-import Processor.processorUnavailableHandler
+import FrontProcessor.processorUnavailableHandler
+// Same scope like calling Http().bindAndHandle(...)
 ```
+
+## IntoableProcessor
+
+TODO
+
+## Dealing with errors
+
+TODO
 
 ## License
 
