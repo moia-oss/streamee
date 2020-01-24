@@ -54,9 +54,10 @@ lazy val `streamee-demo` =
         library.pureConfig,
       ),
       publishArtifact := false,
+      Docker / maintainer := organizationName.value,
       Docker / version := "latest",
-      dockerExposedPorts := Seq(80),
-      dockerRepository := Some("hseeberger"),
+      dockerBaseImage := "adoptopenjdk:8u232-b09-jdk-hotspot",
+      dockerExposedPorts := Seq(8080, 8558, 25520),
     )
 
 // *****************************************************************************
@@ -66,7 +67,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka                    = "2.6.1"
+      val akka                    = "2.6.3"
       val akkaManagement          = "1.0.5"
       val akkaHttp                = "10.1.11"
       val akkaHttpJson            = "1.30.0"

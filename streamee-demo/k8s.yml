@@ -45,11 +45,11 @@ spec:
     spec:
       containers:
         - name: streamee-demo
-          image: hseeberger/streamee-demo:latest
+          image: streamee-demo:latest
           imagePullPolicy: IfNotPresent
-          args: [
-            "-Dloglevel.root=info"
-          ]
+          # args: [
+          #   "-Dloglevel.root=info"
+          # ]
           ports:
             - name: http
               containerPort: 8080
