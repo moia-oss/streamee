@@ -78,7 +78,7 @@ lazy val library =
       val pureConfig              = "0.12.2"
       val scalaCheck              = "1.14.3"
       val scalaTest               = "3.1.0"
-      val scalaTestPlusScalaCheck = "3.1.0.0-RC2"
+      val scalaTestPlusScalaCheck = "3.1.0.1"
       val slf4j                   = "1.7.30"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
@@ -100,7 +100,7 @@ lazy val library =
     val pureConfig                     = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
     val scalaCheck                     = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
     val scalaTest                      = "org.scalatest"                 %% "scalatest"                         % Version.scalaTest
-    val scalaTestPlusScalaCheck        = "org.scalatestplus"             %% "scalatestplus-scalacheck"          % Version.scalaTestPlusScalaCheck
+    val scalaTestPlusScalaCheck        = "org.scalatestplus"             %% "scalacheck-1-14"                   % Version.scalaTestPlusScalaCheck
     val slf4jApi                       = "org.slf4j"                     %  "slf4j-api"                         % Version.slf4j
   }
 
