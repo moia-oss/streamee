@@ -20,15 +20,17 @@ import akka.annotation.ApiMayChange
 import akka.stream.{ FlowShape, Graph, KillSwitches }
 import akka.stream.scaladsl.{
   Broadcast,
-  BroadcastHub,
   Flow,
   FlowWithContext,
   GraphDSL,
   Keep,
   Merge,
   MergeHub,
-  Sink
+  Sink,
+  SinkQueueWithCancel,
+  Source
 }
+
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
 
@@ -123,7 +125,7 @@ package object either {
         )
         .collect { case Right(out) => out }
   }
-
+  //1
   /**
     * Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
     * extension method [[EitherFlowWithContextOps.errorTo]].
@@ -145,7 +147,7 @@ package object either {
             MergeHub
               .source[(E, CtxOut)](1)
               .viaMat(KillSwitches.single)(Keep.both)
-              .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
+              .toMat(Sink.queue[(E, CtxOut)])(Keep.both)
               .run()(mat)
           f(errorTap)
             .map(Right.apply)
@@ -157,7 +159,13 @@ package object either {
                   case Failure(cause) => switch.abort(cause)
                 })
             )
-            .merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) })
+            .merge(
+              Source
+                .unfoldAsync[SinkQueueWithCancel[(E, CtxOut)], (E, CtxOut)](errors)(q =>
+                  q.pull.map(_.map(e => (q, e)))(mat.executionContext)
+                )
+                .map { case (e, ctxOut) => (Left(e), ctxOut) }
+            )
       }
     FlowWithContext.fromTuples(flow)
   }
