@@ -125,7 +125,7 @@ package object either {
         )
         .collect { case Right(out) => out }
   }
-  //1
+
   /**
     * Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
     * extension method [[EitherFlowWithContextOps.errorTo]].
