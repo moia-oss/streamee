@@ -51,7 +51,7 @@ object IntoableProcessor {
 
 /**
   * Run the given `process` such that it can be used with the `into` stream extension operator.
-  * Notice that shutting down might result in dropping (losing) `bufferSize` number of requsts!
+  * Notice that shutting down might result in dropping (losing) `bufferSize` number of requests!
   */
 final class IntoableProcessor[Req, Res] private (
     process: Process[Req, Res],
