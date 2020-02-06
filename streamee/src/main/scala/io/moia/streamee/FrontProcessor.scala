@@ -77,7 +77,7 @@ object FrontProcessor {
     * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must
     *                   be positive!
     * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to
-    *              "service-requests-done"; must be defined in configufation!
+    *              "service-requests-done"; must be defined in configuration!
     * @tparam Req request type
     * @tparam Res response type
     * @return [[FrontProcessor]]
