@@ -32,8 +32,8 @@ object IntoableTests extends ActorTestSuite {
   override def tests: Tests =
     Tests {
       'intoable - {
-        val intoableProcess   = Flow[(Int, Promise[Int])].map { case (n, p) => (n + 1, p) }
-        val (intoableSink, _) = runIntoableProcess(intoableProcess, 1)
+        val intoableProcess      = Flow[(Int, Promise[Int])].map { case (n, p) => (n + 1, p) }
+        val (intoableSink, _, _) = runIntoableProcess(intoableProcess, 1)
         val result1 =
           Source(0.to(9))
             .into(intoableSink, 42)

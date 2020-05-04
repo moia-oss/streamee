@@ -96,11 +96,14 @@ package object intoable {
   def runIntoableProcess[A, B](
       intoableProcess: Flow[(A, Promise[B]), (B, Promise[B]), Any],
       bufferSize: Int
-  )(implicit mat: Materializer): (Sink[(A, Promise[B]), Any], Future[Done]) =
+  )(implicit mat: Materializer): (Sink[(A, Promise[B]), Any], KillSwitch, Future[Done]) =
     MergeHub
       .source[(A, Promise[B])](bufferSize)
+      .viaMat(KillSwitches.single)(Keep.both)
       .via(intoableProcess)
-      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) })(Keep.both)
+      .toMat(Sink.foreach { case (b, p) => p.trySuccess(b) }) {
+        case ((s, r), d) => (s, r, d)
+      }
       .run()
 
   /**
