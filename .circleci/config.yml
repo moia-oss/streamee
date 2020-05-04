@@ -21,9 +21,9 @@ jobs:
     # Download and cache dependencies
     - restore_cache:
         keys:
-        - sbt-v1-deps-{{ checksum "build.sbt" }}
+        - sbt-v2-deps-{{ checksum "build.sbt" }}
         # fallback to using the latest cache if no exact match is found
-        - sbt-v1-deps
+        - sbt-v2-deps
     - run:
         name: Running SBT compilation
         command: sbt -no-colors -batch "; test:compile"
@@ -32,7 +32,9 @@ jobs:
         - ~/.m2
         - ~/.ivy2
         - ~/.sbt
-        key: sbt-v1-deps-{{ checksum "build.sbt" }}
+        - ~/.cache/coursier/
+
+        key: sbt-v2-deps-{{ checksum "build.sbt" }}
     - run:
         name: Running tests
         command: sbt -no-colors -batch -Dakka.test.timefactor=3.0 "; test"

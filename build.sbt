@@ -63,17 +63,16 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka           = "2.6.1"
+      val akka           = "2.6.5"
       val akkaHttp       = "10.1.11"
-      val akkaHttpJson   = "1.30.0"
-      val akkaLog4j      = "1.6.1"
-      val akkaManagement = "1.0.5"
-      val circe          = "0.12.3"
+      val akkaHttpJson   = "1.32.0"
+      val akkaManagement = "1.0.6"
+      val circe          = "0.13.0"
       val disruptor      = "3.4.2"
-      val log4j          = "2.13.0"
-      val pureConfig     = "0.12.2"
+      val log4j          = "2.13.2"
+      val pureConfig     = "0.12.3"
       val scalaCheck     = "1.14.3"
-      val utest          = "0.7.2"
+      val utest          = "0.7.4"
       val slf4j          = "1.7.30"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
@@ -110,7 +109,7 @@ lazy val settings =
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.13.1",
+    scalaVersion := "2.13.2",
     crossScalaVersions := Seq("2.12.10", "2.13.1"),
     organization := "io.moia",
     organizationName := "MOIA GmbH",
