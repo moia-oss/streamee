@@ -137,7 +137,9 @@ final class FrontProcessor[Req, Res] private (
     val (respondee, response) = Respondee.spawn[Res](timeout)
     queue
       .offer((request, respondee))
-      .recover { case _: StreamDetachedException => Dropped } // after shutdown fail with `ProcessorUnavailable`
+      .recover {
+        case _: StreamDetachedException => Dropped
+      } // after shutdown fail with `ProcessorUnavailable`
       .flatMap {
         case Enqueued => response.future // might result in a `TimeoutException`
         case Dropped  => Future.failed(ProcessorUnavailable(name))

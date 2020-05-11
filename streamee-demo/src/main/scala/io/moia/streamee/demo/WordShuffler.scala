@@ -57,9 +57,8 @@ object WordShuffler {
 
     if (word.length <= 3)
       word
-    else {
+    else
       word.head +: loop(word.tail.init) :+ word.last
-    }
   }
 }
 
