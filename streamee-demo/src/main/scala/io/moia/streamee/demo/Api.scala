@@ -38,8 +38,8 @@ object Api {
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def apply(config: Config, textShufflerProcessor: TextShufflerProcessor)(
-      implicit classicSystem: ClassicSystem
+  def apply(config: Config, textShufflerProcessor: TextShufflerProcessor)(implicit
+      classicSystem: ClassicSystem
   ): Unit = {
     import FrontProcessor.processorUnavailableHandler
     import classicSystem.dispatcher

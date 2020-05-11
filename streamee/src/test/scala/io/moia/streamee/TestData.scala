@@ -23,6 +23,9 @@ object TestData {
 
   val nonPosDuration: Gen[FiniteDuration] =
     Gen
-      .choose(-Long.MaxValue, 0L) // Must be -Long.MaxValue instead of Long.MinValue, see `Duration` for details!
+      .choose(
+        -Long.MaxValue,
+        0L
+      ) // Must be -Long.MaxValue instead of Long.MinValue, see `Duration` for details!
       .map(Duration(_, NANOSECONDS))
 }

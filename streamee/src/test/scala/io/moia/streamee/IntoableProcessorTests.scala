@@ -106,7 +106,9 @@ final class IntoableProcessorTests
         .into(processor.sink, 1.seconds, 42)
         .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
         .runWith(Sink.seq)
-        .map(_.max should be >= 4) // 7 - 2, 2 from IntoableProcessor, 1 from delay btw shutdown and into
+        .map(
+          _.max should be >= 4
+        ) // 7 - 2, 2 from IntoableProcessor, 1 from delay btw shutdown and into
     }
   }
 
@@ -155,7 +157,9 @@ final class IntoableProcessorTests
         .addAttributes(ActorAttributes.supervisionStrategy(resumeOnTimeout))
         .recover { case _ => Int.MinValue }
         .runWith(Sink.seq)
-        .map(_.max should be >= 3) // 7 - 2 - 1 - 1, 2 from IntoableProcessor, 1 from SinkRef buffering, 1 from delay btw shutdown and into
+        .map(
+          _.max should be >= 3
+        ) // 7 - 2 - 1 - 1, 2 from IntoableProcessor, 1 from SinkRef buffering, 1 from delay btw shutdown and into
     }
   }
 

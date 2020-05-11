@@ -58,8 +58,8 @@ object TextShuffler {
 
   private val validText = """[\w\s]*""".r // use a symbol like $ or * to fail this pattern
 
-  def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(
-      implicit mat: Materializer,
+  def apply(config: Config, wordShufflerRunner: ActorRef[WordShufflerRunner.Command])(implicit
+      mat: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
   ): Process[ShuffleText, Either[Error, TextShuffled]] = {
@@ -72,7 +72,10 @@ object TextShuffler {
 
     val wordShufflerSink =
       RestartSink.withBackoff(wordShufflerAskTimeout, wordShufflerAskTimeout, 0) { () =>
-        Await.result(wordShufflerSinkRef().map(_.sink), wordShufflerAskTimeout) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
+        Await.result(
+          wordShufflerSinkRef().map(_.sink),
+          wordShufflerAskTimeout
+        ) // Hopefully we can get rid of blocking soon: https://github.com/akka/akka/issues/25934
       }
 
     tapErrors { errorTap =>
