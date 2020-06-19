@@ -77,8 +77,8 @@ lazy val library =
       val log4j                   = "2.13.3"
       val pureConfig              = "0.12.3"
       val scalaCheck              = "1.14.3"
-      val scalaTest               = "3.1.2"
-      val scalaTestPlusScalaCheck = "3.2.0.0"
+      val scalaTest               = "3.2.0"
+      val scalaTestPlusScalaCheck = "3.1.2.0"
       val slf4j                   = "1.7.30"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
