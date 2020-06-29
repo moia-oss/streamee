@@ -1,4 +1,4 @@
-addSbtPlugin("com.dwijnand"      % "sbt-dynver"          % "4.0.0")
+addSbtPlugin("com.dwijnand"      % "sbt-dynver"          % "4.1.0")
 addSbtPlugin("com.jsuereth"      % "sbt-pgp"             % "2.0.1")
 addSbtPlugin("com.typesafe.sbt"  % "sbt-native-packager" % "1.7.3")
 addSbtPlugin("de.heikoseeberger" % "sbt-header"          % "5.6.0")
