@@ -26,7 +26,7 @@ jobs:
         - sbt-v1-deps
     - run:
         name: Running SBT compilation
-        command: sbt -no-colors -batch +test:compile
+        command: sbt scalafmtCheckAll +test:compile
     - save_cache:
         paths:
         - ~/.m2
@@ -35,4 +35,4 @@ jobs:
         key: sbt-v1-deps-{{ checksum "build.sbt" }}
     - run:
         name: Running tests
-        command: sbt -no-colors -batch -Dakka.test.timefactor=3.0 +test
+        command: sbt -Dakka.test.timefactor=3.0 +test
