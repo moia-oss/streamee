@@ -264,13 +264,13 @@ package object streamee {
     * context type of the given step, i.e. if you define it in a generic way – as a parameterized
     * method like usual – it should work without any type annotations:
     *
-    *{{{
-    *def length[Ctx]: Step[String, Int, Ctx] =
+    * {{{
+    * def length[Ctx]: Step[String, Int, Ctx] =
     *  Step[String, Ctx].map(_.length)
     *
-    *val process: Process[String, (String, Int)] =
+    * val process: Process[String, (String, Int)] =
     *  zipWithIn(lenght) // No need to give type args to length!
-    *}}}
+    * }}}
     *
     * @param step [[Step]] to be wrapped
     * @tparam In input type of the given [[Step]]
