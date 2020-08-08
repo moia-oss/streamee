@@ -47,8 +47,7 @@ object Api {
 
     val shutdown = CoordinatedShutdown(classicSystem)
 
-    Http()
-      .bindAndHandle(route(textShufflerProcessor), interface, port)
+    Http().newServerAt(interface, port).bind(route(textShufflerProcessor))
       .onComplete {
         case Failure(cause) =>
           if (logger.isErrorEnabled)
