@@ -77,7 +77,7 @@ lazy val library =
       val log4j                   = "2.13.3"
       val pureConfig              = "0.13.0"
       val scalaCheck              = "1.14.3"
-      val scalaTest               = "3.2.0"
+      val scalaTest               = "3.2.2"
       val scalaTestPlusScalaCheck = "3.2.2.0"
       val slf4j                   = "1.7.30"
     }
