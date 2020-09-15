@@ -139,25 +139,24 @@ package object either {
       f: Sink[(E, CtxOut), Any] => FlowWithContext[In, CtxIn, Out, CtxOut, Mat]
   ): FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Future[Mat]] = {
     val flow =
-      Flow.fromMaterializer {
-        case (mat, _) =>
-          val ((errorTap, switch), errors) =
-            MergeHub
-              .source[(E, CtxOut)](1)
-              .viaMat(KillSwitches.single)(Keep.both)
-              .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
-              .run()(mat)
-          f(errorTap)
-            .map(Right.apply)
-            .asFlow
-            .alsoTo(
-              Flow[Any]
-                .to(Sink.onComplete {
-                  case Success(_)     => switch.shutdown()
-                  case Failure(cause) => switch.abort(cause)
-                })
-            )
-            .merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) })
+      Flow.fromMaterializer { case (mat, _) =>
+        val ((errorTap, switch), errors) =
+          MergeHub
+            .source[(E, CtxOut)](1)
+            .viaMat(KillSwitches.single)(Keep.both)
+            .toMat(BroadcastHub.sink[(E, CtxOut)])(Keep.both)
+            .run()(mat)
+        f(errorTap)
+          .map(Right.apply)
+          .asFlow
+          .alsoTo(
+            Flow[Any]
+              .to(Sink.onComplete {
+                case Success(_)     => switch.shutdown()
+                case Failure(cause) => switch.abort(cause)
+              })
+          )
+          .merge(errors.map { case (e, ctxOut) => (Left(e), ctxOut) })
       }
     FlowWithContext.fromTuples(flow)
   }

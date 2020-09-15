@@ -138,7 +138,7 @@ object TextShuffler {
     }
 
   def concat0[Ctx]: Step[(String, Seq[String]), TextShuffled, Ctx] =
-    Step[(String, Seq[String]), Ctx].map {
-      case (text, words) => TextShuffled(text, words.mkString(" "))
+    Step[(String, Seq[String]), Ctx].map { case (text, words) =>
+      TextShuffled(text, words.mkString(" "))
     }
 }

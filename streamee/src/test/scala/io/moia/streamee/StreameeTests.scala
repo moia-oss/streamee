@@ -59,8 +59,8 @@ final class StreameeTests
 
     "ingest into the process sink and emit its response" in {
       val processSink =
-        Sink.foreach[(String, Respondee[String])] {
-          case (s, r) => r ! Respondee.Response(s.toUpperCase)
+        Sink.foreach[(String, Respondee[String])] { case (s, r) =>
+          r ! Respondee.Response(s.toUpperCase)
         }
       Source
         .single("abc")
@@ -100,8 +100,8 @@ final class StreameeTests
 
     "ingest into the process sink and emit its response" in {
       val processSink =
-        Sink.foreach[(String, Respondee[String])] {
-          case (s, r) => r ! Respondee.Response(s.toUpperCase)
+        Sink.foreach[(String, Respondee[String])] { case (s, r) =>
+          r ! Respondee.Response(s.toUpperCase)
         }
       val flow = Flow[String].into(processSink, 1.second, 42)
       Source
@@ -143,8 +143,8 @@ final class StreameeTests
     "ingest into the process sink and emit its response" in {
       val (respondee, _) = Respondee.spawn[String](1.second)
       val processSink =
-        Sink.foreach[(String, Respondee[String])] {
-          case (s, r) => r ! Respondee.Response(s.toUpperCase)
+        Sink.foreach[(String, Respondee[String])] { case (s, r) =>
+          r ! Respondee.Response(s.toUpperCase)
         }
       SourceWithContext
         .fromTuples(Source.single(("abc", respondee)))
@@ -167,10 +167,9 @@ final class StreameeTests
         .single(("abc", NotUsed))
         .via(flow)
         .runWith(Sink.head)
-        .map {
-          case ((s, n), _) =>
-            s shouldBe "ABC"
-            n shouldBe 3
+        .map { case ((s, n), _) =>
+          s shouldBe "ABC"
+          n shouldBe 3
         }
     }
 
@@ -185,10 +184,9 @@ final class StreameeTests
         .single(("abc", NotUsed))
         .via(flow)
         .runWith(Sink.head)
-        .map {
-          case ((s, n), _) =>
-            s shouldBe "ABC"
-            n shouldBe 6
+        .map { case ((s, n), _) =>
+          s shouldBe "ABC"
+          n shouldBe 6
         }
     }
   }

@@ -87,10 +87,9 @@ final class FrontProcessorTests
       val response1 = processor.offer("abc")
       processor.shutdown()
       val response2 = processor.offer("def")
-      response1.zip(response2.failed).map {
-        case (s, e) =>
-          s shouldBe "abc"
-          e shouldBe FrontProcessor.ProcessorUnavailable("name")
+      response1.zip(response2.failed).map { case (s, e) =>
+        s shouldBe "abc"
+        e shouldBe FrontProcessor.ProcessorUnavailable("name")
       }
     }
   }

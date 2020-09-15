@@ -58,9 +58,8 @@ object FrontProcessor {
     * [[FrontProcessor.offer]] – to HTTP status 503.
     */
   implicit val processorUnavailableHandler: ExceptionHandler =
-    ExceptionHandler {
-      case ProcessorUnavailable(name) =>
-        complete(ServiceUnavailable -> s"Processor $name unavailable!")
+    ExceptionHandler { case ProcessorUnavailable(name) =>
+      complete(ServiceUnavailable -> s"Processor $name unavailable!")
     }
 
   /**
@@ -137,8 +136,8 @@ final class FrontProcessor[Req, Res] private (
     val (respondee, response) = Respondee.spawn[Res](timeout)
     queue
       .offer((request, respondee))
-      .recover {
-        case _: StreamDetachedException => Dropped
+      .recover { case _: StreamDetachedException =>
+        Dropped
       } // after shutdown fail with `ProcessorUnavailable`
       .flatMap {
         case Enqueued => response.future // might result in a `TimeoutException`

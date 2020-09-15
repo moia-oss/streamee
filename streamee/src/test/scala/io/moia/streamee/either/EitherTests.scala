@@ -62,10 +62,9 @@ final class EitherTests
         .via(flow)
         .runWith(Sink.seq)
         .zip(errors)
-        .map {
-          case (ns, errors) =>
-            ns.map(_._1) shouldBe List(1, 2)
-            errors.map(_._1) shouldBe List("a", "b")
+        .map { case (ns, errors) =>
+          ns.map(_._1) shouldBe List(1, 2)
+          errors.map(_._1) shouldBe List("a", "b")
         }
     }
   }
@@ -105,10 +104,9 @@ final class EitherTests
           result1 <- source.runWith(Sink.seq)
           result2 <- source.runWith(Sink.seq)
         } yield (result1, result2)
-      results.map {
-        case (result1, result2) =>
-          result1 should contain theSameElementsAs elements
-          result2 should contain theSameElementsAs elements
+      results.map { case (result1, result2) =>
+        result1 should contain theSameElementsAs elements
+        result2 should contain theSameElementsAs elements
       }
     }
 
@@ -128,10 +126,9 @@ final class EitherTests
       val result1 = source.runWith(Sink.seq)
       val result2 = source.runWith(Sink.seq)
       val results = result1.zip(result2)
-      results.map {
-        case (result1, result2) =>
-          result1 should contain theSameElementsAs elements
-          result2 should contain theSameElementsAs elements
+      results.map { case (result1, result2) =>
+        result1 should contain theSameElementsAs elements
+        result2 should contain theSameElementsAs elements
       }
     }
   }
