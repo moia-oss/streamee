@@ -68,7 +68,7 @@ lazy val library =
   new {
     object Version {
       val akka                    = "2.6.10"
-      val akkaManagement          = "1.0.8"
+      val akkaManagement          = "1.0.9"
       val akkaHttp                = "10.2.1"
       val akkaHttpJson            = "1.35.0"
       val akkaLog4j               = "1.6.1"
