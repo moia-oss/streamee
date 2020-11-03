@@ -18,8 +18,7 @@ package io.moia.streamee
 
 object Process {
 
-  /**
-    * Create an empty initial process [[Step]], i.e. one where the context is a [[Respondee]].
+  /** Create an empty initial process [[Step]], i.e. one where the context is a [[Respondee]].
     *
     * @tparam Req request type
     * @tparam Res response type

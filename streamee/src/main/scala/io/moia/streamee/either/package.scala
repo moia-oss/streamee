@@ -34,15 +34,13 @@ import scala.util.{ Failure, Success }
 
 package object either {
 
-  /**
-    * Extension methods for `FlowWithContext` with output of type `Either`.
+  /** Extension methods for `FlowWithContext` with output of type `Either`.
     */
   final implicit class EitherFlowWithContextOps[In, CtxIn, Out, CtxOut, Mat, E](
       val flowWithContext: FlowWithContext[In, CtxIn, Either[E, Out], CtxOut, Mat]
   ) extends AnyVal {
 
-    /**
-      * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
+    /** Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
       * and passing `Left` elements through.
       *
       * @param viaFlow FlowWithContext` to connect to this one
@@ -73,8 +71,7 @@ package object either {
       FlowWithContext.fromTuples(flow)
     }
 
-    /**
-      * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
+    /** Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
       * and passing `Left` elements through.
       *
       * @param viaFlow FlowWithContext` to connect to this one
@@ -104,8 +101,7 @@ package object either {
       FlowWithContext.fromTuples(flow)
     }
 
-    /**
-      * Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`
+    /** Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`
       * elements.
       *
       * @param errorTap `Sink` for errors
@@ -124,8 +120,7 @@ package object either {
         .collect { case Right(out) => out }
   }
 
-  /**
-    * Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
+  /** Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
     * extension method [[EitherFlowWithContextOps.errorTo]].
     *
     * @param f factory for a `FlowWithContext`

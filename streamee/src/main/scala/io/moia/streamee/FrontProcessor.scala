@@ -37,24 +37,21 @@ import scala.concurrent.duration.{ Duration, FiniteDuration }
 
 object FrontProcessor {
 
-  /**
-    * Signals that a request cannot be handled at this time.
+  /** Signals that a request cannot be handled at this time.
     *
     * @param name name of the processor
     */
   final case class ProcessorUnavailable(name: String)
       extends Exception(s"Processor $name cannot accept requests at this time!")
 
-  /**
-    * Signals an unexpected result of calling [[FrontProcessor.offer]].
+  /** Signals an unexpected result of calling [[FrontProcessor.offer]].
     *
     * @param cause the underlying erroneous `QueueOfferResult`, e.g. `Failure` or `QueueClosed`
     */
   final case class ProcessorError(cause: QueueOfferResult)
       extends Exception(s"QueueOfferResult $cause was not expected!")
 
-  /**
-    * Import this `ExceptionHandler` to map [[ProcessorUnavailable]]  – as result of calling
+  /** Import this `ExceptionHandler` to map [[ProcessorUnavailable]]  – as result of calling
     * [[FrontProcessor.offer]] – to HTTP status 503.
     */
   implicit val processorUnavailableHandler: ExceptionHandler =
@@ -62,8 +59,7 @@ object FrontProcessor {
       complete(ServiceUnavailable -> s"Processor $name unavailable!")
     }
 
-  /**
-    * Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
+  /** Create a [[FrontProcessor]]: run a `Source.queue` for pairs of request and [[Respondee]] via
     * the given `process` to a `Sink` responding to the [[Respondee]].
     *
     * When [[FrontProcessor.offer]] is called, the given request is emitted into the process. The
@@ -91,8 +87,7 @@ object FrontProcessor {
     new FrontProcessor(process, timeout, name, bufferSize, phase)
 }
 
-/**
-  * Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a `Sink`
+/** Run a `Source.queue` for pairs of request and [[Respondee]] via the given `process` to a `Sink`
   * responding to the [[Respondee]].
   */
 final class FrontProcessor[Req, Res] private (
@@ -124,8 +119,7 @@ final class FrontProcessor[Req, Res] private (
     whenDone
   }
 
-  /**
-    * Offer the given request to the process. The returned `Future` is either completed successfully
+  /** Offer the given request to the process. The returned `Future` is either completed successfully
     * with the response or failed with [[FrontProcessor.ProcessorUnavailable]], if the process
     * back-pressures or with [[ResponseTimeoutException]], if the response is not produced in time.
     *
@@ -146,8 +140,7 @@ final class FrontProcessor[Req, Res] private (
       }
   }
 
-  /**
-    * Shutdown this processor. Already accepted requests are completed, but no new ones are
+  /** Shutdown this processor. Already accepted requests are completed, but no new ones are
     * accepted. To watch shutdown completion use [[whenDone]].
     */
   def shutdown(): Unit = {
@@ -155,8 +148,7 @@ final class FrontProcessor[Req, Res] private (
     queue.complete()
   }
 
-  /**
-    * The returned `Future` is completed when the running process is completed, e.g. via
+  /** The returned `Future` is completed when the running process is completed, e.g. via
     * [[shutdown]] or unexpected failure.
     *
     * @return completion signal

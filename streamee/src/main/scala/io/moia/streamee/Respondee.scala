@@ -23,8 +23,7 @@ import akka.stream.Materializer
 import scala.concurrent.Promise
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 
-/**
-  * Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
+/** Actor completing the given `Promise` either successfully when receiving a [[Respondee.Response]]
   * or with a [[ResponseTimeoutException]]. Similar to an expiring `Promise`, but location
   * transparent.
   */
@@ -34,8 +33,7 @@ object Respondee {
   final case class Response[A] private (response: A) extends Command
   private final case object Timeout                  extends Command
 
-  /**
-    * Factory for `Respondee` behaviors.
+  /** Factory for `Respondee` behaviors.
     *
     * @param response promised response
     * @param timeout maximum duration for successful completion of the promised response; must be
@@ -63,8 +61,7 @@ object Respondee {
       .narrow
   }
 
-  /**
-    * Create a [[Respondee]] along with its promised response.
+  /** Create a [[Respondee]] along with its promised response.
     *
     * @param timeout maximum duration for successful completion of the promised response
     * @tparam A response type

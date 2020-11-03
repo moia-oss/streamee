@@ -20,8 +20,7 @@ import akka.stream.scaladsl.FlowWithContext
 
 object Step {
 
-  /**
-    * Create an empty initial [[Step]].
+  /** Create an empty initial [[Step]].
     *
     * @tparam In input type of the initial step
     * @tparam Ctx context type of the initial step

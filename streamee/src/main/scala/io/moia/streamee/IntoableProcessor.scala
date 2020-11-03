@@ -25,8 +25,7 @@ import scala.concurrent.Future
 
 object IntoableProcessor {
 
-  /**
-    * Create a [[FrontProcessor]]: run the given `process` such that it can be used with the `into`
+  /** Create a [[FrontProcessor]]: run the given `process` such that it can be used with the `into`
     * stream extension operator. Notice that shutting down might result in dropping (losing)
     * `bufferSize` number of requsts!
     *
@@ -49,8 +48,7 @@ object IntoableProcessor {
     new IntoableProcessor(process, name, bufferSize, phase)
 }
 
-/**
-  * Run the given `process` such that it can be used with the `into` stream extension operator.
+/** Run the given `process` such that it can be used with the `into` stream extension operator.
   * Notice that shutting down might result in dropping (losing) `bufferSize` number of requests!
   */
 final class IntoableProcessor[Req, Res] private (
@@ -79,14 +77,12 @@ final class IntoableProcessor[Req, Res] private (
     whenDone
   }
 
-  /**
-    * Sink to be used with the `into` stream extension method locally.
+  /** Sink to be used with the `into` stream extension method locally.
     */
   def sink: ProcessSink[Req, Res] =
     _sink
 
-  /**
-    * Create a `SinkRef` to be used with the `into` stream extension method remotely, i.e. when this
+  /** Create a `SinkRef` to be used with the `into` stream extension method remotely, i.e. when this
     * processor is running on one member node of an Akka cluster and on another member node `into`
     * is used.
     *
@@ -98,8 +94,7 @@ final class IntoableProcessor[Req, Res] private (
   )(implicit mat: Materializer): ProcessSinkRef[Req, Res] =
     StreamRefs.sinkRef().addAttributes(attributes).to(_sink).run()
 
-  /**
-    * Shutdown this processor. Already accepted requests are completed, but no new ones are
+  /** Shutdown this processor. Already accepted requests are completed, but no new ones are
     * accepted. To watch shutdown completion use [[whenDone]].
     */
   def shutdown(): Unit = {
@@ -107,8 +102,7 @@ final class IntoableProcessor[Req, Res] private (
     switch.shutdown()
   }
 
-  /**
-    * The returned `Future` is completed when the running process is completed, e.g. via
+  /** The returned `Future` is completed when the running process is completed, e.g. via
     * [[shutdown]] or unexpected failure.
     *
     * @return signal for completion
