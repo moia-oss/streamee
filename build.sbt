@@ -79,7 +79,7 @@ lazy val library =
       val scalaCheck              = "1.15.2"
       val scalaTest               = "3.2.4"
       val scalaTestPlusScalaCheck = "3.2.2.0"
-      val slf4j                   = "1.7.30"
+      val slf4j                   = "1.7.31"
     }
     val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
     val akkaManagementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
