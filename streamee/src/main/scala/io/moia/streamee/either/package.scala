@@ -45,9 +45,12 @@ package object either {
       * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
       * and passing `Left` elements through.
       *
-      * @param viaFlow FlowWithContext` to connect to this one
-      * @tparam Out2 output type of the given `FlowWithContext`
-      * @return `FlowWithContext` with output of type `Either`
+      * @param viaFlow
+      *   FlowWithContext` to connect to this one
+      * @tparam Out2
+      *   output type of the given `FlowWithContext`
+      * @return
+      *   `FlowWithContext` with output of type `Either`
       */
     @ApiMayChange
     def mapVia[Out2](
@@ -57,9 +60,9 @@ package object either {
         Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
           import GraphDSL.Implicits._
 
-          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
-          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
-          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
+          val bcast    = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
+          val merge    = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
+          val leftOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
           val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
           val mapRight  = FlowWithContext[Out2, CtxOut].map(Right(_))
 
@@ -77,9 +80,12 @@ package object either {
       * Connects this `FlowWithContext` with the given one, thereby only ingesting `Right` elements
       * and passing `Left` elements through.
       *
-      * @param viaFlow FlowWithContext` to connect to this one
-      * @tparam Out2 output type of the given `FlowWithContext`
-      * @return `FlowWithContext` with output of type `Either`
+      * @param viaFlow
+      *   FlowWithContext` to connect to this one
+      * @tparam Out2
+      *   output type of the given `FlowWithContext`
+      * @return
+      *   `FlowWithContext` with output of type `Either`
       */
     @ApiMayChange
     def flatMapVia[Out2](
@@ -89,9 +95,9 @@ package object either {
         Flow.fromGraph(GraphDSL.create(flowWithContext) { implicit builder => flowWithContext =>
           import GraphDSL.Implicits._
 
-          val bcast     = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
-          val merge     = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
-          val leftOnly  = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
+          val bcast    = builder.add(Broadcast[(Either[E, Out], CtxOut)](2, eagerCancel = true))
+          val merge    = builder.add(Merge[(Either[E, Out2], CtxOut)](2, eagerComplete = true))
+          val leftOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Left(e) => Left(e) }
           val rightOnly = FlowWithContext[Either[E, Out], CtxOut].collect { case Right(out) => out }
 
           // format: OFF
@@ -108,8 +114,10 @@ package object either {
       * Tap errors (contents of `Left` elements) into the given `Sink` and contents of `Right`
       * elements.
       *
-      * @param errorTap `Sink` for errors
-      * @return `FlowWithContext` collecting only contents of `Right` elements
+      * @param errorTap
+      *   `Sink` for errors
+      * @return
+      *   `FlowWithContext` collecting only contents of `Right` elements
       */
     @ApiMayChange
     def errorTo(errorTap: Sink[(E, CtxOut), Any]): FlowWithContext[In, CtxIn, Out, CtxOut, Mat] =
@@ -128,11 +136,16 @@ package object either {
     * Create a `FlowWithContext` by providing an error `Sink` such that it can be used with the
     * extension method [[EitherFlowWithContextOps.errorTo]].
     *
-    * @param f factory for a `FlowWithContext`
-    * @tparam In input type of the `FlowWithContext` to be created
-    * @tparam Out output type of the `FlowWithContext` to be created
-    * @tparam E error type (`Left`) of the `FlowWithContext` to be created
-    * @return `FlowWithContext` potentially using the provided error `Sink`
+    * @param f
+    *   factory for a `FlowWithContext`
+    * @tparam In
+    *   input type of the `FlowWithContext` to be created
+    * @tparam Out
+    *   output type of the `FlowWithContext` to be created
+    * @tparam E
+    *   error type (`Left`) of the `FlowWithContext` to be created
+    * @return
+    *   `FlowWithContext` potentially using the provided error `Sink`
     */
   @ApiMayChange
   def tapErrors[In, CtxIn, Out, CtxOut, Mat, E](
