@@ -30,15 +30,21 @@ object IntoableProcessor {
     * stream extension operator. Notice that shutting down might result in dropping (losing)
     * `bufferSize` number of requsts!
     *
-    * @param process top-level domain logic process from request to response
-    * @param name name, used for logging
-    * @param bufferSize optional size of the buffer of the used `MergeHub.source`; defaults to 1;
-    *                   must be positive!
-    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to ""service-stop"";
-    *              must be defined in configufation!
-    * @tparam Req request type
-    * @tparam Res response type
-    * @return [[IntoableProcessor]]
+    * @param process
+    *   top-level domain logic process from request to response
+    * @param name
+    *   name, used for logging
+    * @param bufferSize
+    *   optional size of the buffer of the used `MergeHub.source`; defaults to 1; must be positive!
+    * @param phase
+    *   identifier for a phase of `CoordinatedShutdown`; defaults to ""service-stop""; must be
+    *   defined in configufation!
+    * @tparam Req
+    *   request type
+    * @tparam Res
+    *   response type
+    * @return
+    *   [[IntoableProcessor]]
     */
   def apply[Req, Res](
       process: Process[Req, Res],
@@ -90,8 +96,10 @@ final class IntoableProcessor[Req, Res] private (
     * processor is running on one member node of an Akka cluster and on another member node `into`
     * is used.
     *
-    * @param attributes Stream attributes for creating the `SinkRef`, e.g. `StreamRefAttributes.bufferCapacity`
-    * @return `SinkRef` to be used with the `into` stream extension method remotely
+    * @param attributes
+    *   Stream attributes for creating the `SinkRef`, e.g. `StreamRefAttributes.bufferCapacity`
+    * @return
+    *   `SinkRef` to be used with the `into` stream extension method remotely
     */
   def sinkRef(
       attributes: Attributes = Attributes.none
@@ -111,7 +119,8 @@ final class IntoableProcessor[Req, Res] private (
     * The returned `Future` is completed when the running process is completed, e.g. via
     * [[shutdown]] or unexpected failure.
     *
-    * @return signal for completion
+    * @return
+    *   signal for completion
     */
   def whenDone: Future[Done] =
     done
