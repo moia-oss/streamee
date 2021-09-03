@@ -40,7 +40,8 @@ object FrontProcessor {
   /**
     * Signals that a request cannot be handled at this time.
     *
-    * @param name name of the processor
+    * @param name
+    *   name of the processor
     */
   final case class ProcessorUnavailable(name: String)
       extends Exception(s"Processor $name cannot accept requests at this time!")
@@ -48,13 +49,14 @@ object FrontProcessor {
   /**
     * Signals an unexpected result of calling [[FrontProcessor.offer]].
     *
-    * @param cause the underlying erroneous `QueueOfferResult`, e.g. `Failure` or `QueueClosed`
+    * @param cause
+    *   the underlying erroneous `QueueOfferResult`, e.g. `Failure` or `QueueClosed`
     */
   final case class ProcessorError(cause: QueueOfferResult)
       extends Exception(s"QueueOfferResult $cause was not expected!")
 
   /**
-    * Import this `ExceptionHandler` to map [[ProcessorUnavailable]]  – as result of calling
+    * Import this `ExceptionHandler` to map [[ProcessorUnavailable]] – as result of calling
     * [[FrontProcessor.offer]] – to HTTP status 503.
     */
   implicit val processorUnavailableHandler: ExceptionHandler =
@@ -70,16 +72,23 @@ object FrontProcessor {
     * returned `Future` is either completed successfully with the response or failed if the process
     * back-pressures or does not create the response in time.
     *
-    * @param process top-level domain logic process from request to response
-    * @param timeout maximum duration for the running process to respond; must be positive!
-    * @param name name, used for logging and exceptions
-    * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1; must
-    *                   be positive!
-    * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to
-    *              "service-requests-done"; must be defined in configuration!
-    * @tparam Req request type
-    * @tparam Res response type
-    * @return [[FrontProcessor]]
+    * @param process
+    *   top-level domain logic process from request to response
+    * @param timeout
+    *   maximum duration for the running process to respond; must be positive!
+    * @param name
+    *   name, used for logging and exceptions
+    * @param bufferSize
+    *   optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
+    * @param phase
+    *   identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must
+    *   be defined in configuration!
+    * @tparam Req
+    *   request type
+    * @tparam Res
+    *   response type
+    * @return
+    *   [[FrontProcessor]]
     */
   def apply[Req, Res](
       process: Process[Req, Res],
@@ -129,8 +138,10 @@ final class FrontProcessor[Req, Res] private (
     * with the response or failed with [[FrontProcessor.ProcessorUnavailable]], if the process
     * back-pressures or with [[ResponseTimeoutException]], if the response is not produced in time.
     *
-    * @param request request to be offered
-    * @return eventual response
+    * @param request
+    *   request to be offered
+    * @return
+    *   eventual response
     */
   def offer(request: Req): Future[Res] = {
     val (respondee, response) = Respondee.spawn[Res](timeout)
@@ -159,7 +170,8 @@ final class FrontProcessor[Req, Res] private (
     * The returned `Future` is completed when the running process is completed, e.g. via
     * [[shutdown]] or unexpected failure.
     *
-    * @return completion signal
+    * @return
+    *   completion signal
     */
   def whenDone: Future[Done] =
     done
