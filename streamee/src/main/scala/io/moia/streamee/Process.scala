@@ -21,9 +21,12 @@ object Process {
   /**
     * Create an empty initial process [[Step]], i.e. one where the context is a [[Respondee]].
     *
-    * @tparam Req request type
-    * @tparam Res response type
-    * @return empty initial process [[Step]]
+    * @tparam Req
+    *   request type
+    * @tparam Res
+    *   response type
+    * @return
+    *   empty initial process [[Step]]
     */
   def apply[Req, Res]: Step[Req, Req, Respondee[Res]] =
     Step[Req, Respondee[Res]]

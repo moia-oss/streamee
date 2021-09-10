@@ -17,7 +17,7 @@
 package io.moia.streamee.demo
 
 import akka.Done
-import akka.actor.{ CoordinatedShutdown, ActorSystem => ClassicSystem }
+import akka.actor.{ ActorSystem => ClassicSystem, CoordinatedShutdown }
 import akka.actor.CoordinatedShutdown.{ PhaseServiceUnbind, Reason }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes.{ BadRequest, InternalServerError, OK }
@@ -82,10 +82,10 @@ object Api {
       post {
         entity(as[ShuffleText]) { shuffleText =>
           onSuccess(textShufflerProcessor.offer(shuffleText)) {
-            case Left(Error.EmptyText)                 => complete(BadRequest -> "Empty text!")
-            case Left(Error.InvalidText)               => complete(BadRequest -> "Invalid text!")
-            case Left(Error.RandomError)               => complete(InternalServerError -> "Random error!")
-            case Left(Error.EmptyWordSeq)              => complete(InternalServerError -> "Words empty!")
+            case Left(Error.EmptyText)    => complete(BadRequest -> "Empty text!")
+            case Left(Error.InvalidText)  => complete(BadRequest -> "Invalid text!")
+            case Left(Error.RandomError)  => complete(InternalServerError -> "Random error!")
+            case Left(Error.EmptyWordSeq) => complete(InternalServerError -> "Words empty!")
             case Right(TextShuffled(original, result)) => complete(s"$original -> $result")
           }
         }
