@@ -23,9 +23,12 @@ object Step {
   /**
     * Create an empty initial [[Step]].
     *
-    * @tparam In input type of the initial step
-    * @tparam Ctx context type of the initial step
-    * @return empty initial [[Step]]
+    * @tparam In
+    *   input type of the initial step
+    * @tparam Ctx
+    *   context type of the initial step
+    * @return
+    *   empty initial [[Step]]
     */
   def apply[In, Ctx]: Step[In, In, Ctx] =
     FlowWithContext[In, Ctx]
