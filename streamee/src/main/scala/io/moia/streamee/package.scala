@@ -30,15 +30,15 @@ package object streamee {
     * [[Respondee]] for the response. Can be used locally or remotely because the propagated
     * [[Respondee]] is location transparent.
     *
-    * Use [[Process]] to create an empty initial process [[Step]], i.e. one where the context
-    * is a [[Respondee]].
+    * Use [[Process]] to create an empty initial process [[Step]], i.e. one where the context is a
+    * [[Respondee]].
     */
   type Process[-Req, Res] = Step[Req, Res, Respondee[Res]]
 
   /**
-    * A step within a [[Process]]. The context is not fixed to be a [[Respondee]], although in
-    * order to compose [[Step]]s into a [[Process]] a [[Respondee]] must at least be a part of
-    * the context.
+    * A step within a [[Process]]. The context is not fixed to be a [[Respondee]], although in order
+    * to compose [[Step]]s into a [[Process]] a [[Respondee]] must at least be a part of the
+    * context.
     *
     * Use [[Step]] to create an empty initial [[Step]].
     */
@@ -62,7 +62,8 @@ package object streamee {
   /**
     * Signals no response within the given timeout.
     *
-    * @param timeout maximum duration for the response
+    * @param timeout
+    *   maximum duration for the response
     */
   final case class ResponseTimeoutException(timeout: FiniteDuration)
       extends Exception(s"No response within $timeout!")
@@ -76,11 +77,16 @@ package object streamee {
       * Ingest into the given [[ProcessSink]] and emit its response or fail with
       * [[ResponseTimeoutException]], if the response is not produced in time.
       *
-      * @param processSink [[ProcessSink]] to emit into
-      * @param timeout maximum duration for the running process to respond; must be positive!
-      * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 output type of the given [[ProcessSink]]
-      * @return `Source` emitting responses of the given [[ProcessSink]]
+      * @param processSink
+      *   [[ProcessSink]] to emit into
+      * @param timeout
+      *   maximum duration for the running process to respond; must be positive!
+      * @param parallelism
+      *   maximum duration for the running process to respond; must be positive!
+      * @tparam Out2
+      *   output type of the given [[ProcessSink]]
+      * @return
+      *   `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
@@ -103,11 +109,16 @@ package object streamee {
       * Ingest into the given [[ProcessSink]] and emit its response or fail with
       * [[ResponseTimeoutException]], if the response is not produced in time.
       *
-      * @param processSink [[ProcessSink]] to emit into
-      * @param timeout maximum duration for the running process to respond; must be positive!
-      * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 output type of the given [[ProcessSink]]
-      * @return `Source` emitting responses of the given [[ProcessSink]]
+      * @param processSink
+      *   [[ProcessSink]] to emit into
+      * @param timeout
+      *   maximum duration for the running process to respond; must be positive!
+      * @param parallelism
+      *   maximum duration for the running process to respond; must be positive!
+      * @tparam Out2
+      *   output type of the given [[ProcessSink]]
+      * @return
+      *   `Source` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
@@ -132,11 +143,16 @@ package object streamee {
       * Ingest into the given [[ProcessSink]] and emit its response or fail with
       * [[ResponseTimeoutException]], if the response is not produced in time.
       *
-      * @param processSink [[ProcessSink]] to emit into
-      * @param timeout maximum duration for the running process to respond; must be positive!
-      * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @tparam Out2 output type of the given [[ProcessSink]]
-      * @return `FlowWithContext` emitting responses of the given [[ProcessSink]]
+      * @param processSink
+      *   [[ProcessSink]] to emit into
+      * @param timeout
+      *   maximum duration for the running process to respond; must be positive!
+      * @param parallelism
+      *   maximum duration for the running process to respond; must be positive!
+      * @tparam Out2
+      *   output type of the given [[ProcessSink]]
+      * @return
+      *   `FlowWithContext` emitting responses of the given [[ProcessSink]]
       */
     def into[Out2](
         processSink: ProcessSink[Out, Out2],
@@ -163,12 +179,17 @@ package object streamee {
       * Push the emitted element transformed by the given function `f` to the propagated context and
       * also transform the emitted element by the given function `g`.
       *
-      * @param f transform the emitted element before pushing to the context
-      * @param g transform the emitted element
-      * @tparam A target type of the transformation of the element pushed to the context
-      * @tparam B target type of the transformation of the element
-      * @return `FlowWithContext` propagating its transformed input elements along with the context
-      *         and emitting transformed input elements
+      * @param f
+      *   transform the emitted element before pushing to the context
+      * @param g
+      *   transform the emitted element
+      * @tparam A
+      *   target type of the transformation of the element pushed to the context
+      * @tparam B
+      *   target type of the transformation of the element
+      * @return
+      *   `FlowWithContext` propagating its transformed input elements along with the context and
+      *   emitting transformed input elements
       */
     def push[A, B](f: Out => A, g: Out => B): FlowWithContext[In, CtxIn, B, (A, CtxOut), Any] =
       flowWithContext.via(Flow.apply.map { case (out, ctxOut) => (g(out), (f(out), ctxOut)) })
@@ -192,8 +213,9 @@ package object streamee {
       * Pop a formerly pushed and potentially transformed element from the propagated context and
       * pair it up with the emitted element.
       *
-      * @return `FlowWithContext` propagating the former context only and emitting the propagated
-      *         transformed former input elements along with its actual input elements
+      * @return
+      *   `FlowWithContext` propagating the former context only and emitting the propagated
+      *   transformed former input elements along with its actual input elements
       */
     def pop: FlowWithContext[In, CtxIn, (A, Out), CtxOut, Mat] =
       flowWithContext.via(Flow.apply.map { case (out, (a, ctxOut)) => ((a, out), ctxOut) })
@@ -207,14 +229,19 @@ package object streamee {
     /**
       * Creates a canonical [[FrontProcessor]] from this [[ProcessSink]].
       *
-      * @param timeout maximum duration for the running process to respond; must be positive!
-      * @param parallelism maximum duration for the running process to respond; must be positive!
-      * @param name name, used for logging and exceptions
-      * @param bufferSize optional size of the buffer of the used `Source.queue`; defaults to 1;
-      *                   must be positive!
-      * @param phase identifier for a phase of `CoordinatedShutdown`; defaults to
-      *              "service-requests-done"; must be defined in configufation!
-      * @return [[FrontProcessor]]
+      * @param timeout
+      *   maximum duration for the running process to respond; must be positive!
+      * @param parallelism
+      *   maximum duration for the running process to respond; must be positive!
+      * @param name
+      *   name, used for logging and exceptions
+      * @param bufferSize
+      *   optional size of the buffer of the used `Source.queue`; defaults to 1; must be positive!
+      * @param phase
+      *   identifier for a phase of `CoordinatedShutdown`; defaults to "service-requests-done"; must
+      *   be defined in configufation!
+      * @return
+      *   [[FrontProcessor]]
       */
     def asFrontProcessor(
         timeout: FiniteDuration,
@@ -266,17 +293,22 @@ package object streamee {
     *
     * {{{
     * def length[Ctx]: Step[String, Int, Ctx] =
-    *  Step[String, Ctx].map(_.length)
+    *   Step[String, Ctx].map(_.length)
     *
     * val process: Process[String, (String, Int)] =
-    *  zipWithIn(lenght) // No need to give type args to length!
+    *   zipWithIn(lenght) // No need to give type args to length!
     * }}}
     *
-    * @param step [[Step]] to be wrapped
-    * @tparam In input type of the given [[Step]]
-    * @tparam Out output type of the given [[Step]]
-    * @tparam Ctx context type of the given [[Step]]
-    * @return [[Step]] emitting the input of the wrapped one together with its ouput (as a `Tuple2`)
+    * @param step
+    *   [[Step]] to be wrapped
+    * @tparam In
+    *   input type of the given [[Step]]
+    * @tparam Out
+    *   output type of the given [[Step]]
+    * @tparam Ctx
+    *   context type of the given [[Step]]
+    * @return
+    *   [[Step]] emitting the input of the wrapped one together with its ouput (as a `Tuple2`)
     */
   def zipWithIn[In, Out, Ctx](step: Step[In, Out, (In, Ctx)]): Step[In, (In, Out), Ctx] =
     Step[In, Ctx].push.via(step).pop
