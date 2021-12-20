@@ -10,7 +10,7 @@ lazy val `streamee-root` =
     .settings(
       Compile / unmanagedSourceDirectories := Seq.empty,
       Test / unmanagedSourceDirectories := Seq.empty,
-      publishArtifact := false,
+      publishArtifact := false
     )
 
 lazy val `streamee` =
@@ -29,7 +29,7 @@ lazy val `streamee` =
         library.log4jSlf4j              % Test,
         library.scalaCheck              % Test,
         library.scalaTest               % Test,
-        library.scalaTestPlusScalaCheck % Test,
+        library.scalaTestPlusScalaCheck % Test
       )
     )
 
@@ -51,13 +51,13 @@ lazy val `streamee-demo` =
         library.disruptor,
         library.log4jCore,
         library.log4jSlf4j,
-        library.pureConfig,
+        library.pureConfig
       ),
       publishArtifact := false,
       Docker / maintainer := organizationName.value,
       Docker / version := "latest",
       dockerBaseImage := "adoptopenjdk:8u232-b09-jdk-hotspot",
-      dockerExposedPorts := Seq(8080, 8558, 25520),
+      dockerExposedPorts := Seq(8080, 8558, 25520)
     )
 
 // *****************************************************************************
@@ -67,7 +67,7 @@ lazy val `streamee-demo` =
 lazy val library =
   new {
     object Version {
-      val akka                    = "2.6.13"
+      val akka                    = "2.6.18"
       val akkaManagement          = "1.0.9"
       val akkaHttp                = "10.2.4"
       val akkaHttpJson            = "1.35.3"
@@ -81,27 +81,31 @@ lazy val library =
       val scalaTestPlusScalaCheck = "3.2.2.0"
       val slf4j                   = "1.7.30"
     }
-    val akkaActorTestkitTyped          = "com.typesafe.akka"             %% "akka-actor-testkit-typed"          % Version.akka
-    val akkaManagementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
-    val akkaClusterShardingTyped       = "com.typesafe.akka"             %% "akka-cluster-sharding-typed"       % Version.akka
-    val akkaDiscovery                  = "com.typesafe.akka"             %% "akka-discovery"                    % Version.akka
-    val akkaDiscoveryK8s               = "com.lightbend.akka.discovery"  %% "akka-discovery-kubernetes-api"     % Version.akkaManagement
-    val akkaHttp                       = "com.typesafe.akka"             %% "akka-http"                         % Version.akkaHttp
-    val akkaHttpCirce                  = "de.heikoseeberger"             %% "akka-http-circe"                   % Version.akkaHttpJson
-    val akkaHttpSprayJson              = "com.typesafe.akka"             %% "akka-http-spray-json"              % Version.akkaHttp
-    val akkaHttpTestkit                = "com.typesafe.akka"             %% "akka-http-testkit"                 % Version.akkaHttp
-    val akkaSlf4j                      = "com.typesafe.akka"             %% "akka-slf4j"                        % Version.akka
-    val akkaStreamTestkit              = "com.typesafe.akka"             %% "akka-stream-testkit"               % Version.akka
-    val akkaStreamTyped                = "com.typesafe.akka"             %% "akka-stream-typed"                 % Version.akka
-    val circeGeneric                   = "io.circe"                      %% "circe-generic"                     % Version.circe
-    val disruptor                      = "com.lmax"                      %  "disruptor"                         % Version.disruptor
-    val log4jCore                      = "org.apache.logging.log4j"      %  "log4j-core"                        % Version.log4j
-    val log4jSlf4j                     = "org.apache.logging.log4j"      %  "log4j-slf4j-impl"                  % Version.log4j
-    val pureConfig                     = "com.github.pureconfig"         %% "pureconfig"                        % Version.pureConfig
-    val scalaCheck                     = "org.scalacheck"                %% "scalacheck"                        % Version.scalaCheck
-    val scalaTest                      = "org.scalatest"                 %% "scalatest"                         % Version.scalaTest
-    val scalaTestPlusScalaCheck        = "org.scalatestplus"             %% "scalacheck-1-14"                   % Version.scalaTestPlusScalaCheck
-    val slf4jApi                       = "org.slf4j"                     %  "slf4j-api"                         % Version.slf4j
+    val akkaActorTestkitTyped = "com.typesafe.akka" %% "akka-actor-testkit-typed" % Version.akka
+    val akkaManagementClusterBootstrap =
+      "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % Version.akkaManagement
+    val akkaClusterShardingTyped =
+      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % Version.akka
+    val akkaDiscovery = "com.typesafe.akka" %% "akka-discovery" % Version.akka
+    val akkaDiscoveryK8s =
+      "com.lightbend.akka.discovery" %% "akka-discovery-kubernetes-api" % Version.akkaManagement
+    val akkaHttp          = "com.typesafe.akka"       %% "akka-http"            % Version.akkaHttp
+    val akkaHttpCirce     = "de.heikoseeberger"       %% "akka-http-circe"      % Version.akkaHttpJson
+    val akkaHttpSprayJson = "com.typesafe.akka"       %% "akka-http-spray-json" % Version.akkaHttp
+    val akkaHttpTestkit   = "com.typesafe.akka"       %% "akka-http-testkit"    % Version.akkaHttp
+    val akkaSlf4j         = "com.typesafe.akka"       %% "akka-slf4j"           % Version.akka
+    val akkaStreamTestkit = "com.typesafe.akka"       %% "akka-stream-testkit"  % Version.akka
+    val akkaStreamTyped   = "com.typesafe.akka"       %% "akka-stream-typed"    % Version.akka
+    val circeGeneric      = "io.circe"                %% "circe-generic"        % Version.circe
+    val disruptor         = "com.lmax"                 % "disruptor"            % Version.disruptor
+    val log4jCore         = "org.apache.logging.log4j" % "log4j-core"           % Version.log4j
+    val log4jSlf4j        = "org.apache.logging.log4j" % "log4j-slf4j-impl"     % Version.log4j
+    val pureConfig        = "com.github.pureconfig"   %% "pureconfig"           % Version.pureConfig
+    val scalaCheck        = "org.scalacheck"          %% "scalacheck"           % Version.scalaCheck
+    val scalaTest         = "org.scalatest"           %% "scalatest"            % Version.scalaTest
+    val scalaTestPlusScalaCheck =
+      "org.scalatestplus" %% "scalacheck-1-14" % Version.scalaTestPlusScalaCheck
+    val slf4jApi = "org.slf4j" % "slf4j-api" % Version.slf4j
   }
 
 // *****************************************************************************
@@ -127,15 +131,16 @@ lazy val commonSettings =
       "-deprecation",
       "-language:_",
       "-target:jvm-1.8",
-      "-encoding", "UTF-8",
+      "-encoding",
+      "UTF-8"
     ),
     Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
-    Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
+    Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value)
   )
 
 lazy val scalafmtSettings =
   Seq(
-    scalafmtOnCompile := true,
+    scalafmtOnCompile := true
   )
 
 lazy val sonatypeSettings = {
@@ -144,7 +149,7 @@ lazy val sonatypeSettings = {
     publishTo := sonatypePublishToBundle.value,
     sonatypeProfileName := organization.value,
     publishMavenStyle := true,
-    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io")),
+    sonatypeProjectHosting := Some(GitHubHosting("moia-dev", "streamee", "support@moia.io"))
   )
 }
 
